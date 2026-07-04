@@ -1,0 +1,36 @@
+# Docker — don't send these to the build context
+.git/
+.gitignore
+.gitattributes
+
+# Research papers (not source code, large files)
+*.pdf
+*.html
+Role of projection in the control of bird flocks
+
+# Compressed archives
+sci.zip
+
+# Data output (generated at runtime, not part of the image)
+*.csv
+output/
+
+# Python artifacts (regenerated in the image)
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Octave/Scilab files (not needed in the Python Docker image)
+alg2.m
+alg2.sce
+
+# Docker files themselves
+Dockerfile
+docker-compose.yml
+.dockerignore
