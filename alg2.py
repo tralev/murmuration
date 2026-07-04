@@ -28,6 +28,7 @@
 import pygame
 import sys
 import math
+import os
 
 from flock_core import (
     WIDTH, HEIGHT, FPS, NUM_BOIDS, VISUAL_RANGE,
@@ -142,6 +143,7 @@ def main():
     log_fid = None
     if LOG_FILE is not None:
         try:
+            os.makedirs(os.path.dirname(LOG_FILE) or ".", exist_ok=True)
             log_fid = open(LOG_FILE, "w")
             log_fid.write(
                 "frame,mode,num_boids,phi_p,phi_a,phi_n,"

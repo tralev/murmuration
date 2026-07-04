@@ -18,15 +18,15 @@ services:
     build: .
     image: murmuration:latest
     container_name: murmuration
-    # Run headless — no GUI needed (students don't need a display)
-    command: >
-      xvfb-run -a python alg2.py
-    # Mount working directory so CSV metrics persist after container stops
+    # Run headless with dummy video driver (no xvfb needed — much faster)
+    command: python -u alg2.py
+    # Mount output subdirectory so CSV metrics persist after container stops
     volumes:
-      - ./output:/app
+      - ./output:/app/output
     environment:
       - SDL_VIDEODRIVER=dummy
       - SDL_AUDIODRIVER=dummy
+      - PYTHONUNBUFFERED=1
     # Run for 60 seconds (enough to collect ~360 frames of data)
     # Remove or increase for longer runs
     stop_grace_period: 5s
@@ -36,6 +36,10 @@ services:
     build: .
     image: murmuration:latest
     command: python -m unittest test_alg2 -v
+    environment:
+      - SDL_VIDEODRIVER=dummy
+      - SDL_AUDIODRIVER=dummy
+      - PYTHONUNBUFFERED=1
 
   # ── Interactive shell — run with:  docker compose run shell ────────
   shell:
@@ -44,5 +48,3 @@ services:
     command: /bin/bash
     stdin_open: true
     tty: true
-    environment:
-      - SDL_VIDEODRIVER=dummy

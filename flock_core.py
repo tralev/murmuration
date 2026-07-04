@@ -56,7 +56,7 @@ MODE_NAMES = {
 #  CSV logging
 # ══════════════════════════════════════════════════════════════════════
 
-LOG_FILE  = "murmuration_metrics.csv"   # set to None to disable CSV
+LOG_FILE  = "output/murmuration_metrics.csv"   # set to None to disable CSV
 LOG_EVERY = 10                          # write a row every N frames
 
 

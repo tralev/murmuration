@@ -145,7 +145,7 @@ NUM_BOIDS      = 150      # flock size (higher = slower)
 V0             = 4        # bird speed (higher = faster flock)
 VISUAL_RANGE   = 70       # neighbour search radius (spatial mode)
 FPS            = 60       # target frame rate
-LOG_FILE       = "murmuration_metrics.csv"   # set to None to disable CSV
+LOG_FILE       = "output/murmuration_metrics.csv"   # set to None to disable CSV
 LOG_EVERY      = 10       # write CSV every N frames
 ```
 
@@ -225,7 +225,7 @@ Changes take effect on the **next unpaused frame**.
 
 ## CSV Output
 
-When `LOG_FILE` is set (default: `murmuration_metrics.csv`), a row is written every `LOG_EVERY` frames:
+When `LOG_FILE` is set (default: `output/murmuration_metrics.csv`), a row is written every `LOG_EVERY` frames:
 
 ```csv
 frame,mode,num_boids,phi_p,phi_a,phi_n,sigma,theta,theta_ext,alpha,fps
@@ -249,7 +249,7 @@ The file is **flushed after every write** — data is safe even if the simulatio
 
 ### Disabling CSV logging
 
-Set `LOG_FILE = None` near the top of `alg2.py`. No file will be created and no disk I/O will occur.
+Set `LOG_FILE = None` near the top of `flock_core.py`. No file will be created and no disk I/O will occur.
 
 ### Loading CSV data
 
