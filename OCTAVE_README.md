@@ -1,0 +1,269 @@
+# Murmuration — GNU Octave Port
+
+A **GNU Octave** implementation of a dual-mode bird flock (murmuration) simulation implementing the **hybrid projection model** from Pearce et al. (2014) and the classic **topological Reynolds boids** algorithm, switchable at runtime with a single key press.
+
+---
+
+## Table of Contents
+
+- [Scientific Context](#scientific-context)
+- [The Two Flocking Modes](#the-two-flocking-modes)
+- [Octave Architecture](#octave-architecture)
+- [Runtime Controls](#runtime-controls)
+- [CSV Metrics Logging](#csv-metrics-logging)
+- [How to Run](#how-to-run)
+- [References](#references)
+
+---
+
+## Scientific Context
+
+### Why Birds Don't Track Every Neighbour
+
+A starling murmuration can contain over 300,000 individuals. It's unrealistic to expect each bird to identify and track the position and velocity of even a significant fraction of them. Two key empirical findings constrain how flocking models should work:
+
+1. **Topological, not metric, interactions** — Ballerini et al. (2008a, 2008b) reconstructed 3D positions of starlings in the field and found that each bird interacts with a **fixed number of neighbours (6–7)** regardless of their physical distance. A bird 50 metres from its 7th neighbour behaves the same as a bird 5 metres from its 7th neighbour. This is a *topological* interaction rule, not a *metric* one.
+
+2. **Projection, not tracking** — Pearce et al. (2014) proposed that the primary visual input to a bird in a large flock is not individual tracking but rather the **projection of the flock onto the retina**: a dynamic pattern of dark (bird) silhouettes against light (sky). This lower-dimensional projection provides global information about flock density and shape while being computationally manageable — both for the bird's brain and for mathematical modelling.
+
+### The Problem with Metric Models
+
+Classic Reynolds boids (the inspiration for **SPATIAL** mode) use three local rules — separation, alignment, cohesion — applied within a fixed radius. These models cannot explain how density is regulated in large flocks. As the number of birds grows, metric models either become fully opaque (every bird sees only other birds) or they require continuous re-tuning of parameters with flock size.
+
+### The Solution: Hybrid Projection Model
+
+Pearce et al. proposed that birds respond to the **boundaries between light and dark regions** in their visual field — the edges of bird silhouettes seen against the sky. The bird computes a single direction vector (δ̂) from these boundaries and combines it with alignment to visible neighbours and a noise term:
+
+```
+v(t+1)_i  =  φp · δ̂_i   +   φa · ⟨v̂_k⟩_vis   +   φn · η̂_i
+
+where:
+  δ̂_i   = normalised average direction to all light-dark domain boundaries
+  ⟨v̂_k⟩ = average velocity of the σ nearest *visible* neighbours
+  η̂_i   = uncorrelated random noise (unit vector)
+  φp + φa + φn = 1
+```
+
+Critically, the projection term δ̂_i **replaces** the classic separation and cohesion forces. This model naturally produces:
+
+- **Robust cohesion** — the flock never fragments, even with very weak projection coupling (φp > 0)
+- **Marginal opacity** — flocks self-organise to Θ ≈ 0.25–0.60, a state rich in visual information, matching field observations
+- **Fast dynamics** — the projection provides a global interaction channel, so information propagates at the speed of light, not neighbour-to-neighbour
+
+---
+
+## The Two Flocking Modes
+
+### MODE 0 — PROJECTION
+
+Implements Eq. 3 from Pearce et al. (2014). The projection direction δ̂ is computed by:
+
+1. **For every other bird *j* at distance *d***: compute the angular interval it subtends on the viewing circle. The centre angle is `atan2(y_j − y_i, x_j − x_i)`, the half-width is `arcsin(b/d)` where *b* is the bird's physical size.
+
+2. **Sort by distance** (closest first) and incrementally merge intervals. A bird *j* is **visible** if any part of its angular interval extends the already-merged (occluded) set — i.e., it is not completely hidden behind closer birds.
+
+3. **Extract domain boundaries**: the start and end of each merged dark region. These are the transition points between sky (light) and bird silhouettes (dark).
+
+4. **Compute δ̂**: the normalised average of unit vectors pointing to every domain boundary. A bird surrounded on all sides (opacity = 1) has no boundaries to steer toward and δ̂ = 0 — it must rely on alignment and noise alone.
+
+5. **Alignment**: average velocity of the σ nearest visible neighbours.
+
+### MODE 1 — SPATIAL
+
+A topological variant of Reynolds' classic boids with three modifications:
+
+- **Topological neighbourhood**: only the σ nearest neighbours within `VISUAL_RANGE` contribute (not all neighbours within range, as in the original). This follows Ballerini et al.'s finding that starlings use a fixed neighbour count.
+
+- **Separation**: steers away from neighbours closer than 30% of `VISUAL_RANGE`. The repulsion force is inversely proportional to distance.
+
+- **Full pairwise distance matrix**: computed in one vectorized operation (`repmat` broadcasts) for O(N²) memory but fast execution in Octave's BLAS-backed linear algebra.
+
+The weights φp, φa, and φn are repurposed as separation strength, alignment strength, and cohesion strength respectively — φn is auto-computed each frame as `1 − φp − φa` so the sum always equals 1.
+
+---
+
+## Octave Architecture
+
+### Data Representation: Parallel Matrices
+
+All bird state is stored in **N × 2 matrices** — there are no classes, structs, or cell arrays for per-bird data:
+
+| Matrix | Shape | Description |
+|--------|-------|-------------|
+| `pos` | N × 2 | Positions (x, y) |
+| `vel` | N × 2 | Velocities (vx, vy) |
+| `acc` | N × 2 | Accelerations (ax, ay) |
+| `last_theta` | N × 1 | Cached internal opacity per bird |
+
+Physics updates are fully vectorized — no per-bird loops for integration:
+
+```matlab
+vel = vel + acc;                          % Euler integration
+spd = sqrt(sum(vel.^2, 2));               % speeds (N×1)
+fast = find(spd > V0);                    % mask: too fast
+vel(fast,:) = vel(fast,:) ./ repmat(spd(fast), 1, 2) * V0;  % clamp
+pos = pos + vel;
+acc = acc * 0;
+pos(:,1) = mod(pos(:,1), WIDTH);          % toroidal wrap
+pos(:,2) = mod(pos(:,2), HEIGHT);
+```
+
+### Rendering: Single Patch Object
+
+Instead of drawing triangles one-by-one (prohibitively slow in Octave), all N birds are rendered in a **single `patch` call**. Triangle vertices are arranged as **3 × N matrices** — each column holds the three vertices of one bird's triangle:
+
+```matlab
+% Compute all triangle vertices in matrix form
+dirs = atan2(vel(:,2), vel(:,1));
+tip_x = pos(:,1)' + cos(dirs)' * tip_len;
+tip_y = pos(:,2)' + sin(dirs)' * tip_len;
+% ... left and right vertices similarly ...
+
+X = [tip_x; lft_x; rgt_x];   % 3 × N
+Y = [tip_y; lft_y; rgt_y];   % 3 × N
+
+% Update handles — no object creation/destruction per frame
+set(hBoids, 'XData', X, 'YData', Y, 'FaceColor', bird_color);
+```
+
+This is **extremely efficient** — only the vertex data is sent to the renderer each frame, no geometry reallocation occurs.
+
+### Text Overlays: Persistent Handles
+
+Text objects for metrics (FPS, φ values, Θ, Θ′, α) are created **once** before the main loop. Each frame, only their `.String` property is updated:
+
+```matlab
+% Creation (once):
+hTextFPS = text(10, 5, '', 'Color', [170 200 170]/255, 'FontSize', 12);
+
+% Update (each frame):
+set(hTextFPS, 'String', sprintf('FPS: %.0f    Boids: %d    Frame: %d', ...
+                                fps, NUM_BOIDS, frame));
+```
+
+This avoids the memory allocation and garbage collection cost of recreating text objects 10–30 times per second.
+
+### Keyboard Interaction: KeyPressFcn
+
+Octave's figure `KeyPressFcn` property provides non-blocking keyboard callbacks. The handler receives an `event` struct whose `.Key` field gives the key name as a string:
+
+```matlab
+set(f, 'KeyPressFcn', @key_handler);
+
+function key_handler(src, event)
+    global MODE paused PHI_P PHI_A SIGMA ...
+    switch event.Key
+        case 'uparrow'
+            PHI_P = min(1.0, PHI_P + 0.01);
+        case 'leftbracket'
+            SIGMA = max(1, SIGMA - 1);
+        % ... etc ...
+    end
+end
+```
+
+Key names are platform-independent (`'uparrow'`, `'leftbracket'`, `'add'`, `'subtract'`) — no ASCII code tables needed. Events are processed during `pause(0.001)` which yields the CPU and drains the event queue.
+
+### Help Overlay: Single Text with Background
+
+Rather than combining a separate rectangle and multiple text objects, the help panel uses a **single `text` object** with a 4-element `BackgroundColor` (RGBA) for alpha-blended transparency:
+
+```matlab
+hHelp = text(x, y, help_str, ...
+             'BackgroundColor', [0 0 0 0.8], ...   % black, 80% opacity
+             'Color', [0.8 0.8 0.6], ...
+             'EdgeColor', [0.3 0.3 0.3], ...
+             'VerticalAlignment', 'top', ...
+             'Visible', 'off');
+```
+
+Toggling visibility is a single `set` call — no geometry to manage.
+
+### State Changes: Pending Flags
+
+Keyboard callbacks run asynchronously and **cannot safely modify** the simulation state matrices (pos, vel, acc) from a different call stack. Instead, callbacks set **pending flags** that the main loop applies atomically at the start of each frame:
+
+```matlab
+% Callback (async):
+pending_add    = pending_add + 10;      % request more birds
+pending_reset  = true;                   % request flock reset
+
+% Main loop (sync, at frame start):
+if pending_add > 0
+    pos = [pos; new_pos];               % atomically append
+    vel = [vel; new_vel];
+    NUM_BOIDS = NUM_BOIDS + n_add;
+    pending_add = 0;
+end
+```
+
+This pattern is used for boid count changes (`+`/`-`), flock reset (`r`), and mode toggling.
+
+---
+
+## Runtime Controls
+
+| Key | Action |
+|-----|--------|
+| `m` | Toggle **PROJECTION** ↔ **SPATIAL** mode |
+| `↑` / `↓` | φp ±0.01 (projection weight in mode 0, separation in mode 1) |
+| `←` / `→` | φa ±0.01 (alignment weight) |
+| `[` / `]` | σ ±1 (nearest-neighbour count) |
+| `+` / `-` | Add / remove 10 birds (capped at 200 pending adds) |
+| `p` | Pause / resume |
+| `r` | Reset flock — randomise all positions, zero all metrics |
+| `h` | Toggle help overlay |
+| Close window | Exit simulation (CSV file is flushed and closed) |
+
+φn is **auto-computed** each frame as `max(0, 1 − φp − φa)`, guaranteeing that the three weights always sum to 1. All parameter changes take effect on the very next frame — no restart needed.
+
+---
+
+## CSV Metrics Logging
+
+Every `LOG_EVERY` frames (default: 10), a row is appended to `murmuration_metrics.csv` in the current working directory:
+
+```
+frame,mode,num_boids,phi_p,phi_a,phi_n,sigma,theta,theta_ext,alpha,fps
+0,0,100,0.0300,0.8000,0.1700,4,0.0123,0.0008,0.0341,12.3
+10,0,100,0.0300,0.8000,0.1700,4,0.0234,0.0012,0.0892,14.1
+20,1,100,0.0300,0.8000,0.1700,4,0.0156,0.0010,0.0523,18.7
+...
+```
+
+Columns:
+- `mode`: 0 = PROJECTION, 1 = SPATIAL
+- `theta` (Θ): internal opacity — exact in PROJECTION mode, sampled (5 birds) in SPATIAL mode
+- `theta_ext` (Θ′): external opacity from a distant observer placed far to the left
+- `alpha` (α): order parameter — `|Σ vᵢ| / (N · v₀)`, 0 = chaotic, 1 = perfectly aligned
+
+The CSV can be loaded into Octave, MATLAB, Python, or any spreadsheet:
+
+```matlab
+% In Octave, after simulation:
+data = csvread('murmuration_metrics.csv', 1, 0);  % skip header row
+plot(data(:,1), data(:,8));  % frame vs theta
+xlabel('Frame'); ylabel('\Theta');
+```
+
+---
+
+## How to Run
+
+```bash
+octave alg2.m
+```
+
+Requirements: GNU Octave 4.0 or later (for `randperm(N, K)` two-argument form and 4-element `BackgroundColor` alpha support).
+
+---
+
+## References
+
+1. **Pearce, D. J. G., Miller, A. M., Rowlands, G., & Turner, M. S.** (2014). *"Role of projection in the control of bird flocks."* Proceedings of the National Academy of Sciences, 111(29), 10422–10426. [DOI: 10.1073/pnas.1402202111](https://doi.org/10.1073/pnas.1402202111)
+
+2. **Reynolds, C. W.** (1987). *"Flocks, Herds, and Schools: A Distributed Behavioral Model."* ACM SIGGRAPH Computer Graphics, 21(4), 25–34. [DOI: 10.1145/37402.37406](https://doi.org/10.1145/37402.37406)
+
+3. **Ballerini, M., et al.** (2008a). *"Interaction ruling animal collective behavior depends on topological rather than metric distance: Evidence from a field study."* PNAS, 105(4), 1232–1237. [DOI: 10.1073/pnas.0711437105](https://doi.org/10.1073/pnas.0711437105)
+
+4. **Ballerini, M., et al.** (2008b). *"Empirical investigation of starling flocks: A benchmark study in collective animal behavior."* Animal Behaviour, 76, 201–215. [DOI: 10.1016/j.anbehav.2008.02.004](https://doi.org/10.1016/j.anbehav.2008.02.004)

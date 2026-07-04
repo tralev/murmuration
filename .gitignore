@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Data / output
+*.csv
+
+# Research papers (not source code)
+*.pdf
+*.html
+Role of projection in the control of bird flocks
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
