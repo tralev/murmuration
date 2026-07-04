@@ -16,11 +16,6 @@ cd "$(dirname "$0")"
 
 # ── Choose what to run ───────────────────────────────────────────────
 MODE="${1:-full}"
-case "$MODE" in
-    simple)  SCRIPT="alg_simple.py"; ARGS=() ;;
-    tests)   SCRIPT="-m"; ARGS=("unittest" "test_alg2" "-v") ;;
-    full|*)  SCRIPT="alg2.py"; ARGS=() ;;
-esac
 
 # ── Set up virtual environment (if not already active) ───────────────
 if [ -z "${VIRTUAL_ENV:-}" ]; then
@@ -43,15 +38,28 @@ mkdir -p output
 
 # ── Run ───────────────────────────────────────────────────────────────
 echo ""
-if [ "$MODE" = "tests" ]; then
-    echo "═══════════════════════════════════════════════════════════"
-    echo "  Running unit tests..."
-    echo "═══════════════════════════════════════════════════════════"        python3 "$SCRIPT" "${ARGS[@]}"
-else
-    echo "═══════════════════════════════════════════════════════════"
-    echo "  Murmuration — Bird Flock Simulation"
-    echo "  Press M to switch modes, H for help, ESC to quit"
-    echo "  CSV metrics → output/murmuration_metrics.csv"
-    echo "═══════════════════════════════════════════════════════════"
-    echo ""        python3 "$SCRIPT"
-fi
+case "$MODE" in
+    tests)
+        echo "═══════════════════════════════════════════════════════════"
+        echo "  Running unit tests..."
+        echo "═══════════════════════════════════════════════════════════"
+        python3 -m unittest test_alg2 -v
+        ;;
+    simple)
+        echo "═══════════════════════════════════════════════════════════"
+        echo "  Simple Boids — minimal version for learning"
+        echo "  Press ESC to quit"
+        echo "═══════════════════════════════════════════════════════════"
+        echo ""
+        python3 alg_simple.py
+        ;;
+    *)
+        echo "═══════════════════════════════════════════════════════════"
+        echo "  Murmuration — Bird Flock Simulation"
+        echo "  Press M to switch modes, H for help, ESC to quit"
+        echo "  CSV metrics → output/murmuration_metrics.csv"
+        echo "═══════════════════════════════════════════════════════════"
+        echo ""
+        python3 alg2.py
+        ;;
+esac
