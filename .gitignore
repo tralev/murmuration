@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 venv/
+SESSION_NOTES.md
 
 # Data / output
 *.csv
