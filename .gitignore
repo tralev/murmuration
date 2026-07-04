@@ -5,6 +5,7 @@ __pycache__/
 
 # Data / output
 *.csv
+output/
 
 # Research papers (not source code)
 *.pdf

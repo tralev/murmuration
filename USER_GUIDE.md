@@ -98,17 +98,47 @@ Should print something like `pygame 2.6.1`.
 
 ## Running the Simulation
 
+### Python (Recommended)
+
 ```bash
 python alg2.py
 ```
 
 A window opens (1000 × 700 pixels) showing a flock of 150 birds in projection mode.
 
-### Command-line options
+### GNU Octave
+
+```bash
+octave alg2.m
+```
+
+**Requirements:** GNU Octave 4.0 or later. A figure window opens — close it to stop the simulation.
+
+Performance in Octave is lower than Python due to interpreted linear algebra in the projection-mode loop. Expect ~10–20 FPS at N=100. Reduce `NUM_BOIDS` at the top of `alg2.m` if the simulation is too slow.
+
+### Scilab
+
+From the Scilab console:
+
+```scilab
+exec("alg2.sce");
+```
+
+Or from the command line:
+
+```bash
+scilab -f alg2.sce
+```
+
+**Requirements:** Scilab 6.0 or later. No additional toolboxes needed.
+
+Scilab's event loop requires `sleep(1)` (1 ms) before `drawnow()` to process keyboard input. If keyboard controls feel unresponsive, increase the sleep duration slightly near line 615 of `alg2.sce`.
+
+### Command-line options (Python)
 
 There are no command-line flags. All configuration is done by editing the constants at the top of `alg2.py` or via keyboard controls at runtime.
 
-### Quick configuration changes (edit `alg2.py`, lines ~60–75)
+### Quick configuration changes (Python — edit `alg2.py`, lines ~60–75)
 
 ```python
 NUM_BOIDS      = 150      # flock size (higher = slower)
@@ -119,7 +149,7 @@ LOG_FILE       = "murmuration_metrics.csv"   # set to None to disable CSV
 LOG_EVERY      = 10       # write CSV every N frames
 ```
 
-### Running on a headless server
+### Running on a headless server (Python)
 
 Use `xvfb-run` (Linux) to create a virtual display:
 
@@ -129,7 +159,7 @@ xvfb-run -a python alg2.py
 
 The simulation will run without a visible window. Useful for batch data collection or automated testing.
 
-### Running unit tests
+### Running unit tests (Python)
 
 ```bash
 python3 -m unittest test_alg2 -v
@@ -276,7 +306,9 @@ NUM_BOIDS      = 200     # your preferred flock size
 
 ## Troubleshooting
 
-### "No module named 'pygame'"
+### Python
+
+#### "No module named 'pygame'"
 
 ```bash
 pip install pygame
@@ -284,18 +316,18 @@ pip install pygame
 
 If you're using a virtual environment, make sure it's activated first.
 
-### "pygame.error: video system not initialized"
+#### "pygame.error: video system not initialized"
 
 You're running without a display. On Linux, use `xvfb-run -a python alg2.py`. On macOS/Windows, a graphical session is required.
 
-### Simulation runs slowly (< 20 FPS)
+#### Simulation runs slowly (< 20 FPS)
 
 - Reduce `NUM_BOIDS` to 100 or less
 - Disable CSV logging (`LOG_FILE = None`)
 - Close other applications
 - Switch to SPATIAL mode (press `M`) — it's O(N) vs O(N² log N) for projection mode
 
-### "ModuleNotFoundError: No module named 'alg2'" when running tests
+#### "ModuleNotFoundError: No module named 'alg2'" when running tests
 
 Run tests from the project root directory:
 
@@ -304,11 +336,11 @@ cd /path/to/murmuration
 python3 -m unittest test_alg2 -v
 ```
 
-### Flock disperses or fragments
+#### Flock disperses or fragments
 
 Increase φp slightly (press `↑`). If φp = 0, the projection term has no effect and the flock cannot maintain cohesion.
 
-### Window won't open on macOS
+#### Window won't open on macOS
 
 Pygame on macOS requires a framework build of Python. If you installed Python via Homebrew, you should be fine. If using the system Python, try:
 
@@ -316,9 +348,48 @@ Pygame on macOS requires a framework build of Python. If you installed Python vi
 python3 -m pip install --upgrade pygame
 ```
 
-### CSV file grows very large
+#### CSV file grows very large
 
 Reduce `LOG_EVERY` to 100 or 1000, or set `LOG_FILE = None` to disable logging entirely.
+
+### GNU Octave
+
+#### "error: 'randperm' undefined"
+
+You're using Octave < 4.0. Upgrade to Octave 4.0 or later.
+
+#### Simulation is very slow (< 5 FPS)
+
+- Reduce `NUM_BOIDS` at the top of `alg2.m` (line ~30)
+- Disable CSV logging by setting `LOG_FILE = ''`
+- The projection mode loop is O(N² log N) and cannot be fully vectorized — this is the bottleneck
+- Switch to SPATIAL mode (press `m`) for significantly better performance
+
+#### Figure window is unresponsive
+
+Octave's event loop processes key presses during `pause(0.001)`. If keys don't register, try increasing the pause duration near the end of the main loop in `alg2.m`.
+
+#### "error: 'BackgroundColor' undefined"
+
+You're using Octave < 4.4. The help overlay uses 4-element RGBA `BackgroundColor`. Upgrade Octave or comment out the help overlay creation.
+
+### Scilab
+
+#### "Undefined variable: repmat" or "Undefined variable: gsort"
+
+These are standard Scilab functions available in version 5.4+. Ensure you're using Scilab 6.0 or later.
+
+#### Keyboard controls don't respond
+
+Scilab's event handler is asynchronous and requires `sleep(1)` before `drawnow()` to yield the event loop. If keys don't register consistently, increase the sleep duration near line 615 of `alg2.sce` (try `sleep(5)` or `sleep(10)`).
+
+#### Figure window opens blank
+
+Some Scilab configurations require `drawnow()` to be called before the main loop. Check that `drawlater()` and `drawnow()` are paired correctly. Try running `drawnow()` once before entering the main `while running` loop.
+
+#### Simulation crashes with "invalid index"
+
+This can happen when removing birds brings `NUM_BOIDS` to 0. The code prevents this (leaves at least 1 bird), but if you modified the logic, check that `NUM_BOIDS > 0` before any matrix operation.
 
 ---
 

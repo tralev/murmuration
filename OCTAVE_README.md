@@ -1,5 +1,8 @@
 # Murmuration — GNU Octave Port
 
+> **Repository:** [https://github.com/tralev/murmuration](https://github.com/tralev/murmuration)  
+> **Licence:** GNU General Public License v3.0 — see [LICENSE](LICENSE)
+
 A **GNU Octave** implementation of a dual-mode bird flock (murmuration) simulation implementing the **hybrid projection model** from Pearce et al. (2014) and the classic **topological Reynolds boids** algorithm, switchable at runtime with a single key press.
 
 ---
@@ -237,7 +240,7 @@ Columns:
 - `theta_ext` (Θ′): external opacity from a distant observer placed far to the left
 - `alpha` (α): order parameter — `|Σ vᵢ| / (N · v₀)`, 0 = chaotic, 1 = perfectly aligned
 
-The CSV can be loaded into Octave, MATLAB, Python, or any spreadsheet:
+The CSV can be loaded into Octave, MATLAB, or any spreadsheet:
 
 ```matlab
 % In Octave, after simulation:
@@ -254,9 +257,9 @@ xlabel('Frame'); ylabel('\Theta');
 octave alg2.m
 ```
 
-Requirements: GNU Octave 4.0 or later (for `randperm(N, K)` two-argument form and 4-element `BackgroundColor` alpha support).
+Requirements: GNU Octave 4.0 or later (for `randperm(N, K)` two-argument form and 4-element `BackgroundColor` alpha support).---
 
----## References
+## References
 
 1. **Pearce, D. J. G., Miller, A. M., Rowlands, G., & Turner, M. S.** (2014). *"Role of projection in the control of bird flocks."* Proceedings of the National Academy of Sciences, 111(29), 10422–10426. [DOI: 10.1073/pnas.1402202111](https://doi.org/10.1073/pnas.1402202111)
 
@@ -272,9 +275,38 @@ Requirements: GNU Octave 4.0 or later (for `randperm(N, K)` two-argument form an
 
 ---
 
+## Code Section Reference
+
+Every numbered section in `alg2.m` maps to a specific line range. The section numbers are consistent with the project's unified structure, making it easy to locate the same algorithm across all implementations:
+
+| Section | Content | `alg2.m` lines |
+|---------|---------|---------------|
+| 1 | Header & overview | 1–35 |
+| 2 | Configuration constants | 37–70 |
+| 2b | CSV logging setup | 95–107 |
+| 2c | Figure & graphics setup | 109–130 |
+| 3 | Runtime state initialization | 72–93 |
+| 4 | Angular-interval utilities | 185–220 |
+| 5 | Projection model (MODE 0) | 222–365 |
+| 6 | Spatial model (MODE 1) | 390–470 |
+| 7 | External opacity Θ′ | 367–430 |
+| 8 | Metrics computation | 475–510 |
+| 9 | Physics update | 512–540 |
+| 9a | Auto-compute φn | 340–345 |
+| 9b | Reset logic | 400–420 |
+| 9c | Boid count changes | 348–398 |
+| 10 | Help overlay | 132–160 |
+| 11 | Input handling (keyboard callback) | 162–218 |
+| 12 | Main simulation loop | 432–650 |
+| 13 | Shutdown (close CSV, cleanup) | 652–660 |
+
+Section 9d (grid rebuild) is not present — Octave uses a fully vectorized O(N²) pairwise distance matrix instead of a spatial hash grid.
+
+---
+
 ## Paper-to-Code Implementation Audit
 
-Three papers were cross-referenced against the codebase (July 2026). For the full audit with detailed notes, see [README.md](README.md#paper-to-code-implementation-audit).
+Three papers were cross-referenced against the codebase (July 2026).
 
 ### Pearce et al. (2014) — Primary Reference
 
@@ -319,7 +351,7 @@ Three papers were cross-referenced against the codebase (July 2026). For the ful
 
 ## Implementation Roadmap
 
-For a detailed roadmap with formulas and implementation guidance, see [README.md](README.md#implementation-roadmap--future-work). Summary:
+Summary of planned extensions:
 
 ### Priority 1 — Fidelity to Pearce (2014)
 

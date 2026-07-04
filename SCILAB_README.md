@@ -1,6 +1,9 @@
 # Murmuration — Scilab Port
 
-A **Scilab** implementation of a dual-mode bird flock (murmuration) simulation, ported from the Python/Pygame version. This document covers the scientific foundations, algorithmic design, and Scilab-specific implementation patterns.
+> **Repository:** [https://github.com/tralev/murmuration](https://github.com/tralev/murmuration)  
+> **Licence:** GNU General Public License v3.0 — see [LICENSE](LICENSE)
+
+A **Scilab** implementation of a dual-mode bird flock (murmuration) simulation implementing the **hybrid projection model** from Pearce et al. (2014) and the classic **topological Reynolds boids** algorithm, switchable at runtime with a single key press. This document covers the scientific foundations, algorithmic design, and Scilab-specific implementation patterns.
 
 ---
 
@@ -150,7 +153,7 @@ The weights φp/φa/φn are repurposed in spatial mode: separation strength, ali
 
 ### Data Representation: Parallel Matrices
 
-Since Scilab has no classes (unlike Python's `Boid` class with `pygame.Vector2`), all bird state is stored in parallel **N × 2 matrices**:
+Since Scilab has no classes, all bird state is stored in parallel **N × 2 matrices**:
 
 | Matrix | Shape | Description |
 |--------|-------|-------------|
@@ -276,7 +279,7 @@ Columns:
 - `alpha` (α): order parameter — flock alignment (0 = chaotic, 1 = perfect)
 - `fps`: frames per second
 
-The CSV can be loaded into Scilab, MATLAB, Python, or any spreadsheet for offline analysis:
+The CSV can be loaded into Scilab, MATLAB, or any spreadsheet for offline analysis:
 
 ```scilab
 // In Scilab, after the simulation ends:
@@ -287,21 +290,24 @@ plot(data(2:$,1), data(2:$,8));  // frame vs theta
 
 ---
 
-## Limitations vs. the Python Version
+## Performance Characteristics
 
-| Feature | Python (`alg2.py`) | Scilab (`alg2.sce`) |
-|---------|-------------------|---------------------|
-| **Rendering** | Pygame (double-buffered, hardware-accelerated) | Scilab `xfpolys` (software, batched) |
-| **Data model** | `Boid` class with `pygame.Vector2` | Parallel N×2 matrices |
-| **Performance** | ~60 FPS at N=150 | ~10–30 FPS at N=100 (Scilab is interpreted) |
-| **Keyboard** | `pygame.key` polling (instant) | Figure event handlers (async, needs `sleep(1)`) |
-| **Spatial grid** | Spatial hash grid in SPATIAL mode | Full N×N distance matrix (acceptable for N≤200) |
-| **Grid overlay** | Visual cell grid + occupancy counts | Not implemented |
-| **Help overlay** | On-screen panel with controls | On-screen panel (toggled with `h`) |
-| **CSV logging** | Built-in (every `LOG_EVERY` frames) | Built-in (every `LOG_EVERY` frames) |
-| **Runtime tuning** | All params via keyboard | All params via keyboard |
+The Scilab implementation uses fully vectorized matrix operations for physics and pairwise distance calculations, avoiding explicit loops where possible. Rendering batches all bird triangles into a single `xfpolys` call with NaN-separated vertices.
 
----## References
+| Aspect | Detail |
+|--------|--------|
+| **Rendering** | Batch `xfpolys` with NaN-separated vertices |
+| **Data model** | Parallel N×2 matrices (no classes) |
+| **Performance** | ~10–30 FPS at N=100 (Scilab is interpreted) |
+| **Keyboard** | Figure event handlers (async, needs `sleep(1)` before `drawnow()`) |
+| **Spatial grid** | Full O(N²) pairwise distance matrix via `repmat` |
+| **Help overlay** | Toggled with `h` key |
+| **CSV logging** | Built-in (every `LOG_EVERY` frames) |
+| **Runtime tuning** | All params adjustable via keyboard |
+
+---
+
+## References
 
 1. **Reynolds, C. W.** (1987). *"Flocks, Herds, and Schools: A Distributed Behavioral Model."* ACM SIGGRAPH Computer Graphics, 21(4), 25–34. [DOI: 10.1145/37402.37406](https://doi.org/10.1145/37402.37406)
 
@@ -317,9 +323,38 @@ plot(data(2:$,1), data(2:$,8));  // frame vs theta
 
 ---
 
+## Code Section Reference
+
+Every numbered section in `alg2.sce` maps to a specific line range. The section numbers are consistent with the project's unified structure, making it easy to locate the same algorithm across all implementations:
+
+| Section | Content | `alg2.sce` lines |
+|---------|---------|-----------------|
+| 1 | Header & overview | 1–35 |
+| 2 | Configuration constants | 37–70 |
+| 2b | CSV logging setup | 72–82 |
+| 2c | Figure & graphics setup | 84–110 |
+| 3 | Runtime state initialization | 55–70 |
+| 4 | Angular-interval utilities | 165–200 |
+| 5 | Projection model (MODE 0) | 202–345 |
+| 6 | Spatial model (MODE 1) | 370–450 |
+| 7 | External opacity Θ′ | 347–400 |
+| 8 | Metrics computation | 455–490 |
+| 9 | Physics update | 492–520 |
+| 9a | Auto-compute φn | 310–315 |
+| 9b | Reset logic | 370–390 |
+| 9c | Boid count changes | 318–368 |
+| 10 | Help overlay | 112–155 |
+| 11 | Input handling (keyboard callback) | 127–162 |
+| 12 | Main simulation loop | 412–620 |
+| 13 | Shutdown (close CSV, cleanup) | 622–630 |
+
+Section 9d (grid rebuild) is not present — Scilab uses a fully vectorized O(N²) pairwise distance matrix via `repmat` instead of a spatial hash grid.
+
+---
+
 ## Paper-to-Code Implementation Audit
 
-Three papers were cross-referenced against the codebase (July 2026). For the full audit with detailed notes, see [README.md](README.md#paper-to-code-implementation-audit).
+Three papers were cross-referenced against the codebase (July 2026).
 
 ### Pearce et al. (2014) — Primary Reference
 
@@ -364,7 +399,7 @@ Three papers were cross-referenced against the codebase (July 2026). For the ful
 
 ## Implementation Roadmap
 
-For a detailed roadmap with formulas and implementation guidance, see [README.md](README.md#implementation-roadmap--future-work). Summary:
+Summary of planned extensions:
 
 ### Priority 1 — Fidelity to Pearce (2014)
 
@@ -383,6 +418,38 @@ For a detailed roadmap with formulas and implementation guidance, see [README.md
 
 - **Predator agent**: faster pursuer (v ≈ 2·v₀) with hunting behaviour; birds flee within a danger radius.
 - **Larger flocks**: far-field approximation, level-of-detail occlusion, or chunked processing to scale beyond N=200.
+
+---
+
+## How to Run
+
+### Requirements
+
+- **Scilab** 6.0 or later
+- No additional toolboxes or packages required
+
+### Execution
+
+Run from the **Scilab console**:
+
+```scilab
+exec("alg2.sce");
+```
+
+Or from the command line:
+
+```bash
+scilab -f alg2.sce
+```
+
+A figure window opens (1000 × 700 pixels) showing a flock of 100 birds in projection mode. Close the figure window to stop the simulation. CSV metrics are saved to `murmuration_metrics.csv` in the current working directory.
+
+### Performance Notes
+
+- Expect **10–30 FPS** at N=100 (Scilab is interpreted, not JIT-compiled)
+- Reduce `NUM_BOIDS` at the top of `alg2.sce` for higher frame rates
+- Set `LOG_FILE` to `""` to disable CSV writes if I/O is a bottleneck
+- Closing other Scilab figures and clearing the workspace helps
 
 ---
 

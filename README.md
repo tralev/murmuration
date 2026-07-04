@@ -440,15 +440,11 @@ The codebase is split into focused modules so students can read them one at a ti
 | File | Purpose |
 |------|---------|
 | `alg.py` | Original classic Reynolds boids — metric neighbourhood, Russian comments. Kept for historical comparison. |
-| `alg2.m` | GNU Octave port — same dual-mode simulation, matrix-based, CSV logging. |
-| `alg2.sce` | Scilab port — same dual-mode simulation, batch polygon rendering. |
 | `test_alg2.py` | 47 unit tests for `occlusion_geom.py`. No Pygame needed. |
 | `README.md` | This file — scientific background, paper audit, implementation roadmap. |
 | `USER_GUIDE.md` | Practical guide — installation, controls, tuning, FAQ. |
-| `OCTAVE_README.md` | Octave-specific documentation and condensed audit. |
-| `SCILAB_README.md` | Scilab-specific documentation and condensed audit. |
 
-### How the modules fit together
+### Module structure
 
 ```
 occlusion_geom.py          (pure math — no dependencies)
@@ -480,6 +476,34 @@ No circular imports. Each module can be read and understood independently.
 | Comments | Russian | English |
 
 ---
+
+---
+
+## Code Section Reference
+
+Every numbered section in the codebase maps to a specific file and line range. This table helps you find any section quickly:
+
+| Section | Content | File |
+|---------|---------|------|
+| 1 | Header & overview | `alg2.py` (lines 1–40) |
+| 2 | Configuration constants | `flock_core.py` |
+| 2b | CSV logging / Pygame window setup | `alg2.py` `main()` |
+| 2c | Graphics setup (clock, fonts) | `alg2.py` `main()` |
+| 3 | Runtime state / data structures | `flock_core.py` + `boid.py` |
+| 4 | Angular-interval utilities | `occlusion_geom.py` |
+| 5 | Projection model (MODE 0) | `boid.py` |
+| 6 | Spatial model (MODE 1) | `boid.py` |
+| 7 | External opacity Θ′ | `metrics.py` |
+| 8 | Metrics computation (Θ, Θ′, α) | `metrics.py` |
+| 9 | Physics update (Euler, speed clamp, wrap) | `boid.py` |
+| 9a | Auto-compute φn | `alg2.py` `main()` |
+| 9b | Reset logic | `alg2.py` `main()` |
+| 9c | Boid count changes (+/− keys) | `alg2.py` `main()` |
+| 9d | Grid rebuild (spatial hash) | `alg2.py` `main()` |
+| 10 | Help overlay | `metrics.py` |
+| 11 | Input handling (keyboard + mouse) | `alg2.py` `main()` |
+| 12 | Main simulation loop | `alg2.py` |
+| 13 | Shutdown (close CSV, quit Pygame) | `alg2.py` (end) |
 
 ---
 

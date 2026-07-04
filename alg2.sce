@@ -599,7 +599,13 @@ while running
         // ───────────────────────────────────────────────────────────
         PHI_N = max(0.0, 1.0 - PHI_P - PHI_A);
 
-        // ── 1b. Apply pending boid count changes ──────────────────
+        // ╔══════════════════════════════════════════════════════════╗
+        // ║  SECTION 9c — BOID COUNT CHANGES  (+/- keys)            ║
+        // ╚══════════════════════════════════════════════════════════╝
+        //
+        //  Add or remove birds via pending flags set by the keyboard
+        //  callback. Changes are applied atomically at the start of
+        //  each frame to avoid race conditions during rendering.
         //  Removal: trim matrices from the end (safely leaves ≥ 1 bird)
         if pending_remove > 0 then
             n_remove = min(pending_remove, NUM_BOIDS - 1);

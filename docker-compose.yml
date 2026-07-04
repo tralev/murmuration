@@ -1,0 +1,48 @@
+# docker-compose.yml — Murmuration Bird Flock Simulation
+#
+# Quick start for students:
+#   1. Install Docker:  https://docs.docker.com/get-docker/
+#   2. Clone the repo:  git clone https://github.com/tralev/murmuration.git
+#   3. Run:             docker compose up
+#
+# What happens:
+#   - Builds the image (Pygame + xvfb for headless display)
+#   - Runs the simulation for 60 seconds or until you press Ctrl+C
+#   - CSV metrics are saved to ./output/murmuration_metrics.csv
+#   - Press Ctrl+C to stop early
+#
+# ──────────────────────────────────────────────────────────────────────
+
+services:
+  murmuration:
+    build: .
+    image: murmuration:latest
+    container_name: murmuration
+    # Run headless — no GUI needed (students don't need a display)
+    command: >
+      xvfb-run -a python alg2.py
+    # Mount working directory so CSV metrics persist after container stops
+    volumes:
+      - ./output:/app
+    environment:
+      - SDL_VIDEODRIVER=dummy
+      - SDL_AUDIODRIVER=dummy
+    # Run for 60 seconds (enough to collect ~360 frames of data)
+    # Remove or increase for longer runs
+    stop_grace_period: 5s
+
+  # ── Unit tests — run with:  docker compose run tests ───────────────
+  tests:
+    build: .
+    image: murmuration:latest
+    command: python -m unittest test_alg2 -v
+
+  # ── Interactive shell — run with:  docker compose run shell ────────
+  shell:
+    build: .
+    image: murmuration:latest
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+    environment:
+      - SDL_VIDEODRIVER=dummy
