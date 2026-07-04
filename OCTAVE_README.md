@@ -256,9 +256,7 @@ octave alg2.m
 
 Requirements: GNU Octave 4.0 or later (for `randperm(N, K)` two-argument form and 4-element `BackgroundColor` alpha support).
 
----
-
-## References
+---## References
 
 1. **Pearce, D. J. G., Miller, A. M., Rowlands, G., & Turner, M. S.** (2014). *"Role of projection in the control of bird flocks."* Proceedings of the National Academy of Sciences, 111(29), 10422–10426. [DOI: 10.1073/pnas.1402202111](https://doi.org/10.1073/pnas.1402202111)
 
@@ -267,3 +265,82 @@ Requirements: GNU Octave 4.0 or later (for `randperm(N, K)` two-argument form an
 3. **Ballerini, M., et al.** (2008a). *"Interaction ruling animal collective behavior depends on topological rather than metric distance: Evidence from a field study."* PNAS, 105(4), 1232–1237. [DOI: 10.1073/pnas.0711437105](https://doi.org/10.1073/pnas.0711437105)
 
 4. **Ballerini, M., et al.** (2008b). *"Empirical investigation of starling flocks: A benchmark study in collective animal behavior."* Animal Behaviour, 76, 201–215. [DOI: 10.1016/j.anbehav.2008.02.004](https://doi.org/10.1016/j.anbehav.2008.02.004)
+
+5. **Young, G. F., Scardovi, L., Cavagna, A., Giardina, I., & Leonard, N. E.** (2013). *"Starling Flock Networks Manage Uncertainty in Consensus at Low Cost."* PLoS Comput Biol 9(1): e1002894. [DOI: 10.1371/journal.pcbi.1002894](https://doi.org/10.1371/journal.pcbi.1002894)
+
+6. **Goodenough, A. E., Little, N., Carpenter, W. S., & Hart, A. G.** (2017). *"Birds of a feather flock together: Insights into starling murmuration behaviour revealed using citizen science."* PLoS ONE 12(1): e0179277. [DOI: 10.1371/journal.pone.0179277](https://doi.org/10.1371/journal.pone.0179277)
+
+---
+
+## Paper-to-Code Implementation Audit
+
+Three papers were cross-referenced against the codebase (July 2026). For the full audit with detailed notes, see [README.md](README.md#paper-to-code-implementation-audit).
+
+### Pearce et al. (2014) — Primary Reference
+
+| # | Claim | Status |
+|---|-------|--------|
+| 1 | Hybrid projection model: v = φp·δ̂ + φa·⟨v̂⟩ + φn·η̂ (Eq. 3) | ⚠️ Formula correct; code adds steering layer |
+| 2 | δ̂ = vector sum to domain boundaries (Eq. 1) | ✅ |
+| 3 | φp + φa + φn = 1 (Eq. 4) | ✅ |
+| 4 | v₀ = 1, b = 1 (constant speed) | ⚠️ Scaled for display; speed allowed to vary |
+| 5 | Silhouettes as dark/light pattern | ✅ |
+| 6 | Visibility by occlusion (closer birds block farther) | ✅ |
+| 7 | Closest-first processing | ✅ |
+| 8 | σ = 4 visible neighbours | ✅ |
+| 9 | Emergent marginal opacity (Θ ≈ 0.25–0.60) | ✅ |
+| 10 | Default φp = 0.03, φa = 0.80 | ✅ |
+| 11 | Order parameter α = \|Σv\|/(N·v₀) | ✅ |
+| 12 | SI extensions: 3D, steric, blind angles, anisotropic | ❌ Not implemented |
+| 13 | φp > 0 required for cohesion | ✅ Emergent |
+| 14 | Correlation time τᵨ | ❌ Not tracked |
+| 15 | Density scaling N^(−1/(d−1)) | ❌ Not analysed |
+
+### Young et al. (2013) — Topological Neighbour Justification
+
+| # | Claim | Status |
+|---|-------|--------|
+| 1 | Topological interaction provides robustness | ✅ |
+| 2 | Optimal σ = 6–7 neighbours | ⚠️ Default is 4 |
+| 3 | σ independent of N | ✅ |
+| 4 | Dependence on flock thickness | ❌ 2D only |
+| 5 | Consensus dynamics / H₂ robustness | ❌ Different model family |
+
+### Goodenough et al. (2017) — Ecological Context
+
+| # | Claim | Status |
+|---|-------|--------|
+| 1 | Mean murmuration: ~30,000 birds | ❌ Default N=150 |
+| 2 | Predators at 29.6% of events | ❌ No predators |
+| 3 | Anti-predator function | ❌ Not modelled |
+| 4 | Critical mass ~500 birds | ❌ No threshold behaviour |
+
+---
+
+## Implementation Roadmap
+
+For a detailed roadmap with formulas and implementation guidance, see [README.md](README.md#implementation-roadmap--future-work). Summary:
+
+### Priority 1 — Fidelity to Pearce (2014)
+
+- **Remove Reynolds steering** in projection mode — set velocity directly to `v = φp·δ̂ + φa·⟨v̂⟩ + φn·η̂` (Eq. 3), normalised to v₀.
+- **External opacity from multiple viewpoints** — average Θ′ over K viewpoints on a circle at distance R_ext, not a single fixed point.
+- **Track correlation time τᵨ** — autocorrelation of flock density via convex hull.
+
+### Priority 2 — SI Appendix Extensions
+
+- **Steric repulsion**: `F_rep = Σ (r̂_ji / d_ij²)` for birds within 2b, weighted by φ_s.
+- **Blind angles**: mask an angular sector of width β behind each bird's heading; birds in the blind sector are invisible.
+- **3D extension**: replace 1D angular intervals with spherical cap merging on the unit sphere.
+- **Anisotropic bodies**: orientation-dependent projected width for elliptical birds.
+
+### Priority 3 — Ecological Realism
+
+- **Predator agent**: faster pursuer (v ≈ 2·v₀) with hunting behaviour; birds flee within a danger radius.
+- **Larger flocks**: far-field approximation, level-of-detail occlusion, or chunked processing to scale beyond N=200.
+
+---
+
+## Licence
+
+GNU General Public License v3.0 — see [LICENSE](LICENSE).
