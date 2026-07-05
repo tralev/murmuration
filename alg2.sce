@@ -106,9 +106,9 @@ disp("Initializing flock with " + string(NUM_BOIDS) + " birds ...");
 //  vel  — velocities          (rows: birds, cols: [vx, vy])
 //  acc  — steering accumulators  (rows: birds, cols: [ax, ay])
 //  last_theta — cached internal opacity Θ per bird  (N × 1)
-pos  = rand(NUM_BOIDS, 2) .* [WIDTH, HEIGHT];            // random positions
+pos  = rand(NUM_BOIDS, 2) .* repmat([WIDTH, HEIGHT], NUM_BOIDS, 1);  // random positions
 ang  = rand(NUM_BOIDS, 1) * 2 * %pi;                      // random headings
-vel  = [cos(ang), sin(ang)] .* (1 + rand(NUM_BOIDS, 1) * (V0 - 1));
+vel  = [cos(ang), sin(ang)] .* repmat(1 + rand(NUM_BOIDS, 1) * (V0 - 1), 1, 2);
 acc  = zeros(NUM_BOIDS, 2);
 last_theta = zeros(NUM_BOIDS, 1);                          // cached Θ per bird
 
@@ -622,9 +622,9 @@ while running
         // Addition: append new random birds to each state matrix
         if pending_add > 0 then
             n_add = pending_add;
-            new_pos  = rand(n_add, 2) .* [WIDTH, HEIGHT];
+            new_pos  = rand(n_add, 2) .* repmat([WIDTH, HEIGHT], n_add, 1);
             new_ang  = rand(n_add, 1) * 2 * %pi;
-            new_vel  = [cos(new_ang), sin(new_ang)] .* (1 + rand(n_add, 1) * (V0 - 1));
+            new_vel  = [cos(new_ang), sin(new_ang)] .* repmat(1 + rand(n_add, 1) * (V0 - 1), 1, 2);
             pos        = [pos; new_pos];
             vel        = [vel; new_vel];
             acc        = [acc; zeros(n_add, 2)];
@@ -646,9 +646,9 @@ while running
         //  and applied atomically here in the main loop.
         // ───────────────────────────────────────────────────────────
         if pending_reset then
-            pos  = rand(NUM_BOIDS, 2) .* [WIDTH, HEIGHT];
+            pos  = rand(NUM_BOIDS, 2) .* repmat([WIDTH, HEIGHT], NUM_BOIDS, 1);
             ang  = rand(NUM_BOIDS, 1) * 2 * %pi;
-            vel  = [cos(ang), sin(ang)] .* (1 + rand(NUM_BOIDS, 1) * (V0 - 1));
+            vel  = [cos(ang), sin(ang)] .* repmat(1 + rand(NUM_BOIDS, 1) * (V0 - 1), 1, 2);
             acc  = zeros(NUM_BOIDS, 2);
             last_theta = zeros(NUM_BOIDS, 1);
             theta_ema = 0;  theta_ext_ema = 0;  alpha_ema = 0;
@@ -960,7 +960,7 @@ while running
     end
     xstring(10, 45, t3);
 
-    t4 = msprintf("          Θ' = %.3f", theta_ext_ema);
+    t4 = msprintf("          Θ'' = %.3f", theta_ext_ema);
     xstring(10, 65, t4);
 
     t5 = msprintf("Order α = %.3f", alpha_ema);

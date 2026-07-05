@@ -172,15 +172,15 @@ end
 
 // ── State arrays (N × D) ──────────────────────────────────────────
 if ENABLE_2c then
-    pos  = rand(NUM_BOIDS, 3) .* [WIDTH, HEIGHT, DEPTH];
+    pos  = rand(NUM_BOIDS, 3) .* repmat([WIDTH, HEIGHT, DEPTH], NUM_BOIDS, 1);
     ang  = rand(NUM_BOIDS, 1) * 2 * %pi;
     phi  = (rand(NUM_BOIDS, 1) - 0.5) * %pi;       // elevation
     vel  = [cos(ang).*cos(phi), sin(ang).*cos(phi), sin(phi)] .* V0;
     acc  = zeros(NUM_BOIDS, 3);
 else
-    pos  = rand(NUM_BOIDS, 2) .* [WIDTH, HEIGHT];
+    pos  = rand(NUM_BOIDS, 2) .* repmat([WIDTH, HEIGHT], NUM_BOIDS, 1);
     ang  = rand(NUM_BOIDS, 1) * 2 * %pi;
-    vel  = [cos(ang), sin(ang)] .* (1 + rand(NUM_BOIDS, 1) * (V0 - 1));
+    vel  = [cos(ang), sin(ang)] .* repmat(1 + rand(NUM_BOIDS, 1) * (V0 - 1), 1, 2);
     acc  = zeros(NUM_BOIDS, 2);
 end
 last_theta  = zeros(NUM_BOIDS, 1);
@@ -760,7 +760,7 @@ function [delta, vis_idx, vis_dists, n_vis, theta] = ...
             // Blind cone: dot < −cos(β/2) means inside blind cone → invisible
             cos_ang_radius = cos(entries(idx,6));
             // Check if entire cap is within blind cone
-            dot_vb + cos_ang_radius < -cos_blind then
+            if dot_vb + cos_ang_radius < -cos_blind then
                 continue;  // entirely in blind cone
             end
             n_filtered = n_filtered + 1;
@@ -1099,7 +1099,7 @@ mode_names = ["PROJECTION  (Pearce et al. 2014) Extended", ...
               "SPATIAL     (topological Reynolds)  Extended"];
 
 disp("Running — close the figure window to stop.");
-disp("  9 roadmap priorities active (see 'h' for feature flags)");
+disp("  9 roadmap priorities active (see ''h'' for feature flags)");
 disp("  Keys:  m:mode  p:pause  f:falcon  h:help  arrows:phi  []:sigma  +/-:boids  r:reset");
 
 while running
@@ -1137,13 +1137,13 @@ while running
             n_add = pending_add;
             new_ang = rand(n_add, 1) * 2 * %pi;
             if ENABLE_2c then
-                new_pos = rand(n_add, 3) .* [WIDTH, HEIGHT, DEPTH];
+                new_pos = rand(n_add, 3) .* repmat([WIDTH, HEIGHT, DEPTH], n_add, 1);
                 new_phi = (rand(n_add, 1) - 0.5) * %pi;
                 new_vel = [cos(new_ang).*cos(new_phi), sin(new_ang).*cos(new_phi), sin(new_phi)] .* V0;
                 new_acc = zeros(n_add, 3);
             else
-                new_pos = rand(n_add, 2) .* [WIDTH, HEIGHT];
-                new_vel = [cos(new_ang), sin(new_ang)] .* (1 + rand(n_add, 1) * (V0 - 1));
+                new_pos = rand(n_add, 2) .* repmat([WIDTH, HEIGHT], n_add, 1);
+                new_vel = [cos(new_ang), sin(new_ang)] .* repmat(1 + rand(n_add, 1) * (V0 - 1), 1, 2);
                 new_acc = zeros(n_add, 2);
             end
             pos        = [pos; new_pos];
@@ -1158,13 +1158,13 @@ while running
         // ── Reset ───────────────────────────────────────────────────
         if pending_reset then
             if ENABLE_2c then
-                pos = rand(NUM_BOIDS, 3) .* [WIDTH, HEIGHT, DEPTH];
+                pos = rand(NUM_BOIDS, 3) .* repmat([WIDTH, HEIGHT, DEPTH], NUM_BOIDS, 1);
                 ang = rand(NUM_BOIDS, 1) * 2 * %pi;
                 phi = (rand(NUM_BOIDS, 1) - 0.5) * %pi;
                 vel = [cos(ang).*cos(phi), sin(ang).*cos(phi), sin(phi)] .* V0;
                 acc = zeros(NUM_BOIDS, 3);
             else
-                pos = rand(NUM_BOIDS, 2) .* [WIDTH, HEIGHT];
+                pos = rand(NUM_BOIDS, 2) .* repmat([WIDTH, HEIGHT], NUM_BOIDS, 1);
                 ang = rand(NUM_BOIDS, 1) * 2 * %pi;
                 vel = [cos(ang), sin(ang)] .* (1 + rand(NUM_BOIDS, 1) * (V0 - 1));
                 acc = zeros(NUM_BOIDS, 2);
