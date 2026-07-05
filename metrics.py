@@ -89,7 +89,8 @@ def _external_opacity(flock: list) -> float:
 
 class FlockMetrics:
     """Real-time scientific metrics with EMA smoothing."""
-    __slots__ = ("_fps", "_theta", "_theta_ext", "_alpha", "_theta_samples")
+    __slots__ = ("_fps", "_theta", "_theta_ext", "_alpha", "_theta_samples",
+                "_power", "_angular_momentum")
 
     SMOOTH  = 0.04    # EMA factor — lower = smoother but slower response
     SAMPLES = 5        # birds sampled for Θ in SPATIAL mode
@@ -99,7 +100,8 @@ class FlockMetrics:
         self._theta       = 0.0    # Θ  — mean internal opacity (EMA)
         self._theta_ext   = 0.0    # Θ' — external opacity (EMA)
         self._alpha       = 0.0    # α  — order parameter (EMA)
-        self._theta_samples = 0
+        self._power             = 0.0    # P  — mean instantaneous power (EMA)
+        self._angular_momentum  = 0.0    # L  — mean angular momentum (EMA)
 
     def update(self, flock: list, clock: pygame.time.Clock, config: Config):
         """
@@ -141,6 +143,18 @@ class FlockMetrics:
         theta_ext = _external_opacity(flock)
         self._theta_ext += (theta_ext - self._theta_ext) * s
 
+        # ── Power: P = F·v = acc·v (mean instantaneous power) ────
+        power_sum = 0.0
+        for b in flock:
+            power_sum += b.acceleration.dot(b.velocity)
+        self._power += (power_sum / n - self._power) * s
+
+        # ── Angular momentum: L = r × v = x·vy − y·vx ────────────
+        am_sum = 0.0
+        for b in flock:
+            am_sum += b.position.x * b.velocity.y - b.position.y * b.velocity.x
+        self._angular_momentum += (am_sum / n - self._angular_momentum) * s
+
     # ── Properties ───────────────────────────────────────────────────
 
     @property
@@ -151,6 +165,10 @@ class FlockMetrics:
     def external_opacity(self) -> float:    return self._theta_ext
     @property
     def order_param(self) -> float:         return self._alpha
+    @property
+    def power(self) -> float:              return self._power
+    @property
+    def angular_momentum(self) -> float:   return self._angular_momentum
 
     # ── Draw ─────────────────────────────────────────────────────────
 
@@ -172,6 +190,8 @@ class FlockMetrics:
             theta_label,
             f"          external  Θ' = {self._theta_ext:.3f}",
             f"Order param          α  = {self._alpha:.3f}",
+            f"Power       avg       P  = {self._power:.1f}",
+            f"Ang. mom.   avg       L  = {self._angular_momentum:.1f}",
         ]
         if preset_label:
             lines.insert(0, preset_label)

@@ -179,3 +179,15 @@ class FlockMetricsExtended(FlockMetrics):
             flock, k=K_VIEWPOINTS, r_ext=R_EXT
         )
         self._theta_ext += (theta_ext - self._theta_ext) * s
+
+        # ── Power: P = F·v = acc·v (mean instantaneous power) ────
+        power_sum = 0.0
+        for b in flock:
+            power_sum += b.acceleration.dot(b.velocity)
+        self._power += (power_sum / n - self._power) * s
+
+        # ── Angular momentum: L = r × v = x·vy − y·vx ────────────
+        am_sum = 0.0
+        for b in flock:
+            am_sum += b.position.x * b.velocity.y - b.position.y * b.velocity.x
+        self._angular_momentum += (am_sum / n - self._angular_momentum) * s

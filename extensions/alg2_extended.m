@@ -147,7 +147,7 @@ log_fid = fopen(LOG_FILE, 'w');
 if log_fid == -1
     disp(['WARNING: could not open ' LOG_FILE ' for writing']);
 else
-    fprintf(log_fid, 'frame,mode,num_boids,phi_p,phi_a,phi_n,phi_s,sigma,theta,theta_ext,tau,alpha,fps\n');
+    fprintf(log_fid, 'frame,mode,num_boids,phi_p,phi_a,phi_n,phi_s,sigma,theta,theta_ext,tau,alpha,fps,power,angmom\n');
     disp(['Logging metrics to ' LOG_FILE ' every ' num2str(LOG_EVERY) ' frames']);
 end
 
@@ -275,6 +275,7 @@ hTextParams = text(10, 25,  '', 'Color', [170 200 170]/255, 'FontSize', 12);
 hTextTheta  = text(10, 45,  '', 'Color', [170 200 170]/255, 'FontSize', 12);
 hTextExt    = text(10, 65,  '', 'Color', [170 200 170]/255, 'FontSize', 12);
 hTextTau    = text(10, 85,  '', 'Color', [170 200 170]/255, 'FontSize', 12);
+hTextPower  = text(10, 105, '', 'Color', [170 200 170]/255, 'FontSize', 12);
 hTextBadge  = text(WIDTH-300, 5, '', 'Color', [170 200 170]/255, 'FontSize', 12);
 
 % ── Pause indicator ─────────────────────────────────────────────────
@@ -1319,6 +1320,8 @@ theta_ema     = 0;                        % Θ  — mean internal opacity (EMA)
 theta_ext_ema = 0;                        % Θ' — external opacity (EMA)
 alpha_ema     = 0;                        % α  — order parameter (EMA)
 tau_ema       = 0;                        % τᵨ — correlation time (EMA)
+power_ema     = 0;                        % P  — mean power (EMA)
+angmom_ema    = 0;                        % L  — mean angular momentum (EMA)
 
 % Triangle vertex offsets (relative to position, rotated by heading)
 tip_len  = BOID_SIZE * 2.5;
@@ -1395,7 +1398,7 @@ while isgraphics(f)
                 acc = zeros(NUM_BOIDS, 2);
             end
             last_theta = zeros(NUM_BOIDS, 1);
-            theta_ema = 0; theta_ext_ema = 0; alpha_ema = 0; tau_ema = 0;
+            theta_ema = 0; theta_ext_ema = 0; alpha_ema = 0; tau_ema = 0; power_ema = 0; angmom_ema = 0;
             tau_count = 0; tau_idx = 1; tau_timer = 0;
             frame = 0;
             pending_reset = false;
@@ -1664,6 +1667,16 @@ while isgraphics(f)
         %  Euler integration with speed clamping and toroidal wrap.
         %  Skipped when ENABLE_1a is active (velocity set directly).
 
+        % ── Power & angular momentum (computed BEFORE acc cleared) ──
+        % ⇔ Python: metrics.py §FlockMetrics.update
+        % ⇔ Scilab: alg2_extended.sce §PHASE 6
+        if ~ENABLE_2c
+            power_raw  = mean(sum(acc .* vel, 2));
+            angmom_raw = mean(pos(:,1) .* vel(:,2) - pos(:,2) .* vel(:,1));
+            power_ema  = power_ema  + (power_raw  - power_ema)  * smooth;
+            angmom_ema = angmom_ema + (angmom_raw - angmom_ema) * smooth;
+        end
+
         if ~ENABLE_1a || MODE == 1
             vel = vel + acc;
             spd = sqrt(sum(vel.^2, 2));
@@ -1754,12 +1767,14 @@ while isgraphics(f)
             tau_ema = tau_ema + (tau_val - tau_ema) * smooth;
         end
 
+
+
         % ── 8. CSV logging ─────────────────────────────────────────
         if log_fid ~= -1 && mod(frame, LOG_EVERY) == 0
             fps = 1 / max(toc(t_frame), 0.001);
-            fprintf(log_fid, '%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%.4f,%.1f,%.4f,%.1f\n', ...
+            fprintf(log_fid, '%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%.4f,%.1f,%.4f,%.1f,%.4f,%.4f\n', ...
                     frame, MODE, NUM_BOIDS, PHI_P, PHI_A, PHI_N, PHI_S, SIGMA, ...
-                    theta_ema, theta_ext_ema, tau_ema, alpha_ema, fps);
+                    theta_ema, theta_ext_ema, tau_ema, alpha_ema, fps, power_ema, angmom_ema);
         end
 
     end  % ~paused
@@ -1867,6 +1882,7 @@ while isgraphics(f)
     else
         set(hTextTau, 'String', sprintf('Order α = %.3f', alpha_ema));
     end
+    set(hTextPower, 'String', sprintf('Power  P = %.1f   L = %.0f', power_ema, angmom_ema));
 
     % ── Mode badge ─────────────────────────────────────────────────
     set(hTextBadge, 'String', mode_names{MODE + 1});

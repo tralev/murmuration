@@ -1258,3 +1258,57 @@ class TestFlockMetricsExtended(unittest.TestCase):
         self.assertGreaterEqual(self.metrics.internal_opacity, 0.0)
         self.assertGreaterEqual(self.metrics.external_opacity, 0.0)
         self.assertGreaterEqual(self.metrics.order_param, 0.0)
+
+    def test_update_computes_power_and_angmom(self):
+        """update() computes power and angular momentum."""
+        boids = [DirectVelocityBoid() for _ in range(10)]
+        for i, b in enumerate(boids):
+            b.position = pygame.Vector2(100 + i * 50, 350)
+            b.velocity = pygame.Vector2(V0, 0)
+            b.acceleration = pygame.Vector2(0.1, 0)
+        clock = pygame.time.Clock()
+        clock.tick()
+        self.metrics.update(boids, clock, self.config)
+        self.assertGreater(self.metrics.power, 0.0)
+        self.assertIsNotNone(self.metrics.angular_momentum)
+
+    def test_power_zero_when_no_acceleration(self):
+        """Power is zero when acceleration is zero."""
+        boids = [DirectVelocityBoid() for _ in range(5)]
+        for b in boids:
+            b.position = pygame.Vector2(500, 350)
+            b.velocity = pygame.Vector2(V0, 0)
+            b.acceleration = pygame.Vector2(0, 0)
+        clock = pygame.time.Clock()
+        clock.tick()
+        for _ in range(100):
+            self.metrics.update(boids, clock, self.config)
+        self.assertAlmostEqual(self.metrics.power, 0.0, places=1)
+
+    def test_angular_momentum_positive_counterclockwise(self):
+        """Angular momentum L > 0 for counterclockwise rotation."""
+        boids = [DirectVelocityBoid() for _ in range(10)]
+        for i, b in enumerate(boids):
+            angle = 2 * math.pi * i / len(boids)
+            b.position = pygame.Vector2(
+                500 + 100 * math.cos(angle),
+                350 + 100 * math.sin(angle),
+            )
+            b.velocity = pygame.Vector2(
+                -V0 * math.sin(angle),
+                V0 * math.cos(angle),
+            )
+            b.acceleration = pygame.Vector2(0, 0)
+        clock = pygame.time.Clock()
+        clock.tick()
+        for _ in range(50):
+            self.metrics.update(boids, clock, self.config)
+        self.assertGreater(self.metrics.angular_momentum, 0.0)
+
+    def test_flock_metrics_base_class_has_power_and_angmom(self):
+        """Base FlockMetrics also has power and angular_momentum."""
+        base = FlockMetrics()
+        self.assertTrue(hasattr(base, 'power'))
+        self.assertTrue(hasattr(base, 'angular_momentum'))
+        self.assertEqual(base.power, 0.0)
+        self.assertEqual(base.angular_momentum, 0.0)

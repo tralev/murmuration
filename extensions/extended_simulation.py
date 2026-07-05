@@ -146,7 +146,8 @@ def main():
             log_fid.write(
                 "frame,mode,num_boids,phi_p,phi_a,phi_n,"
                 "sigma,theta,theta_ext,alpha,fps,"
-                "phi_steric,blind_angle,tau,density,predator_active\n"
+                "phi_steric,blind_angle,tau,density,predator_active,"
+                "power,ang_mom\n"
             )
             print(f"Logging metrics to {ext_log} every {LOG_EVERY} frames")
         except OSError as e:
@@ -328,12 +329,13 @@ def main():
             if predator_active and predator is not None:
                 predator.update(flock)
 
+            # ── Metrics (must run BEFORE physics — reads acceleration
+            #     before boid.update() zeros it) ────────────────────
+            metrics.update(flock, clock, config)
+
             # ── Per-bird physics ─────────────────────────────────
             for boid in flock:
                 boid.update()
-
-            # ── Metrics ───────────────────────────────────────────
-            metrics.update(flock, clock, config)
 
             # ── Correlation time τᵨ ─────────────────────────────
             corr_tracker.sample(flock, frame)
@@ -342,7 +344,8 @@ def main():
             tau_str = f"τᵨ={corr_tracker.tau:.0f}f" if corr_tracker.tau > 0 else "τᵨ=…"
             ext_info_line = (
                 f"EXT: DirVel  φ_s={PHI_STERIC:.2f}  β={math.degrees(BLIND_ANGLE):.0f}°  "
-                f"Pred={'ON' if predator_active else 'OFF'}  {tau_str}  ρ={corr_tracker.latest_density:.4f}"
+                f"Pred={'ON' if predator_active else 'OFF'}  {tau_str}  ρ={corr_tracker.latest_density:.4f}  "
+                f"P={metrics.power:.1f}  L={metrics.angular_momentum:.0f}"
             )
 
             # ── CSV logging ───────────────────────────────────────
@@ -358,7 +361,8 @@ def main():
                     f"{metrics.order_param:.4f},{fps_val:.1f},"
                     f"{PHI_STERIC:.4f},{BLIND_ANGLE:.4f},"
                     f"{corr_tracker.tau:.4f},{corr_tracker.latest_density:.6f},"
-                    f"{1 if predator_active else 0}\n"
+                    f"{1 if predator_active else 0},"
+                    f"{metrics.power:.4f},{metrics.angular_momentum:.4f}\n"
                 )
                 log_fid.flush()
 

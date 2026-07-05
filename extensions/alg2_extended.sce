@@ -145,7 +145,7 @@ log_fid = mopen(LOG_FILE, "wt");
 if log_fid == -1 then
     disp("WARNING: could not open " + LOG_FILE + " for writing");
 else
-    mfprintf(log_fid, "frame,mode,num_boids,phi_p,phi_a,phi_n,phi_s,sigma,theta,theta_ext,tau,alpha,fps\n");
+    mfprintf(log_fid, "frame,mode,num_boids,phi_p,phi_a,phi_n,phi_s,sigma,theta,theta_ext,tau,alpha,fps,power,angmom\n");
     disp("Logging metrics to " + LOG_FILE + " every " + string(LOG_EVERY) + " frames");
 end
 
@@ -1089,6 +1089,8 @@ theta_ema     = 0;
 theta_ext_ema = 0;
 alpha_ema     = 0;
 tau_ema       = 0;
+power_ema     = 0;     // P  — mean power (EMA)
+angmom_ema    = 0;     // L  — mean angular momentum (EMA)
 
 // Triangle vertex offsets
 tip_len   = BOID_SIZE * 2.5;
@@ -1170,7 +1172,7 @@ while running
                 acc = zeros(NUM_BOIDS, 2);
             end
             last_theta = zeros(NUM_BOIDS, 1);
-            theta_ema = 0; theta_ext_ema = 0; alpha_ema = 0; tau_ema = 0;
+            theta_ema = 0; theta_ext_ema = 0; alpha_ema = 0; tau_ema = 0; power_ema = 0; angmom_ema = 0;
             tau_count = 0; tau_idx = 1; tau_timer = 0;
             frame = 0;
             pending_reset = %f;
@@ -1456,6 +1458,17 @@ while running
         // ═══════════════════════════════════════════════════════════════
         // ⇔ Python: extensions/direct_velocity.py §Step 5
         // ⇔ Octave: alg2_extended.m main loop step 6
+
+        // ── Power & angular momentum (computed BEFORE acc cleared) ──
+        // ⇔ Python: metrics.py §FlockMetrics.update
+        // ⇔ Octave: alg2_extended.m §PHASE 6
+        if ~ENABLE_2c then
+            power_raw  = mean(sum(acc .* vel, 2));
+            angmom_raw = mean(pos(:,1) .* vel(:,2) - pos(:,2) .* vel(:,1));
+            power_ema  = power_ema  + (power_raw  - power_ema)  * smooth;
+            angmom_ema = angmom_ema + (angmom_raw - angmom_ema) * smooth;
+        end
+
         if ~ENABLE_1a | MODE == 1 then
             vel = vel + acc;
             spd = sqrt(sum(vel.^2, 2));
@@ -1553,15 +1566,17 @@ while running
             tau_ema = tau_ema + (tau_val - tau_ema) * smooth;
         end
 
+
+
         // ═══════════════════════════════════════════════════════════════
         //  PHASE 8 — CSV LOGGING
         //    Append metrics row every LOG_EVERY frames.
         // ═══════════════════════════════════════════════════════════════
         if log_fid ~= -1 & modulo(frame, LOG_EVERY) == 0 then
             fps = 1 / max(toc(t_frame), 0.001);
-            mfprintf(log_fid, "%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%.4f,%.1f,%.4f,%.1f\n", ...
+            mfprintf(log_fid, "%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%.4f,%.1f,%.4f,%.1f,%.4f,%.4f\n", ...
                      frame, MODE, NUM_BOIDS, PHI_P, PHI_A, PHI_N, PHI_S, SIGMA, ...
-                     theta_ema, theta_ext_ema, tau_ema, alpha_ema, fps);
+                     theta_ema, theta_ext_ema, tau_ema, alpha_ema, fps, power_ema, angmom_ema);
         end
 
     end  // ~paused
@@ -1675,6 +1690,9 @@ while running
         t5 = msprintf("Order alpha = %.3f", alpha_ema);
     end
     xstring(10, 85, t5);
+
+    t6 = msprintf("Power  P = %.1f   L = %.0f", power_ema, angmom_ema);
+    xstring(10, 105, t6);
 
     // Mode badge
     xstring(WIDTH - 250, 5, mode_names(MODE + 1));
