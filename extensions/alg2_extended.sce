@@ -924,7 +924,7 @@ function new_tau = compute_tau_from_buffer()
     // Unroll ring buffer
     dens = zeros(m, 1);
     for i = 1:m
-        idx = modulo(tau_idx - m + i - 1, BUFFER_SIZE_TAU) + 1;
+        idx = modulo(tau_idx - m + i - 2, BUFFER_SIZE_TAU) + 1;
         dens(i) = tau_buffer(idx);
     end
 
