@@ -29,6 +29,7 @@ RUN pip install --no-cache-dir pygame
 # ── Copy project files ───────────────────────────────────────────────
 WORKDIR /app
 COPY *.py ./
+COPY extensions/ extensions/
 COPY *.md ./
 COPY LICENSE ./
 RUN mkdir -p /app/output

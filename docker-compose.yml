@@ -35,7 +35,7 @@ services:
   tests:
     build: .
     image: murmuration:latest
-    command: python -m unittest test_alg2 -v
+    command: python -m unittest test_alg2 extensions.test_extensions -v
     environment:
       - SDL_VIDEODRIVER=dummy
       - SDL_AUDIODRIVER=dummy

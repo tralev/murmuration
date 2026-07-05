@@ -399,25 +399,129 @@ Three papers were cross-referenced against the codebase (July 2026).
 
 ## Implementation Roadmap
 
-Summary of planned extensions:
+Summary of planned extensions with relevant mathematics.
 
 ### Priority 1 — Fidelity to Pearce (2014)
 
-- **Remove Reynolds steering** in projection mode — set velocity directly to `v = φp·δ̂ + φa·⟨v̂⟩ + φn·η̂` (Eq. 3), normalised to v₀.
-- **External opacity from multiple viewpoints** — average Θ′ over K viewpoints on a circle at distance R_ext, not a single fixed point.
-- **Track correlation time τᵨ** — autocorrelation of flock density via convex hull.
+**1a. Direct velocity setting (remove Reynolds steering)**
 
-### Priority 2 — SI Appendix Extensions
+Currently, the code computes a desired direction via the projection model, then applies Reynolds steering toward it — a smoothing layer not present in the original paper. The fix is to set velocity directly:
 
-- **Steric repulsion**: `F_rep = Σ (r̂_ji / d_ij²)` for birds within 2b, weighted by φ_s.
-- **Blind angles**: mask an angular sector of width β behind each bird's heading; birds in the blind sector are invisible.
-- **3D extension**: replace 1D angular intervals with spherical cap merging on the unit sphere.
-- **Anisotropic bodies**: orientation-dependent projected width for elliptical birds.
+```
+v_i(t+1)  =  φp · δ̂_i(t)  +  φa · ⟨v̂_j⟩_visible  +  φn · η̂_i(t)      (Eq. 3)
+r_i(t+1)  =  r_i(t) + v₀ · v̂_i(t+1)                                      (Eq. 2)
+```
+
+The velocity is set directly to the desired vector, normalised to v₀. No steering, no acceleration accumulation, no `MAX_FORCE` clamping. This eliminates artificial inertia and matches the paper's instantaneous response. Also remove the speed clamp from the physics update for projection-mode birds (the paper uses strict constant speed v₀).
+
+**1b. External opacity from multiple viewpoints**
+
+Θ′ should be averaged over multiple distant viewpoints, not a single fixed point:
+
+```
+Θ′  =  ⟨ Θ′(viewpoint_k) ⟩    averaged over K viewpoints on a circle
+      at radius R_ext ≫ flock radius, angular spacing 2π/K
+
+For each viewpoint at angle θ_k:  viewpoint = (R_ext·cos θ_k, R_ext·sin θ_k)
+  Θ′_k = (sum of merged interval widths) / 2π
+```
+
+Sample K = 12 viewpoints on a circle of radius ~2000, compute Θ′ per viewpoint, return the mean.
+
+**1c. Track correlation time τᵨ**
+
+Autocorrelation of flock density over time:
+
+```
+τᵨ = ∫₀^∞ C_ρρ(Δt) dΔt
+
+where  C_ρρ(Δt) = ⟨ρ(t) · ρ(t + Δt)⟩ − ⟨ρ⟩²
+       ρ(t)    = N / (area of convex hull of flock at time t)
+```
+
+Requires: convex hull algorithm (e.g. Graham scan, O(N log N)), running window of density snapshots.
+
+### Priority 2 — SI Appendix Extensions (Pearce et al., SI)
+
+**2a. Steric / repulsive interactions**
+
+Short-range repulsive force to prevent bird overlap (birds are "phantoms" without it, per the SI):
+
+```
+v_i  +=  φ_s · Σ_{j: d_ij < r_s}  (r̂_ji / d_ij²)
+
+where:  φ_s = steric weight (~0.01–0.05)
+        r_s = steric radius (~2b = 2 · BOID_SIZE)
+        r̂_ji = unit vector from j to i
+```
+
+Add a repulsion loop in the projection update after computing `desired`, checking only the σ nearest visible neighbours.
+
+**2b. Blind angles behind each bird**
+
+Birds have a blind sector behind them (SI appendix). Birds whose entire angular interval falls within the blind region are treated as invisible:
+
+```
+For bird i with heading θ_i:
+  blind region = [θ_i + π − β/2,  θ_i + π + β/2]    (mod 2π)
+
+Any bird j whose angular interval is entirely within the blind region
+is excluded from the occlusion merge (treated as NOT visible).
+
+β = blind angle width (default: π/3 = 60°)
+```
+
+Filter entries in `compute_projection()` before the closest-first occlusion loop.
+
+**2c. 3D extension**
+
+In 3D, light-dark boundaries become curves on the unit sphere. δ̂ becomes the normalised integral of radial unit vectors along boundary curves:
+
+```
+δ̂_i  =  ∫_{boundaries}  r̂(θ, φ) dΩ   /   |∫ ...|
+where   dΩ = sin φ dφ dθ   (solid angle element)
+
+For each other bird j at 3D distance d:
+  solid angle subtended:  Ω_j = 2π(1 − cos(arcsin(b/d)))   ≈ π·(b/d)²   for b ≪ d
+```
+
+Occlusion: birds project onto the unit sphere as circular caps. Replaces 1D interval merging with 2D spherical cap overlap testing. High complexity — consider GPU shadow-mapping for real time.
+
+**2d. Anisotropic bodies**
+
+Model birds as ellipses rather than circles (SI appendix):
+
+```
+For a bird with semi-major axis a and semi-minor axis b, oriented at angle ψ:
+  projected width at viewing angle θ = √[(a·cos(θ − ψ))² + (b·sin(θ − ψ))²]
+  angular half-width = arcsin(projected_width / (2d))
+```
+
+Modify the half-width calculation to use orientation-dependent projected size. Orientation can use the bird's velocity direction.
 
 ### Priority 3 — Ecological Realism
 
-- **Predator agent**: faster pursuer (v ≈ 2·v₀) with hunting behaviour; birds flee within a danger radius.
-- **Larger flocks**: far-field approximation, level-of-detail occlusion, or chunked processing to scale beyond N=200.
+**3a. Predator agent (peregrine falcon / sparrowhawk)**
+
+Based on Goodenough et al. (2017) — predators present at ~30% of real murmurations:
+
+```
+Predator dynamics:
+  r_pred(t+1) = r_pred(t) + v_pred(t)
+  v_pred(t+1) = v_pred(t) + a_pred(t)
+
+  a_pred = φ_hunt · r̂_to_nearest_bird  +  φ_random · η̂
+  Predator speed ~2× bird speed  (v_pred ≈ 2·v₀)
+```
+
+Bird response: birds within a danger radius flee away from the predator with a force proportional to 1/d², plus a startle propagation wave (neighbour-to-neighbour).
+
+**3b. Larger flocks via spatial optimisation**
+
+O(N log N) per bird limits N to ~100–150 in Scilab. Scaling approaches:
+- **Far-field approximation**: treat distant flock as a single extended occluder
+- **Level-of-detail**: exact intervals for σ nearest, coarse angular histogram for the rest
+- **Chunked processing**: split flock spatially; merge distant chunks into representative occluders
 
 ---
 

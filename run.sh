@@ -43,7 +43,7 @@ case "$MODE" in
         echo "═══════════════════════════════════════════════════════════"
         echo "  Running unit tests..."
         echo "═══════════════════════════════════════════════════════════"
-        python3 -m unittest test_alg2 -v
+        python3 -m unittest test_alg2 extensions.test_extensions -v
         ;;
     simple)
         echo "═══════════════════════════════════════════════════════════"

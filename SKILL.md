@@ -1,5 +1,5 @@
 ---
-name: scientific-code-modernization
+name: murmuration
 description: >
   Take a legacy codebase or algorithm, enrich it with scientific paper research,
   implement new features from the literature, port to multiple languages (Python,
