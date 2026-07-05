@@ -1337,3 +1337,29 @@ class TestFlockMetricsExtended(unittest.TestCase):
         for _ in range(100):
             self.metrics.update(boids, clock, self.config)
         self.assertAlmostEqual(self.metrics.avg_acceleration, 0.0, places=2)
+
+    def test_dispersion_positive_with_spread(self):
+        """Dispersion > 0 when birds are spread out."""
+        boids = [DirectVelocityBoid() for _ in range(10)]
+        for i, b in enumerate(boids):
+            b.position = pygame.Vector2(100 + i * 80, 350)
+            b.velocity = pygame.Vector2(V0, 0)
+            b.acceleration = pygame.Vector2(0, 0)
+        clock = pygame.time.Clock()
+        clock.tick()
+        for _ in range(100):
+            self.metrics.update(boids, clock, self.config)
+        self.assertGreater(self.metrics.dispersion, 0.0)
+
+    def test_dispersion_zero_when_all_at_same_spot(self):
+        """Dispersion ~ 0 when all birds at same spot."""
+        boids = [DirectVelocityBoid() for _ in range(5)]
+        for b in boids:
+            b.position = pygame.Vector2(500, 350)
+            b.velocity = pygame.Vector2(V0, 0)
+            b.acceleration = pygame.Vector2(0, 0)
+        clock = pygame.time.Clock()
+        clock.tick()
+        for _ in range(100):
+            self.metrics.update(boids, clock, self.config)
+        self.assertAlmostEqual(self.metrics.dispersion, 0.0, places=1)

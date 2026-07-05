@@ -196,3 +196,13 @@ class FlockMetricsExtended(FlockMetrics):
         from flock_core import MAX_FORCE
         accel_sum = sum(b.acceleration.length() for b in flock)
         self._avg_accel += (accel_sum / n / MAX_FORCE - self._avg_accel) * s
+
+        # ── Flock dispersion: mean distance from centre of mass ───
+        com_x = sum(b.position.x for b in flock) / n
+        com_y = sum(b.position.y for b in flock) / n
+        disp_sum = 0.0
+        for b in flock:
+            dx = b.position.x - com_x
+            dy = b.position.y - com_y
+            disp_sum += (dx * dx + dy * dy) ** 0.5
+        self._dispersion += (disp_sum / n - self._dispersion) * s

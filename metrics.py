@@ -90,7 +90,7 @@ def _external_opacity(flock: list) -> float:
 class FlockMetrics:
     """Real-time scientific metrics with EMA smoothing."""
     __slots__ = ("_fps", "_theta", "_theta_ext", "_alpha", "_theta_samples",
-                "_power", "_angular_momentum", "_avg_accel")
+                "_power", "_angular_momentum", "_avg_accel", "_dispersion")
 
     SMOOTH  = 0.04    # EMA factor — lower = smoother but slower response
     SAMPLES = 5        # birds sampled for Θ in SPATIAL mode
@@ -103,6 +103,7 @@ class FlockMetrics:
         self._power             = 0.0    # P  — mean instantaneous power (EMA)
         self._angular_momentum  = 0.0    # L  — mean angular momentum (EMA)
         self._avg_accel         = 0.0    # |a| — mean acceleration magnitude (EMA)
+        self._dispersion        = 0.0    # σ_r — mean distance from CoM (EMA)
 
     def update(self, flock: list, clock: pygame.time.Clock, config: Config):
         """
@@ -161,6 +162,16 @@ class FlockMetrics:
         accel_sum = sum(b.acceleration.length() for b in flock)
         self._avg_accel += (accel_sum / n / MAX_FORCE - self._avg_accel) * s
 
+        # ── Flock dispersion: mean distance from centre of mass ───
+        com_x = sum(b.position.x for b in flock) / n
+        com_y = sum(b.position.y for b in flock) / n
+        disp_sum = 0.0
+        for b in flock:
+            dx = b.position.x - com_x
+            dy = b.position.y - com_y
+            disp_sum += (dx * dx + dy * dy) ** 0.5
+        self._dispersion += (disp_sum / n - self._dispersion) * s
+
     # ── Properties ───────────────────────────────────────────────────
 
     @property
@@ -177,6 +188,8 @@ class FlockMetrics:
     def angular_momentum(self) -> float:   return self._angular_momentum
     @property
     def avg_acceleration(self) -> float:   return self._avg_accel
+    @property
+    def dispersion(self) -> float:         return self._dispersion
 
     # ── Draw ─────────────────────────────────────────────────────────
 
@@ -201,6 +214,7 @@ class FlockMetrics:
             f"Power       avg       P  = {self._power:.1f}",
             f"Ang. mom.   avg       L  = {self._angular_momentum:.1f}",
             f"Accel.      avg      |a| = {self._avg_accel:.3f}",
+            f"Dispersion  σ_r = {self._dispersion:.1f}",
         ]
         if preset_label:
             lines.insert(0, preset_label)
