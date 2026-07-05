@@ -90,7 +90,7 @@ def _external_opacity(flock: list) -> float:
 class FlockMetrics:
     """Real-time scientific metrics with EMA smoothing."""
     __slots__ = ("_fps", "_theta", "_theta_ext", "_alpha", "_theta_samples",
-                "_power", "_angular_momentum")
+                "_power", "_angular_momentum", "_avg_accel")
 
     SMOOTH  = 0.04    # EMA factor — lower = smoother but slower response
     SAMPLES = 5        # birds sampled for Θ in SPATIAL mode
@@ -102,6 +102,7 @@ class FlockMetrics:
         self._alpha       = 0.0    # α  — order parameter (EMA)
         self._power             = 0.0    # P  — mean instantaneous power (EMA)
         self._angular_momentum  = 0.0    # L  — mean angular momentum (EMA)
+        self._avg_accel         = 0.0    # |a| — mean acceleration magnitude (EMA)
 
     def update(self, flock: list, clock: pygame.time.Clock, config: Config):
         """
@@ -155,6 +156,11 @@ class FlockMetrics:
             am_sum += b.position.x * b.velocity.y - b.position.y * b.velocity.x
         self._angular_momentum += (am_sum / n - self._angular_momentum) * s
 
+        # ── Avg acceleration magnitude: mean |acc| / MAX_FORCE ────
+        from flock_core import MAX_FORCE
+        accel_sum = sum(b.acceleration.length() for b in flock)
+        self._avg_accel += (accel_sum / n / MAX_FORCE - self._avg_accel) * s
+
     # ── Properties ───────────────────────────────────────────────────
 
     @property
@@ -169,6 +175,8 @@ class FlockMetrics:
     def power(self) -> float:              return self._power
     @property
     def angular_momentum(self) -> float:   return self._angular_momentum
+    @property
+    def avg_acceleration(self) -> float:   return self._avg_accel
 
     # ── Draw ─────────────────────────────────────────────────────────
 
@@ -192,6 +200,7 @@ class FlockMetrics:
             f"Order param          α  = {self._alpha:.3f}",
             f"Power       avg       P  = {self._power:.1f}",
             f"Ang. mom.   avg       L  = {self._angular_momentum:.1f}",
+            f"Accel.      avg      |a| = {self._avg_accel:.3f}",
         ]
         if preset_label:
             lines.insert(0, preset_label)

@@ -1312,3 +1312,28 @@ class TestFlockMetricsExtended(unittest.TestCase):
         self.assertTrue(hasattr(base, 'angular_momentum'))
         self.assertEqual(base.power, 0.0)
         self.assertEqual(base.angular_momentum, 0.0)
+
+    def test_avg_acceleration_positive_with_force(self):
+        """Avg acceleration > 0 when steering forces are applied."""
+        boids = [DirectVelocityBoid() for _ in range(10)]
+        for i, b in enumerate(boids):
+            b.position = pygame.Vector2(100 + i * 50, 350)
+            b.velocity = pygame.Vector2(V0, 0)
+            b.acceleration = pygame.Vector2(0.1, 0.05)
+        clock = pygame.time.Clock()
+        clock.tick()
+        self.metrics.update(boids, clock, self.config)
+        self.assertGreater(self.metrics.avg_acceleration, 0.0)
+
+    def test_avg_acceleration_zero_with_no_force(self):
+        """Avg acceleration is zero when no steering forces."""
+        boids = [DirectVelocityBoid() for _ in range(5)]
+        for b in boids:
+            b.position = pygame.Vector2(500, 350)
+            b.velocity = pygame.Vector2(V0, 0)
+            b.acceleration = pygame.Vector2(0, 0)
+        clock = pygame.time.Clock()
+        clock.tick()
+        for _ in range(100):
+            self.metrics.update(boids, clock, self.config)
+        self.assertAlmostEqual(self.metrics.avg_acceleration, 0.0, places=2)

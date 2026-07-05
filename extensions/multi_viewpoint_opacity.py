@@ -191,3 +191,8 @@ class FlockMetricsExtended(FlockMetrics):
         for b in flock:
             am_sum += b.position.x * b.velocity.y - b.position.y * b.velocity.x
         self._angular_momentum += (am_sum / n - self._angular_momentum) * s
+
+        # ── Avg acceleration magnitude: mean |acc| / MAX_FORCE ────
+        from flock_core import MAX_FORCE
+        accel_sum = sum(b.acceleration.length() for b in flock)
+        self._avg_accel += (accel_sum / n / MAX_FORCE - self._avg_accel) * s

@@ -146,8 +146,7 @@ LOG_EVERY = 10;
 log_fid = fopen(LOG_FILE, 'w');
 if log_fid == -1
     disp(['WARNING: could not open ' LOG_FILE ' for writing']);
-else
-    fprintf(log_fid, 'frame,mode,num_boids,phi_p,phi_a,phi_n,phi_s,sigma,theta,theta_ext,tau,alpha,fps,power,angmom\n');
+else        fprintf(log_fid, 'frame,mode,num_boids,phi_p,phi_a,phi_n,phi_s,sigma,theta,theta_ext,tau,alpha,fps,power,angmom,avg_accel\n');
     disp(['Logging metrics to ' LOG_FILE ' every ' num2str(LOG_EVERY) ' frames']);
 end
 
@@ -1322,6 +1321,7 @@ alpha_ema     = 0;                        % α  — order parameter (EMA)
 tau_ema       = 0;                        % τᵨ — correlation time (EMA)
 power_ema     = 0;                        % P  — mean power (EMA)
 angmom_ema    = 0;                        % L  — mean angular momentum (EMA)
+avg_accel_ema = 0;                        % |a| — mean acceleration magnitude (EMA)
 
 % Triangle vertex offsets (relative to position, rotated by heading)
 tip_len  = BOID_SIZE * 2.5;
@@ -1398,7 +1398,7 @@ while isgraphics(f)
                 acc = zeros(NUM_BOIDS, 2);
             end
             last_theta = zeros(NUM_BOIDS, 1);
-            theta_ema = 0; theta_ext_ema = 0; alpha_ema = 0; tau_ema = 0; power_ema = 0; angmom_ema = 0;
+            theta_ema = 0; theta_ext_ema = 0; alpha_ema = 0; tau_ema = 0; power_ema = 0; angmom_ema = 0; avg_accel_ema = 0;
             tau_count = 0; tau_idx = 1; tau_timer = 0;
             frame = 0;
             pending_reset = false;
@@ -1675,6 +1675,10 @@ while isgraphics(f)
             angmom_raw = mean(pos(:,1) .* vel(:,2) - pos(:,2) .* vel(:,1));
             power_ema  = power_ema  + (power_raw  - power_ema)  * smooth;
             angmom_ema = angmom_ema + (angmom_raw - angmom_ema) * smooth;
+
+            % Avg acceleration magnitude: mean |acc| / MAX_FORCE
+            accel_raw = mean(sqrt(sum(acc.^2, 2))) / MAX_FORCE;
+            avg_accel_ema = avg_accel_ema + (accel_raw - avg_accel_ema) * smooth;
         end
 
         if ~ENABLE_1a || MODE == 1
@@ -1774,7 +1778,7 @@ while isgraphics(f)
             fps = 1 / max(toc(t_frame), 0.001);
             fprintf(log_fid, '%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%.4f,%.1f,%.4f,%.1f,%.4f,%.4f\n', ...
                     frame, MODE, NUM_BOIDS, PHI_P, PHI_A, PHI_N, PHI_S, SIGMA, ...
-                    theta_ema, theta_ext_ema, tau_ema, alpha_ema, fps, power_ema, angmom_ema);
+                    theta_ema, theta_ext_ema, tau_ema, alpha_ema, fps, power_ema, angmom_ema, avg_accel_ema);
         end
 
     end  % ~paused
@@ -1882,7 +1886,7 @@ while isgraphics(f)
     else
         set(hTextTau, 'String', sprintf('Order α = %.3f', alpha_ema));
     end
-    set(hTextPower, 'String', sprintf('Power  P = %.1f   L = %.0f', power_ema, angmom_ema));
+    set(hTextPower, 'String', sprintf('P=%.1f  L=%.0f  |a|=%.3f', power_ema, angmom_ema, avg_accel_ema));
 
     % ── Mode badge ─────────────────────────────────────────────────
     set(hTextBadge, 'String', mode_names{MODE + 1});
