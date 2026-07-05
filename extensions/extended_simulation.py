@@ -8,9 +8,13 @@
 
  Implements:
    1a — Direct velocity setting (Pearce et al. Eq. 2–3, no steering)
+   1b — Multi-viewpoint external opacity (K=12 viewpoints)
+   1c — Correlation time τᵨ (Graham scan convex hull + autocorrelation)
    2a — Steric repulsion (short-range 1/r² repulsive force)
    2b — Blind angles (blind sector behind each bird, default β=60°)
+   2d — Anisotropic bodies (elliptical birds, a:b=2:1)
    3a — Predator agent (peregrine falcon / sparrowhawk)
+   3b — Spatial optimization (chunk-based far-field approximation)
 
  Run:  python -m extensions.extended_simulation
        python extensions/extended_simulation.py
@@ -31,9 +35,11 @@ from flock_core import (
     Config, SpatialGrid,
 )
 from extensions.predator import Predator, PredatorBoid
+from extensions.spatial_optimization import SpatialChunker
 from extensions.blind_angles import BLIND_ANGLE
 from extensions.steric_repulsion import PHI_STERIC
-from metrics import FlockMetrics
+from extensions.multi_viewpoint_opacity import FlockMetricsExtended, K_VIEWPOINTS
+from extensions.correlation_time import CorrelationTimeTracker
 from scenario_presets import apply_preset
 
 
@@ -140,7 +146,7 @@ def main():
             log_fid.write(
                 "frame,mode,num_boids,phi_p,phi_a,phi_n,"
                 "sigma,theta,theta_ext,alpha,fps,"
-                "phi_steric,blind_angle,predator_active\n"
+                "phi_steric,blind_angle,tau,density,predator_active\n"
             )
             print(f"Logging metrics to {ext_log} every {LOG_EVERY} frames")
         except OSError as e:
@@ -150,7 +156,9 @@ def main():
     # ── Initialize extended flock ─────────────────────────────────
     flock = [PredatorBoid() for _ in range(config.num_boids)]
     predator = None   # predator starts inactive — press 'p' to spawn
-    metrics = FlockMetrics()
+    metrics = FlockMetricsExtended()
+    corr_tracker = CorrelationTimeTracker()
+    chunker = SpatialChunker()
     frame = 0
     running = True
     paused = False
@@ -160,6 +168,8 @@ def main():
     preset_label = ""
     focal_index = None
     predator_active = False
+
+    ext_info_line = ""   # cached extension info string for display
 
     while running:
         dt = clock.tick(FPS)
@@ -287,7 +297,9 @@ def main():
                 flock = [PredatorBoid() for _ in range(config.num_boids)]
                 predator = None
                 predator_active = False
-                metrics = FlockMetrics()
+                metrics = FlockMetricsExtended()
+                corr_tracker = CorrelationTimeTracker()
+                chunker = SpatialChunker()
                 grid = SpatialGrid(cell_size=VISUAL_RANGE)
                 frame = 0
                 pending_reset = False
@@ -296,6 +308,12 @@ def main():
             # ── Grid rebuild ─────────────────────────────────────
             if config.mode == MODE_SPATIAL or config.show_grid:
                 grid.rebuild(flock)
+
+            # ── Spatial chunker rebuild (for optimized occlusion) ──
+            if config.mode == MODE_PROJECTION:
+                chunker.rebuild(flock)
+                for boid in flock:
+                    boid._chunker = chunker
 
             # ── Per-bird flocking: compute steering forces ────────
             for boid in flock:
@@ -317,6 +335,16 @@ def main():
             # ── Metrics ───────────────────────────────────────────
             metrics.update(flock, clock, config)
 
+            # ── Correlation time τᵨ ─────────────────────────────
+            corr_tracker.sample(flock, frame)
+
+            # ── Extension info line (updated each frame) ─────────
+            tau_str = f"τᵨ={corr_tracker.tau:.0f}f" if corr_tracker.tau > 0 else "τᵨ=…"
+            ext_info_line = (
+                f"EXT: DirVel  φ_s={PHI_STERIC:.2f}  β={math.degrees(BLIND_ANGLE):.0f}°  "
+                f"Pred={'ON' if predator_active else 'OFF'}  {tau_str}  ρ={corr_tracker.latest_density:.4f}"
+            )
+
             # ── CSV logging ───────────────────────────────────────
             if log_fid is not None and frame % LOG_EVERY == 0:
                 fps_val = clock.get_fps()
@@ -329,6 +357,7 @@ def main():
                     f"{metrics.external_opacity:.4f},"
                     f"{metrics.order_param:.4f},{fps_val:.1f},"
                     f"{PHI_STERIC:.4f},{BLIND_ANGLE:.4f},"
+                    f"{corr_tracker.tau:.4f},{corr_tracker.latest_density:.6f},"
                     f"{1 if predator_active else 0}\n"
                 )
                 log_fid.flush()
@@ -356,11 +385,7 @@ def main():
         metrics.draw(screen, font_small, config, len(flock), preset_label)
 
         # ── Extension info line ───────────────────────────────────
-        ext_info = (
-            f"EXT: DirVel  φ_s={PHI_STERIC:.2f}  β={math.degrees(BLIND_ANGLE):.0f}°  "
-            f"Pred={'ON' if predator_active else 'OFF (P to spawn)'}"
-        )
-        ext_surf = font_small.render(ext_info, True, (180, 160, 220))
+        ext_surf = font_small.render(ext_info_line, True, (180, 160, 220))
         screen.blit(ext_surf, (WIDTH // 2 - ext_surf.get_width() // 2, HEIGHT - 18))
 
         if config.show_help:
@@ -419,9 +444,13 @@ _EXT_HELP_LINES = [
     "",
     "Extensions active:",
     "  1a — Direct velocity (no steering)",
+    "  1b — Multi-viewpoint Θ'  (K=12)",
+    "  1c — Correlation time τᵨ",
     "  2a — Steric repulsion  (φ_s=0.03)",
     f"  2b — Blind angles  (β={math.degrees(BLIND_ANGLE):.0f}°)",
+    "  2d — Anisotropic bodies  (a:b=2:1)",
     "  3a — Predator agent  (P to spawn)",
+    "  3b — Spatial optimization",
 ]
 
 

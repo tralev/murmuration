@@ -17,7 +17,7 @@
    force proportional to 1/d², plus a startle propagation wave
    (neighbour-to-neighbour).
 
- Builds on BlindAnglesBoid (Roadmap 2b).
+ Builds on OptimizedBoid (Roadmap 3b — full extension chain).
 
  Usage:  from extensions.predator import Predator, PredatorBoid
 ──────────────────────────────────────────────────────────────────────
@@ -27,7 +27,7 @@ import math
 import random
 import pygame
 
-from extensions.blind_angles import BlindAnglesBoid
+from extensions.spatial_optimization import OptimizedBoid
 from flock_core import WIDTH, HEIGHT, V0
 
 
@@ -157,11 +157,11 @@ class Predator:
         # screen.blit(surf, (0, 0))
 
 
-class PredatorBoid(BlindAnglesBoid):
+class PredatorBoid(OptimizedBoid):
     """
     Extension 3a: Bird with predator-avoidance behaviour.
 
-    Extends BlindAnglesBoid to add a flight response: when a predator
+    Extends OptimizedBoid to add a flight response: when a predator
     is within DANGER_RADIUS, the bird steers away from it with a force
     proportional to 1/d².
     """

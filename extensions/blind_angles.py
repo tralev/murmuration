@@ -66,11 +66,35 @@ class BlindAnglesBoid(StericBoid):
         """
         Core occlusion algorithm with blind-angle filtering.
 
-        Before the closest-first occlusion merge loop, entries whose
-        angular interval lies entirely within the blind sector are
-        removed (treated as invisible).
+        ── WHY BLIND ANGLES? ──
+
+        Real birds have eyes on the sides of their heads — they
+        cannot see directly behind them.  Pearce et al. SI Appendix
+        models this as a blind sector of width β (default 60°)
+        centred on the backward direction.
+
+        Any bird whose ENTIRE angular interval falls within the blind
+        sector is invisible — excluded before the occlusion merge.
+
+        ── ALGORITHM PIPELINE ──
+
+        1. BUILD:    Compute angular intervals for all other birds.
+        2. BLIND:    Determine blind sector [θ+π−β/2, θ+π+β/2].
+        3. FILTER:   Remove entries entirely within the blind sector.
+        4. SORT:     Remaining entries sorted by distance (closest first).
+        5. MERGE:    Incremental occlusion merge (closest-first).
+        6. DELTA:    δ̂ from merged domain boundaries.
+        7. THETA:    Internal opacity Θ = Σ(merged widths) / 2π.
+
+        Blind filtering happens BEFORE the occlusion merge, so
+        invisible birds don't contribute to the occluded set AND
+        don't appear in visible_neighbours for alignment.
         """
-        # ── Build angular intervals for all other birds ────────────
+
+        # ── Phase 1: Build angular intervals ──────────────────────
+        #  For each other bird at distance d: centre = atan2(Δy, Δx),
+        #  half-width = asin(BOID_SIZE / d).  The interval [centre−half,
+        #  centre+half] subtends the bird's silhouette.
         entries = []
         for other in boids:
             if other is self:
@@ -78,7 +102,7 @@ class BlindAnglesBoid(StericBoid):
             diff = other.position - self.position
             dist = diff.length()
             if dist < 0.001:
-                continue
+                continue  # co-located — degenerate
             centre = math.atan2(diff.y, diff.x)
             if centre < 0:
                 centre += 2 * math.pi
@@ -88,7 +112,9 @@ class BlindAnglesBoid(StericBoid):
         if not entries:
             return pygame.Vector2(0, 0), [], 0.0, []
 
-        # ── Compute blind region from our heading ──────────────────
+        # ── Phase 2: Compute blind sector ─────────────────────────
+        #  Blind region = [heading + π − β/2,  heading + π + β/2]
+        #  The blind centre is directly behind the bird (−heading).
         if self.velocity.length_squared() > 0.001:
             heading = math.atan2(self.velocity.y, self.velocity.x)
         else:
@@ -96,9 +122,12 @@ class BlindAnglesBoid(StericBoid):
         if heading < 0:
             heading += 2 * math.pi
 
+        # Backward direction (opposite of heading), normalised to [0, 2π)
         blind_centre = heading + math.pi
         if blind_centre >= 2 * math.pi:
             blind_centre -= 2 * math.pi
+
+        # Blind sector extends ±β/2 from the blind centre
         blind_start = blind_centre - BLIND_ANGLE / 2
         blind_end   = blind_centre + BLIND_ANGLE / 2
         if blind_start < 0:
@@ -106,13 +135,17 @@ class BlindAnglesBoid(StericBoid):
         if blind_end > 2 * math.pi:
             blind_end -= 2 * math.pi
 
-        # ── Filter: remove entries entirely in the blind region ────
+        # ── Phase 3: Filter birds in the blind sector ─────────────
+        #  A bird is invisible if its ENTIRE angular interval lies
+        #  within the blind region.  We don't use partially-visible
+        #  — if even a sliver peeks out, the bird is visible.
         filtered = []
         for other, dist, centre, half in entries:
             start = centre - half
             end   = centre + half
             segments = _normalise_interval(start, end)
 
+            # Check if ALL segments fall within the blind region
             all_in_blind = all(
                 _interval_in_blind_region(s, e, blind_start, blind_end)
                 for s, e in segments
@@ -123,10 +156,18 @@ class BlindAnglesBoid(StericBoid):
         if not filtered:
             return pygame.Vector2(0, 0), [], 0.0, []
 
-        # ── Sort closest-first (correct occlusion ordering) ────────
+        # ── Phase 4: Sort closest-first ───────────────────────────
+        #  WHY CLOSEST-FIRST?  A bird closer to you blocks your view
+        #  of birds behind it.  Processing in distance order ensures
+        #  correct occlusion — near birds cast shadows over far birds.
         filtered.sort(key=lambda x: x[1])
 
-        # ── Incremental occlusion merge ────────────────────────────
+        # ── Phase 5: Incremental occlusion merge ──────────────────
+        #  Walk through entries (closest to farthest).  For each:
+        #    a. Check if any part of the interval is uncovered.
+        #    b. If yes → bird is visible.  Merge interval into
+        #       the occluded set so farther birds are hidden.
+        #    c. If no  → bird is fully occluded by closer birds.
         merged = []
         visible_neighbours = []
 
@@ -143,13 +184,17 @@ class BlindAnglesBoid(StericBoid):
                 for s, e in segments:
                     _merge_interval(s, e, merged)
 
-        # ── δ̂ from domain boundaries ─────────────────────────────
+        # ── Phase 6: δ̂ — projection direction ───────────────────
+        #  δ̂ = Σ of unit vectors to each boundary of each merged
+        #  interval, normalised.  This points toward the nearest
+        #  gap in the occluded visual field.
         delta = pygame.Vector2(0, 0)
         two_pi = 2 * math.pi
         for s, e in merged:
             delta += pygame.Vector2(math.cos(s), math.sin(s))
             delta += pygame.Vector2(math.cos(e), math.sin(e))
 
+        # Fully surrounded (merged = [0, 2π]) → δ̂ = 0
         if (len(merged) == 1 and
                 merged[0][0] < 1e-9 and
                 merged[0][1] > two_pi - 1e-9):
@@ -158,7 +203,8 @@ class BlindAnglesBoid(StericBoid):
         if delta.length() > 0:
             delta.normalize_ip()
 
-        # ── Internal opacity Θ_i ──────────────────────────────────
+        # ── Phase 7: Internal opacity Θ_i ─────────────────────────
+        #  Θ = (total occluded angular width) / 2π
         occluded = sum(e - s for s, e in merged)
         theta = min(occluded / two_pi, 1.0)
 

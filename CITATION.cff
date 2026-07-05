@@ -1,0 +1,56 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "Murmuration — Dual-Mode Bird Flock Simulation"
+abstract: >
+  A Python simulation of starling murmurations implementing two distinct
+  flocking algorithms — the hybrid projection model from Pearce et al. (2014,
+  PNAS) and topological Reynolds boids — switchable at runtime. Includes 9
+  roadmap extensions: direct velocity setting, multi-viewpoint opacity,
+  correlation time tracking, steric repulsion, blind angles, a 3D extension
+  with Fibonacci-sphere spherical cap occlusion, anisotropic elliptical
+  bodies, predator-prey dynamics, and spatial optimization for large flocks.
+authors:
+  - family-names: "tralev"
+    given-names: ""
+    orcid: ""
+repository-code: "https://github.com/tralev/murmuration"
+keywords:
+  - "murmuration"
+  - "starling"
+  - "collective-behavior"
+  - "flocking"
+  - "projection-model"
+  - "boids"
+  - "computational-biology"
+license: GPL-3.0
+version: "1.0.0"
+date-released: "2026-07-05"
+references:
+  - type: article
+    title: "Role of projection in the control of bird flocks"
+    authors:
+      - family-names: Pearce
+        given-names: D. J. G.
+      - family-names: Miller
+        given-names: A. M.
+      - family-names: Rowlands
+        given-names: G.
+      - family-names: Turner
+        given-names: M. S.
+    journal: "Proceedings of the National Academy of Sciences"
+    volume: 111
+    issue: 29
+    year: 2014
+    doi: "10.1073/pnas.1402202111"
+    pages: "10422-10426"
+  - type: article
+    title: "Flocks, Herds, and Schools: A Distributed Behavioral Model"
+    authors:
+      - family-names: Reynolds
+        given-names: C. W.
+    journal: "ACM SIGGRAPH Computer Graphics"
+    volume: 21
+    issue: 4
+    year: 1987
+    doi: "10.1145/37402.37406"
+    pages: "25-34"

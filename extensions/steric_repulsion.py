@@ -46,35 +46,79 @@ class StericBoid(DirectVelocityBoid):
         """
         Projection model with steric repulsion.
 
-        Inherits direct velocity setting from DirectVelocityBoid
-        and adds a repulsion loop after computing the desired direction.
+        ── THEORY ──
+
+        In the base model, birds are "phantoms" — they can occupy
+        the same position without consequence.  This is unrealistic.
+
+        Pearce et al. (2014) SI Appendix introduces a short-range
+        repulsive force:
+
+          F_rep = φ_s · Σ_{j: d_ij < r_s}  (r̂ⱼᵢ / d_ij²)
+
+        where:
+          φ_s = steric weight (0.03 — small, only prevents overlap)
+          r_s = steric radius (2·BOID_SIZE — activates at close range)
+          r̂ⱼᵢ = unit vector FROM neighbour j TO self i
+
+        The 1/d² falloff means the force is negligible at distance
+        and strong at contact — just enough to prevent birds from
+        overlapping without affecting large-scale flock structure.
+
+        ── IMPLEMENTATION ──
+
+        1. Parent computes desired velocity via projection model.
+        2. Iterate ALL boids (not just visible ones — physical
+           contact is felt even if the bird is behind you).
+        3. For each bird within STERIC_RADIUS:
+           a. Compute direction away from the neighbour.
+           b. Add repulsive contribution proportional to 1/d².
+        4. Add cumulative repulsion to velocity.
+        5. Re-normalise to v₀ (repulsion changes direction, not speed).
+
+        The re-normalisation ensures the bird maintains cruising speed
+        after evasive manoeuvres — it steers around neighbours, it
+        doesn't slow down.
         """
-        # ── Call parent: compute δ̂, visible neighbours, desired ──
+
+        # ── Phase 1: compute projection direction (parent) ────────
+        #  This sets self.velocity to the projection-model desired
+        #  direction.  We then adjust it with repulsion.
         super()._flock_projection(boids, config)
 
-        # ── Steric repulsion: push away from close neighbours ──────
-        #  Check all boids within steric radius. Physical contact
-        #  is felt regardless of visibility — a bird overlapping you
-        #  pushes you even if you can't see it.
+        # ── Phase 2: steric repulsion loop ────────────────────────
+        #  Sum repulsive forces from ALL close birds, regardless of
+        #  visibility.  Physical contact doesn't require line-of-sight.
         repulsion = pygame.Vector2(0, 0)
+
         for other in boids:
             if other is self:
                 continue
+
+            # Displacement vector FROM neighbour TO self
+            #  (we want to push self AWAY from the neighbour)
             diff = self.position - other.position
             d = diff.length()
-            if d < STERIC_RADIUS and d > 0.001:
-                # 1/r² falloff toward unit direction
-                diff /= d
-                repulsion += diff / (d * d)
 
+            # Only birds within the steric radius repel
+            if d < STERIC_RADIUS and d > 0.001:
+                diff /= d                         # unit direction away
+                repulsion += diff / (d * d)       # 1/r² weighting
+
+        # ── Phase 3: apply repulsion to velocity ──────────────────
         if repulsion.length() > 0.001:
-            # Scale by steric weight and add directly to velocity
-            # (not steering — we're in direct-velocity mode)
             repulsion.normalize_ip()
-            # The steric force scales with 1/r² already; weight just
-            # controls overall strength relative to V0.
+
+            # Scale: φ_s × BOID_SIZE gives a small, dimensionalised
+            # force.  BOID_SIZE is the characteristic length scale;
+            # without it the force would be dimensionless.
             repulsion *= PHI_STERIC * BOID_SIZE
+
             self.velocity += repulsion
-            # Re-normalise to V0 so steric changes direction but not speed
+
+            # Re-normalise to cruising speed v₀
+            #  Steric repulsion steers the bird — it doesn't change
+            #  its speed.  This models a bird that banks away from
+            #  a collision without slowing down.
             if self.velocity.length() > 0.001:
                 self.velocity.scale_to_length(V0)

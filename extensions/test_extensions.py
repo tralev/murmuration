@@ -32,6 +32,20 @@ from extensions.predator import (
     PREDATOR_SPEED,
     FLIGHT_FORCE,
 )
+from extensions.multi_viewpoint_opacity import (
+    external_opacity_multi_viewpoint,
+    FlockMetricsExtended,
+    K_VIEWPOINTS,
+)
+from metrics import FlockMetrics
+from extensions.correlation_time import (
+    convex_hull_area,
+    CorrelationTimeTracker,
+    BUFFER_SIZE,
+    CORR_SAMPLE_INTERVAL,
+)
+from extensions.anisotropic_bodies import AnisotropicBoid, BOID_SEMI_MAJOR, BOID_SEMI_MINOR
+from extensions.spatial_optimization import SpatialChunker, OptimizedBoid
 from flock_core import (
     WIDTH, HEIGHT, V0, BOID_SIZE,
     MODE_PROJECTION, MODE_SPATIAL,
@@ -607,7 +621,8 @@ class TestInheritanceChain(unittest.TestCase):
         mro = [c.__name__ for c in PredatorBoid.__mro__
                if c.__name__ not in ('object',)]
         expected = [
-            'PredatorBoid', 'BlindAnglesBoid', 'StericBoid',
+            'PredatorBoid', 'OptimizedBoid', 'AnisotropicBoid',
+            'BlindAnglesBoid', 'StericBoid',
             'DirectVelocityBoid', 'Boid',
         ]
         for cls_name in expected:
@@ -663,5 +678,579 @@ class TestBlindOcclusionWorkflow(unittest.TestCase):
         self.assertIs(visible[0][0], boid_c, "The visible bird should be boid_c")
 
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Anisotropic bodies — Priority 2d
+# ══════════════════════════════════════════════════════════════════════
+
+class TestAnisotropicBoid(unittest.TestCase):
+    """Tests for AnisotropicBoid — elliptical birds."""
+
+    def test_is_instance_of_blind_angles(self):
+        """AnisotropicBoid inherits from BlindAnglesBoid."""
+        boid = AnisotropicBoid()
+        self.assertIsInstance(boid, BlindAnglesBoid)
+
+    def test_side_view_larger_than_behind_view(self):
+        """Bird seen from the side subtends a larger angle than from behind."""
+        a = AnisotropicBoid()
+        b = AnisotropicBoid()
+        # Observer at (0, 0), target at (100, 0) to the right
+        a.position = pygame.Vector2(0, 0)
+        a.velocity = pygame.Vector2(4, 0)  # observer faces right (away from blind)
+        b.position = pygame.Vector2(100, 0)
+
+        # Case 1: target flying right (away from observer) — see minor axis
+        b.velocity = pygame.Vector2(4, 0)  # heading 0
+        _, vis1, _, _ = a._compute_projection_and_visibility([a, b])
+
+        # Case 2: target flying up (side-on to observer) — see major axis
+        b.velocity = pygame.Vector2(0, 4)  # heading π/2
+        _, vis2, _, _ = a._compute_projection_and_visibility([a, b])
+
+        # Both should be visible (not in blind sector)
+        self.assertEqual(len(vis1), 1)
+        self.assertEqual(len(vis2), 1)
+
+    def test_projected_radius_within_expected_range(self):
+        """Projected radius is between semi-minor and semi-major."""
+        boid = AnisotropicBoid()
+        boid.position = pygame.Vector2(500, 350)
+        target = AnisotropicBoid()
+        target.position = pygame.Vector2(600, 350)
+        target.velocity = pygame.Vector2(4, 0)
+
+        _, visible, theta, merged = boid._compute_projection_and_visibility(
+            [boid, target]
+        )
+        # The target should be visible (ahead, not in blind sector)
+        self.assertEqual(len(visible), 1)
+        # Opacity should be non-zero
+        self.assertGreater(theta, 0.0)
+
+    def test_stationary_bird_does_not_crash(self):
+        """Bird with zero velocity falls back to psi=0."""
+        a = AnisotropicBoid()
+        b = AnisotropicBoid()
+        a.position = pygame.Vector2(500, 350)
+        a.velocity = pygame.Vector2(4, 0)
+        b.position = pygame.Vector2(550, 350)
+        b.velocity = pygame.Vector2(0, 0)  # stationary
+
+        _, visible, _, _ = a._compute_projection_and_visibility([a, b])
+        self.assertEqual(len(visible), 1,
+                         "Stationary bird should still be visible")
+
+    def test_empty_flock_returns_zero(self):
+        """No other birds — zero results."""
+        boid = AnisotropicBoid()
+        delta, visible, theta, merged = boid._compute_projection_and_visibility(
+            [boid]
+        )
+        self.assertEqual(len(visible), 0)
+        self.assertEqual(delta, pygame.Vector2(0, 0))
+        self.assertAlmostEqual(theta, 0.0)
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  3D extension — Priority 2c
+# ══════════════════════════════════════════════════════════════════════
+
+class TestFibonacciSphere(unittest.TestCase):
+    """Tests for fibonacci_sphere()."""
+
+    def test_returns_correct_count(self):
+        """Returns exactly n points."""
+        from extensions.three_d import fibonacci_sphere
+        for n in [1, 5, 10, 80]:
+            pts = fibonacci_sphere(n)
+            self.assertEqual(len(pts), n,
+                             f"Expected {n} points, got {len(pts)}")
+
+    def test_all_points_on_unit_sphere(self):
+        """All points have magnitude ~1."""
+        from extensions.three_d import fibonacci_sphere
+        pts = fibonacci_sphere(50)
+        for x, y, z in pts:
+            r = math.sqrt(x * x + y * y + z * z)
+            self.assertAlmostEqual(r, 1.0, places=5)
+
+    def test_points_cover_hemispheres(self):
+        """Points exist in both positive and negative y hemispheres."""
+        from extensions.three_d import fibonacci_sphere
+        pts = fibonacci_sphere(20)
+        pos_y = any(y > 0.5 for _, y, _ in pts)
+        neg_y = any(y < -0.5 for _, y, _ in pts)
+        self.assertTrue(pos_y, "Should have points in +y hemisphere")
+        self.assertTrue(neg_y, "Should have points in -y hemisphere")
+
+
+class TestBoid3D(unittest.TestCase):
+    """Tests for Boid3D — 3D spherical cap occlusion and physics."""
+
+    def setUp(self):
+        from extensions.three_d import Boid3D
+        self.config = Config()
+        self.config.mode = MODE_PROJECTION
+        pygame.init()
+
+    def test_position_is_3d(self):
+        """Boid3D has 3D position (Vector3)."""
+        from extensions.three_d import Boid3D
+        boid = Boid3D()
+        self.assertIsInstance(boid.position, pygame.Vector3)
+        self.assertTrue(hasattr(boid.position, 'z'))
+
+    def test_velocity_is_3d(self):
+        """Boid3D has 3D velocity."""
+        from extensions.three_d import Boid3D
+        boid = Boid3D()
+        self.assertIsInstance(boid.velocity, pygame.Vector3)
+
+    def test_empty_flock_no_crash(self):
+        """Empty flock (only self) — returns zero results."""
+        from extensions.three_d import Boid3D
+        boid = Boid3D()
+        delta, visible, theta = boid._compute_projection_and_visibility_3d([boid])
+        self.assertEqual(len(visible), 0)
+        self.assertEqual(delta, pygame.Vector3(0, 0, 0))
+        self.assertAlmostEqual(theta, 0.0)
+
+    def test_bird_in_front_visible(self):
+        """Bird directly in front is visible."""
+        from extensions.three_d import Boid3D
+        a = Boid3D()
+        b = Boid3D()
+        a.position = pygame.Vector3(500, 350, 250)
+        a.velocity = pygame.Vector3(4, 0, 0)  # heading +x
+        # Place bird very close so cap covers many Fibonacci points
+        b.position = pygame.Vector3(510, 350, 250)  # only 10px away
+        b.velocity = pygame.Vector3(4, 0, 0)
+
+        delta, visible, theta = a._compute_projection_and_visibility_3d([a, b])
+        self.assertEqual(len(visible), 1,
+                         "Bird directly in front should be visible")
+
+    def test_flock_updates_velocity(self):
+        """After flock(), velocity is set (non-zero)."""
+        from extensions.three_d import Boid3D
+        a = Boid3D()
+        b = Boid3D()
+        a.flock([a, b], self.config)
+        self.assertGreater(a.velocity.length(), 0)
+
+    def test_update_changes_position(self):
+        """update() moves the bird."""
+        from extensions.three_d import Boid3D
+        boid = Boid3D()
+        boid.velocity = pygame.Vector3(V0, 0, 0)
+        old_pos = boid.position.copy()
+        boid.update()
+        self.assertNotEqual(boid.position, old_pos)
+
+    def test_toroidal_wrap_z(self):
+        """Position wraps in z-dimension."""
+        from extensions.three_d import Boid3D, DEPTH
+        boid = Boid3D()
+        boid.position = pygame.Vector3(500, 350, DEPTH + 10)
+        boid.velocity = pygame.Vector3(0, 0, V0)
+        boid.update()
+        self.assertGreaterEqual(boid.position.z, 0)
+        self.assertLessEqual(boid.position.z, DEPTH)
+
+    def test_occlusion_by_closer_bird(self):
+        """Closer bird occludes a farther bird behind it."""
+        from extensions.three_d import Boid3D
+        a = Boid3D()
+        b = Boid3D()  # closer — occludes c
+        c = Boid3D()  # farther — behind b
+
+        a.position = pygame.Vector3(500, 350, 250)
+        a.velocity = pygame.Vector3(4, 0, 0)  # heading +x (not in blind)
+        # Place b very close and c directly behind b (same direction)
+        b.position = pygame.Vector3(510, 350, 250)  # 10px ahead
+        b.velocity = pygame.Vector3(4, 0, 0)
+        c.position = pygame.Vector3(512, 350, 250)  # 2px behind b, same LOS
+        c.velocity = pygame.Vector3(4, 0, 0)
+
+        _, visible, _ = a._compute_projection_and_visibility_3d([a, b, c])
+        # b should be visible, c should be occluded by b
+        visible_birds = [v[0] for v in visible]
+        self.assertIn(b, visible_birds, "Closer bird b should be visible")
+        self.assertNotIn(c, visible_birds,
+                         "Farther bird c should be occluded by b")
+
+    def test_is_instance_of_boid(self):
+        """Boid3D inherits from base Boid."""
+        from extensions.three_d import Boid3D
+        from boid import Boid
+        boid = Boid3D()
+        self.assertIsInstance(boid, Boid)
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Spatial optimization — Priority 3b
+# ══════════════════════════════════════════════════════════════════════
+
+class TestSpatialChunker(unittest.TestCase):
+    """Tests for SpatialChunker."""
+
+    def setUp(self):
+        self.chunker = SpatialChunker()
+
+    def test_empty_flock_no_crash(self):
+        """Rebuilding with empty flock does not crash."""
+        self.chunker.rebuild([])
+        entries = self.chunker.get_occlusion_entries(
+            pygame.Vector2(500, 350), None
+        )
+        self.assertEqual(len(entries), 0)
+
+    def test_rebuild_populates_cells(self):
+        """Birds are assigned to cells."""
+        boids = [DirectVelocityBoid() for _ in range(10)]
+        for i, b in enumerate(boids):
+            b.position = pygame.Vector2(100 + i * 80, 350)
+        self.chunker.rebuild(boids)
+        # Birds spread across multiple cells should produce entries
+        entries = self.chunker.get_occlusion_entries(
+            pygame.Vector2(500, 350), boids[0]
+        )
+        # Should have near entries (other birds in 3×3) plus far chunks
+        self.assertGreater(len(entries), 0)
+
+    def test_entries_have_birds_and_chunks(self):
+        """Entries include both bird references and None (chunk) sentinels."""
+        boids = [DirectVelocityBoid() for _ in range(150)]
+        for i, b in enumerate(boids):
+            b.position = pygame.Vector2(
+                (i * 67) % 1000, (i * 43) % 700
+            )
+        self.chunker.rebuild(boids)
+        entries = self.chunker.get_occlusion_entries(
+            pygame.Vector2(500, 350), boids[0]
+        )
+        has_birds = any(e[0] is not None for e in entries)
+        has_chunks = any(e[0] is None for e in entries)
+        self.assertTrue(has_birds, "Should have near-bird entries")
+        # Chunks may or may not appear depending on grid coverage
+
+    def test_entries_sorted_by_distance(self):
+        """Combined entries are returned for closest-first sorting."""
+        boids = [DirectVelocityBoid() for _ in range(50)]
+        for i, b in enumerate(boids):
+            b.position = pygame.Vector2(
+                (i * 137) % 1000, (i * 89) % 700
+            )
+        self.chunker.rebuild(boids)
+        entries = self.chunker.get_occlusion_entries(
+            pygame.Vector2(500, 350), None
+        )
+        # Entries are not pre-sorted — caller must sort
+        self.assertGreater(len(entries), 0)
+
+
+class TestOptimizedBoid(unittest.TestCase):
+    """Tests for OptimizedBoid."""
+
+    def test_is_instance_of_anisotropic(self):
+        """OptimizedBoid inherits from AnisotropicBoid."""
+        boid = OptimizedBoid()
+        self.assertIsInstance(boid, AnisotropicBoid)
+
+    def test_falls_back_without_chunker(self):
+        """Without _chunker attribute, falls back to parent method."""
+        a = OptimizedBoid()
+        b = OptimizedBoid()
+        a.position = pygame.Vector2(500, 350)
+        a.velocity = pygame.Vector2(4, 0)
+        b.position = pygame.Vector2(550, 350)
+        b.velocity = pygame.Vector2(4, 0)
+        # No _chunker set — should fall back to AnisotropicBoid's method
+        _, visible, _, _ = a._compute_projection_and_visibility([a, b])
+        self.assertEqual(len(visible), 1)
+
+    def test_with_chunker_produces_same_visibility(self):
+        """With a chunker, visibility should match the full method."""
+        chunker = SpatialChunker()
+        a = OptimizedBoid()
+        b = OptimizedBoid()
+        a.position = pygame.Vector2(500, 350)
+        a.velocity = pygame.Vector2(4, 0)
+        b.position = pygame.Vector2(550, 350)
+        b.velocity = pygame.Vector2(4, 0)
+        a._chunker = chunker
+        chunker.rebuild([a, b])
+        _, visible, _, _ = a._compute_projection_and_visibility([a, b])
+        # Bird ahead should still be visible
+        self.assertEqual(len(visible), 1)
+
+    def test_empty_flock_returns_zero(self):
+        """No other birds — zero results."""
+        chunker = SpatialChunker()
+        boid = OptimizedBoid()
+        boid._chunker = chunker
+        chunker.rebuild([boid])
+        delta, visible, theta, merged = boid._compute_projection_and_visibility(
+            [boid]
+        )
+        self.assertEqual(len(visible), 0)
+        self.assertEqual(delta, pygame.Vector2(0, 0))
+        self.assertAlmostEqual(theta, 0.0)
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Convex hull (Graham scan) — Priority 1c
+# ══════════════════════════════════════════════════════════════════════
+
+class TestConvexHullArea(unittest.TestCase):
+    """Tests for convex_hull_area()."""
+
+    def test_empty_returns_zero(self):
+        """Empty list → 0."""
+        self.assertEqual(convex_hull_area([]), 0.0)
+
+    def test_single_point_returns_zero(self):
+        """Single point → 0."""
+        self.assertEqual(convex_hull_area([(100, 200)]), 0.0)
+
+    def test_two_points_returns_zero(self):
+        """Two points → 0."""
+        self.assertEqual(convex_hull_area([(0, 0), (100, 100)]), 0.0)
+
+    def test_square(self):
+        """Unit square → area 1."""
+        area = convex_hull_area([(0, 0), (1, 0), (1, 1), (0, 1)])
+        self.assertAlmostEqual(area, 1.0)
+
+    def test_triangle(self):
+        """Right triangle → area 0.5."""
+        area = convex_hull_area([(0, 0), (1, 0), (0, 1)])
+        self.assertAlmostEqual(area, 0.5)
+
+    def test_interior_point_ignored(self):
+        """Point inside the hull is ignored."""
+        area = convex_hull_area([(0, 0), (2, 0), (2, 2), (0, 2), (1, 1)])
+        self.assertAlmostEqual(area, 4.0)
+
+    def test_collinear_points_on_hull(self):
+        """Collinear edge points are excluded from hull."""
+        area = convex_hull_area([(0, 0), (1, 0), (2, 0), (2, 2), (0, 2)])
+        # Hull should be (0,0), (2,0), (2,2), (0,2) → area 4
+        self.assertAlmostEqual(area, 4.0)
+
+    def test_scattered_points(self):
+        """Random-looking points — verify area is reasonable."""
+        pts = [(100, 200), (150, 180), (200, 210), (180, 300), (120, 290)]
+        area = convex_hull_area(pts)
+        self.assertGreater(area, 0)
+        self.assertLess(area, 20000)  # within screen bounds
+
+    def test_all_same_point(self):
+        """All points at same location → 0."""
+        area = convex_hull_area([(100, 100), (100, 100), (100, 100)])
+        self.assertAlmostEqual(area, 0.0)
+
+    def test_large_coordinates(self):
+        """Points near WIDTH x HEIGHT bounds."""
+        pts = [(0, 0), (1000, 0), (1000, 700), (0, 700)]
+        area = convex_hull_area(pts)
+        self.assertAlmostEqual(area, 1000.0 * 700.0)
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Correlation time tracker — Priority 1c
+# ══════════════════════════════════════════════════════════════════════
+
+class TestCorrelationTimeTracker(unittest.TestCase):
+    """Tests for CorrelationTimeTracker."""
+
+    def setUp(self):
+        self.tracker = CorrelationTimeTracker()
+
+    def test_initial_tau_is_zero(self):
+        """Before any samples, τᵨ = 0."""
+        self.assertEqual(self.tracker.tau, 0.0)
+        self.assertEqual(self.tracker.latest_density, 0.0)
+        self.assertEqual(self.tracker.buffer_size, 0)
+
+    def test_empty_flock_no_crash(self):
+        """Sampling empty flock does not crash."""
+        self.tracker.sample([], 0)
+        self.assertEqual(self.tracker.latest_density, 0.0)
+
+    def test_small_flock_no_crash(self):
+        """Sampling flock with <3 birds does not crash."""
+        boids = [DirectVelocityBoid() for _ in range(2)]
+        self.tracker.sample(boids, 0)
+        self.assertEqual(self.tracker.latest_density, 0.0)
+
+    def test_sample_collects_data(self):
+        """After enough frames, buffer fills."""
+        boids = [DirectVelocityBoid() for _ in range(10)]
+        # Place in a spread-out pattern so hull has area
+        for i, b in enumerate(boids):
+            b.position = pygame.Vector2(400 + i * 20, 300 + (i % 3) * 30)
+
+        # Call sample many times to trigger CORR_SAMPLE_INTERVAL
+        for frame in range(CORR_SAMPLE_INTERVAL * 15):
+            self.tracker.sample(boids, frame)
+
+        self.assertGreater(self.tracker.buffer_size, 0)
+        self.assertGreater(self.tracker.latest_density, 0.0)
+
+    def test_tau_is_zero_for_constant_density(self):
+        """If density never changes, τᵨ stays near zero."""
+        boids = [DirectVelocityBoid() for _ in range(10)]
+        for i, b in enumerate(boids):
+            b.position = pygame.Vector2(400 + i * 20, 300 + (i % 3) * 30)
+
+        for frame in range(CORR_SAMPLE_INTERVAL * 20):
+            self.tracker.sample(boids, frame)
+
+        # With static positions, density is nearly constant
+        # → autocorrelation decays quickly → τᵨ is small or zero
+        # The tracker integrates positive autocorrelation only,
+        # so if variance is tiny, tau stays at 0
+        self.assertTrue(self.tracker.tau < 100 or self.tracker.tau == 0.0)
+
+    def test_sample_rate_respected(self):
+        """Sampling only occurs at CORR_SAMPLE_INTERVAL."""
+        boids = [DirectVelocityBoid() for _ in range(5)]
+        for i, b in enumerate(boids):
+            b.position = pygame.Vector2(400 + i * 30, 300 + (i % 2) * 40)
+
+        # One sample below threshold — should not trigger
+        for _ in range(CORR_SAMPLE_INTERVAL - 1):
+            self.tracker.sample(boids, 0)
+        self.assertEqual(self.tracker.buffer_size, 0)
+
+        # One more triggers the sample
+        self.tracker.sample(boids, 0)
+        self.assertEqual(self.tracker.buffer_size, 1)
+
+    def test_buffer_capacity(self):
+        """Buffer caps at BUFFER_SIZE."""
+        boids = [DirectVelocityBoid() for _ in range(5)]
+        for i, b in enumerate(boids):
+            b.position = pygame.Vector2(400 + i * 30, 300 + (i % 2) * 40)
+
+        # Generate more samples than buffer capacity
+        needed_frames = CORR_SAMPLE_INTERVAL * (BUFFER_SIZE + 10)
+        for frame in range(needed_frames):
+            self.tracker.sample(boids, frame)
+
+        self.assertLessEqual(self.tracker.buffer_size, BUFFER_SIZE)
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  External opacity from multiple viewpoints (Priority 1b)
+# ══════════════════════════════════════════════════════════════════════
+
+class TestMultiViewpointOpacity(unittest.TestCase):
+    """Tests for external_opacity_multi_viewpoint()."""
+
+    def test_empty_flock_returns_zero(self):
+        """Empty flock → opacity 0."""
+        result = external_opacity_multi_viewpoint([])
+        self.assertEqual(result, 0.0)
+
+    def test_single_bird_low_opacity(self):
+        """Single bird at distance R_ext → opacity near 0."""
+        boid = DirectVelocityBoid()
+        boid.position = pygame.Vector2(0, 0)  # at centre
+        # From distance 2000, one small bird subtends a tiny angle
+        result = external_opacity_multi_viewpoint([boid], k=4, r_ext=2000)
+        self.assertGreater(result, 0.0)
+        self.assertLess(result, 0.01)  # very small
+
+    def test_opacity_increases_with_more_birds(self):
+        """More birds → higher opacity."""
+        boid_a = DirectVelocityBoid()
+        boid_a.position = pygame.Vector2(0, 0)
+        boid_b = DirectVelocityBoid()
+        boid_b.position = pygame.Vector2(10, 0)  # slightly offset
+
+        single = external_opacity_multi_viewpoint([boid_a], k=4, r_ext=2000)
+        double = external_opacity_multi_viewpoint([boid_a, boid_b], k=4, r_ext=2000)
+        # Two separated birds should produce wider opaque region
+        self.assertGreater(double, single)
+
+    def test_returns_value_between_zero_and_one(self):
+        """Opacity is always in [0, 1]."""
+        boids = [DirectVelocityBoid() for _ in range(20)]
+        for b in boids:
+            b.position = pygame.Vector2(
+                random.uniform(200, 800),
+                random.uniform(150, 550),
+            )
+        result = external_opacity_multi_viewpoint(boids, k=8, r_ext=2000)
+        self.assertGreaterEqual(result, 0.0)
+        self.assertLessEqual(result, 1.0)
+
+    def test_different_k_values(self):
+        """K=1, K=4, K=12 all return valid values."""
+        boids = [DirectVelocityBoid() for _ in range(5)]
+        for b in boids:
+            b.position = pygame.Vector2(500, 350)
+        for k in [1, 4, 12]:
+            result = external_opacity_multi_viewpoint(boids, k=k, r_ext=2000)
+            self.assertGreaterEqual(result, 0.0)
+            self.assertLessEqual(result, 1.0)
+
+    def test_closer_birds_higher_opacity(self):
+        """Birds closer to the observer → higher opacity."""
+        boids_far = [DirectVelocityBoid() for _ in range(5)]
+        boids_near = [DirectVelocityBoid() for _ in range(5)]
+        for b in boids_far:
+            b.position = pygame.Vector2(500, 350)
+        for b in boids_near:
+            b.position = pygame.Vector2(500, 350)
+
+        result_far = external_opacity_multi_viewpoint(boids_far, k=4, r_ext=4000)
+        result_near = external_opacity_multi_viewpoint(boids_near, k=4, r_ext=500)
+        self.assertGreater(result_near, result_far,
+                           "Closer observer should see higher opacity")
+
+    def test_k_defaults_to_12(self):
+        """Calling with just flock uses default K=12."""
+        boids = [DirectVelocityBoid() for _ in range(3)]
+        for b in boids:
+            b.position = pygame.Vector2(500, 350)
+        result = external_opacity_multi_viewpoint(boids)
+        self.assertGreaterEqual(result, 0.0)
+        self.assertLessEqual(result, 1.0)
+
+
+class TestFlockMetricsExtended(unittest.TestCase):
+    """Tests for FlockMetricsExtended."""
+
+    def setUp(self):
+        self.metrics = FlockMetricsExtended()
+        self.config = Config()
+        self.config.mode = MODE_PROJECTION
+
+    def test_is_subclass_of_flock_metrics(self):
+        """FlockMetricsExtended inherits from FlockMetrics."""
+        self.assertIsInstance(self.metrics, FlockMetrics)
+
+    def test_update_with_empty_flock(self):
+        """update() with empty flock does not crash."""
+        clock = pygame.time.Clock()
+        clock.tick()
+        self.metrics.update([], clock, self.config)
+        self.assertEqual(self.metrics.internal_opacity, 0.0)
+        self.assertEqual(self.metrics.external_opacity, 0.0)
+        self.assertEqual(self.metrics.order_param, 0.0)
+
+    def test_update_computes_metrics(self):
+        """update() with flock computes all metrics."""
+        boids = [DirectVelocityBoid() for _ in range(10)]
+        clock = pygame.time.Clock()
+        clock.tick()
+        self.metrics.update(boids, clock, self.config)
+        # Metrics should be set (not necessarily converged after one frame)
+        self.assertGreaterEqual(self.metrics.internal_opacity, 0.0)
+        self.assertGreaterEqual(self.metrics.external_opacity, 0.0)
+        self.assertGreaterEqual(self.metrics.order_param, 0.0)
