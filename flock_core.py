@@ -60,6 +60,14 @@ DRAW_TRAIL   = False                   # draw position history trail behind each
 TRAIL_LENGTH = 50                      # max trail positions to keep
 
 # ══════════════════════════════════════════════════════════════════════
+#  Boundary mode  (toroidal wrap or margin-based keepWithinBounds)
+# ══════════════════════════════════════════════════════════════════════
+
+MARGIN_BOUNDARY     = False            # use margin-based keepWithinBounds instead of toroidal wrap
+BOUNDARY_MARGIN     = 200              # distance from edge to start turning (margin mode)
+BOUNDARY_TURN_FACTOR = 1               # velocity nudge strength toward center (margin mode)
+
+# ══════════════════════════════════════════════════════════════════════
 #  CSV logging
 # ══════════════════════════════════════════════════════════════════════
 

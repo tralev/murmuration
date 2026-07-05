@@ -73,6 +73,11 @@ LOG_EVERY = 10;                        // write a row every N frames
 DRAW_TRAIL   = %f;                      // draw position history trail behind each boid
 TRAIL_LENGTH = 50;                      // max trail positions to keep
 
+// ── Boundary mode  (toroidal wrap or margin-based keepWithinBounds) ──
+MARGIN_BOUNDARY      = %f;              // use margin-based keepWithinBounds instead of toroidal wrap
+BOUNDARY_MARGIN      = 200;              // distance from edge to start turning
+BOUNDARY_TURN_FACTOR = 1;                // velocity nudge strength toward center
+
 
 // ╔══════════════════════════════════════════════════════════════════════╗
 // ║  SECTION 2b — CSV LOGGING SETUP                                    ║
@@ -868,9 +873,25 @@ while running
         pos = pos + vel;
         acc = acc * 0;
 
-        // Toroidal wrap
-        pos(:,1) = modulo(pos(:,1), WIDTH);
-        pos(:,2) = modulo(pos(:,2), HEIGHT);
+        // ── Boundary handling ───────────────────────────────────
+        if MARGIN_BOUNDARY then
+            // keepWithinBounds: nudge velocity toward center near edges
+            near_left  = find(pos(:,1) < BOUNDARY_MARGIN);
+            near_right = find(pos(:,1) > WIDTH - BOUNDARY_MARGIN);
+            near_top   = find(pos(:,2) < BOUNDARY_MARGIN);
+            near_btm   = find(pos(:,2) > HEIGHT - BOUNDARY_MARGIN);
+            vel(near_left,  1) = vel(near_left,  1) + BOUNDARY_TURN_FACTOR;
+            vel(near_right, 1) = vel(near_right, 1) - BOUNDARY_TURN_FACTOR;
+            vel(near_top,   2) = vel(near_top,   2) + BOUNDARY_TURN_FACTOR;
+            vel(near_btm,   2) = vel(near_btm,   2) - BOUNDARY_TURN_FACTOR;
+            // Hard clamp position within bounds
+            pos(:,1) = max(0, min(WIDTH,  pos(:,1)));
+            pos(:,2) = max(0, min(HEIGHT, pos(:,2)));
+        else
+            // Toroidal wrap
+            pos(:,1) = modulo(pos(:,1), WIDTH);
+            pos(:,2) = modulo(pos(:,2), HEIGHT);
+        end
 
         // ── Trail: record position (ring buffer) ──────────────────
         if DRAW_TRAIL then

@@ -28,6 +28,7 @@ from flock_core import (
     WIDTH, HEIGHT, V0, BOID_SIZE, MAX_FORCE, VISUAL_RANGE,
     MODE_PROJECTION, MODE_SPATIAL,
     DRAW_TRAIL, TRAIL_LENGTH,
+    MARGIN_BOUNDARY, BOUNDARY_MARGIN, BOUNDARY_TURN_FACTOR,
     Config, SpatialGrid,
 )
 
@@ -101,11 +102,27 @@ class Boid:
         self.position += self.velocity
         self.acceleration *= 0
 
-        # Toroidal wrap: birds exiting one edge re-enter from the opposite
-        if   self.position.x > WIDTH:  self.position.x = 0
-        elif self.position.x < 0:      self.position.x = WIDTH
-        if   self.position.y > HEIGHT: self.position.y = 0
-        elif self.position.y < 0:      self.position.y = HEIGHT
+        # ── Boundary handling ───────────────────────────────────
+        if MARGIN_BOUNDARY:
+            # keepWithinBounds: nudge velocity toward center near edges,
+            # then hard-clamp position (matching boids.js behavior).
+            if self.position.x < BOUNDARY_MARGIN:
+                self.velocity.x += BOUNDARY_TURN_FACTOR
+            if self.position.x > WIDTH - BOUNDARY_MARGIN:
+                self.velocity.x -= BOUNDARY_TURN_FACTOR
+            if self.position.y < BOUNDARY_MARGIN:
+                self.velocity.y += BOUNDARY_TURN_FACTOR
+            if self.position.y > HEIGHT - BOUNDARY_MARGIN:
+                self.velocity.y -= BOUNDARY_TURN_FACTOR
+            # Hard clamp position within bounds
+            self.position.x = max(0, min(WIDTH, self.position.x))
+            self.position.y = max(0, min(HEIGHT, self.position.y))
+        else:
+            # Toroidal wrap: birds exiting one edge re-enter from the opposite
+            if   self.position.x > WIDTH:  self.position.x = 0
+            elif self.position.x < 0:      self.position.x = WIDTH
+            if   self.position.y > HEIGHT: self.position.y = 0
+            elif self.position.y < 0:      self.position.y = HEIGHT
 
         # ── Trail history ──────────────────────────────────────
         if DRAW_TRAIL:
