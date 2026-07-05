@@ -687,6 +687,9 @@ class TestBlindOcclusionWorkflow(unittest.TestCase):
 class TestAnisotropicBoid(unittest.TestCase):
     """Tests for AnisotropicBoid — elliptical birds."""
 
+    def setUp(self):
+        random.seed(42)  # deterministic RNG — prevents flaky tests from random headings
+
     def test_is_instance_of_blind_angles(self):
         """AnisotropicBoid inherits from BlindAnglesBoid."""
         boid = AnisotropicBoid()
