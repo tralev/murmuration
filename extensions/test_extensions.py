@@ -717,6 +717,7 @@ class TestAnisotropicBoid(unittest.TestCase):
         """Projected radius is between semi-minor and semi-major."""
         boid = AnisotropicBoid()
         boid.position = pygame.Vector2(500, 350)
+        boid.velocity = pygame.Vector2(4, 0)   # face right — deterministic heading
         target = AnisotropicBoid()
         target.position = pygame.Vector2(600, 350)
         target.velocity = pygame.Vector2(4, 0)
