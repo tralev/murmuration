@@ -134,6 +134,10 @@ FLIGHT_FORCE    = 1.5;                % strength of flight response
 % ── Dimensionality ────────────────────────────────────────────────────
 DIMENSIONS = 2;                        % 2 or 3 (set by ENABLE_2c)
 
+% ── Trail rendering  (position-history polyline behind each boid) ──
+DRAW_TRAIL   = false;                   % draw position history trail behind each boid
+TRAIL_LENGTH = 50;                      % max trail positions to keep
+
 % ── CSV logging ───────────────────────────────────────────────────────
 LOG_FILE  = 'murmuration_metrics_extended.csv';
 LOG_EVERY = 10;
@@ -199,6 +203,13 @@ tau_val     = 0;                       % latest τᵨ estimate
 predator_pos = [WIDTH/2, HEIGHT/2];
 predator_vel = [0, 0];
 predator_trail = [];                    % for drawing trail
+
+% ── Boid trail ring buffer ──────────────────────────────────────
+if DRAW_TRAIL
+    trail       = zeros(TRAIL_LENGTH, NUM_BOIDS, 2);
+    trail_idx   = 1;
+    trail_count = 0;
+end
 
 % ── Priority 3b: Chunk cache — cell array of structs ───────────────
 %  Each struct:  .key=[cx,cy], .birds=[indices], .cx, .cy, .r
@@ -1357,6 +1368,10 @@ while isgraphics(f)
                 vel        = vel(1:NUM_BOIDS - n_remove, :);
                 acc        = acc(1:NUM_BOIDS - n_remove, :);
                 last_theta = last_theta(1:NUM_BOIDS - n_remove);
+                if DRAW_TRAIL
+                    trail = trail(:, 1:NUM_BOIDS - n_remove, :);
+                    trail_count = min(trail_count, NUM_BOIDS - n_remove);
+                end
                 NUM_BOIDS  = NUM_BOIDS - n_remove;
                 pending_remove = pending_remove - n_remove;
                 disp(['Removed ' num2str(n_remove) ' birds, now ' num2str(NUM_BOIDS)]);
@@ -1379,6 +1394,9 @@ while isgraphics(f)
             vel        = [vel; new_vel];
             acc        = [acc; new_acc];
             last_theta = [last_theta; zeros(n_add, 1)];
+            if DRAW_TRAIL
+                trail = cat(2, trail, zeros(TRAIL_LENGTH, n_add, 2));
+            end
             NUM_BOIDS  = NUM_BOIDS + n_add;
             pending_add = 0;
             disp(['Added ' num2str(n_add) ' birds, now ' num2str(NUM_BOIDS)]);
@@ -1400,6 +1418,11 @@ while isgraphics(f)
             end
             last_theta = zeros(NUM_BOIDS, 1);
             theta_ema = 0; theta_ext_ema = 0; alpha_ema = 0; tau_ema = 0; power_ema = 0; angmom_ema = 0; avg_accel_ema = 0; disp_ema = 0;
+            if DRAW_TRAIL
+                trail       = zeros(TRAIL_LENGTH, NUM_BOIDS, 2);
+                trail_idx   = 1;
+                trail_count = 0;
+            end
             tau_count = 0; tau_idx = 1; tau_timer = 0;
             frame = 0;
             pending_reset = false;
@@ -1722,6 +1745,14 @@ while isgraphics(f)
             pos(:,3) = mod(pos(:,3), DEPTH);
         end
 
+        % ── Trail: record position (ring buffer) ──────────────────
+        if DRAW_TRAIL
+            trail_idx = mod(trail_idx, TRAIL_LENGTH) + 1;
+            trail(trail_idx, :, 1) = pos(:, 1)';
+            trail(trail_idx, :, 2) = pos(:, 2)';
+            trail_count = min(trail_count + 1, TRAIL_LENGTH);
+        end
+
 % ═══════════════════════════════════════════════════════════
 %  7. METRICS  (Θ, Θ′, α, τᵨ, dispersion)
 % ═══════════════════════════════════════════════════════════
@@ -1872,6 +1903,22 @@ end
             b = min(1, 0.19 + 0.7*depth_factor);
             patch(X3D(base+1:base+n_circle), Y3D(base+1:base+n_circle), ...
                   'FaceColor', [r g b], 'EdgeColor', 'none');
+        end
+    end
+
+    % ── Trail rendering (2D mode only) ───────────────────────────
+    if DRAW_TRAIL && trail_count > 1 && ~ENABLE_2c
+        delete(trail_h(ishandle(trail_h)));
+        trail_h = [];
+        for i = 1:NUM_BOIDS
+            order = mod((trail_idx - trail_count : trail_idx - 1), TRAIL_LENGTH) + 1;
+            order(order < 1) = order(order < 1) + TRAIL_LENGTH;
+            tx = trail(order, i, 1);
+            ty = trail(order, i, 2);
+            if length(tx) > 1
+                h = line(tx, ty, 'Color', [85 140 244]/255 * 0.4, 'LineWidth', 0.5);
+                trail_h = [trail_h; h];
+            end
         end
     end
 

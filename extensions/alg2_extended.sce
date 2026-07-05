@@ -130,6 +130,10 @@ PREDATOR_ACCEL  = 0.3;                // hunting acceleration
 DANGER_RADIUS   = 120;                // birds within this flee
 FLIGHT_FORCE    = 1.5;                // strength of flight response
 
+// ── Trail rendering  (position-history polyline behind each boid) ──
+DRAW_TRAIL   = %f;                      // draw position history trail behind each boid
+TRAIL_LENGTH = 50;                      // max trail positions to keep
+
 // ── Dimensionality ────────────────────────────────────────────────────
 DIMENSIONS = 2;                        // 2 or 3 (set by ENABLE_2c)
 
@@ -197,6 +201,13 @@ tau_val     = 0;                       // latest τᵨ estimate
 predator_pos = [WIDTH/2, HEIGHT/2];
 predator_vel = [0, 0];
 predator_trail = [];                    // for drawing trail
+
+// ── Boid trail ring buffer ──────────────────────────────────────
+if DRAW_TRAIL then
+    trail       = zeros(TRAIL_LENGTH, NUM_BOIDS, 2);
+    trail_idx   = 1;
+    trail_count = 0;
+end
 
 // ── Priority 3b: Chunk cache (rebuilt each frame) ──────────────────
 // Each chunk: [cx, cy, n_birds, centroid_x, centroid_y, radius]
@@ -1131,6 +1142,9 @@ while running
                 vel        = vel(1:NUM_BOIDS - n_remove, :);
                 acc        = acc(1:NUM_BOIDS - n_remove, :);
                 last_theta = last_theta(1:NUM_BOIDS - n_remove);
+                if DRAW_TRAIL then
+                    trail = trail(:, 1:NUM_BOIDS - n_remove, :);
+                end
                 NUM_BOIDS  = NUM_BOIDS - n_remove;
                 pending_remove = pending_remove - n_remove;
                 disp("Removed " + string(n_remove) + " birds, now " + string(NUM_BOIDS));
@@ -1153,6 +1167,9 @@ while running
             vel        = [vel; new_vel];
             acc        = [acc; new_acc];
             last_theta = [last_theta; zeros(n_add, 1)];
+            if DRAW_TRAIL then
+                trail = cat(2, trail, zeros(TRAIL_LENGTH, n_add, 2));
+            end
             NUM_BOIDS  = NUM_BOIDS + n_add;
             pending_add = 0;
             disp("Added " + string(n_add) + " birds, now " + string(NUM_BOIDS));
@@ -1174,6 +1191,11 @@ while running
             end
             last_theta = zeros(NUM_BOIDS, 1);
             theta_ema = 0; theta_ext_ema = 0; alpha_ema = 0; tau_ema = 0; power_ema = 0; angmom_ema = 0; avg_accel_ema = 0; disp_ema = 0;
+            if DRAW_TRAIL then
+                trail       = zeros(TRAIL_LENGTH, NUM_BOIDS, 2);
+                trail_idx   = 1;
+                trail_count = 0;
+            end
             tau_count = 0; tau_idx = 1; tau_timer = 0;
             frame = 0;
             pending_reset = %f;
@@ -1506,6 +1528,14 @@ while running
         pos = pos + vel;
         acc = acc * 0;
 
+        // ── Trail: record position (ring buffer) ──────────────────
+        if DRAW_TRAIL then
+            trail_idx = modulo(trail_idx, TRAIL_LENGTH) + 1;
+            trail(trail_idx, :, 1) = pos(:, 1)';
+            trail(trail_idx, :, 2) = pos(:, 2)';
+            trail_count = min(trail_count + 1, TRAIL_LENGTH);
+        end
+
         // Toroidal wrap
         pos(:,1) = modulo(pos(:,1), WIDTH);
         pos(:,2) = modulo(pos(:,2), HEIGHT);
@@ -1609,6 +1639,22 @@ while running
     a.axes_visible = "off";
 
     drawlater();
+
+    // ── Trail rendering (2D mode only) ──────────────────────────
+    if DRAW_TRAIL & trail_count > 1 & ~ENABLE_2c then
+        order = modulo((trail_idx - trail_count : trail_idx - 1), TRAIL_LENGTH) + 1;
+        order(order < 1) = order(order < 1) + TRAIL_LENGTH;
+        for i = 1:NUM_BOIDS
+            tx = trail(order, i, 1);
+            ty = trail(order, i, 2);
+            if length(tx) > 1 then
+                xpoly(tx, ty, "lines", 0);
+                e = gce();
+                e.foreground = addcolor([100, 140, 220]/255);
+                e.thickness = 1;
+            end
+        end
+    end
 
     if ~ENABLE_2c | MODE == 1 then
         // ── 2D bird triangles ──────────────────────────────────────

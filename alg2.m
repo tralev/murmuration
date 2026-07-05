@@ -71,6 +71,10 @@ MODE   = 0;                            % 0 = PROJECTION, 1 = SPATIAL
 LOG_FILE  = 'murmuration_metrics.csv';
 LOG_EVERY = 10;                        % write a row every N frames
 
+% ── Trail rendering  (position-history polyline behind each boid) ──
+DRAW_TRAIL   = false;                   % draw position history trail behind each boid
+TRAIL_LENGTH = 50;                      % max trail positions to keep
+
 
 % ╔══════════════════════════════════════════════════════════════════════╗
 % ║  SECTION 3 — RUNTIME STATE INITIALIZATION                           ║
@@ -534,6 +538,9 @@ smooth   = 0.05;                         % EMA factor for metrics
 theta_ema     = 0;                        % Θ  — mean internal opacity (EMA)
 theta_ext_ema = 0;                        % Θ' — external opacity (EMA)
 alpha_ema     = 0;                        % α  — order parameter (EMA)
+if DRAW_TRAIL
+    trail_h = [];                            % line handles for trail rendering
+end
 
 % Triangle vertex offsets (relative to position, rotated by heading)
 tip_len  = BOID_SIZE * 2.5;
@@ -587,8 +594,12 @@ while isgraphics(f)
             if n_remove > 0
                 pos        = pos(1:NUM_BOIDS - n_remove, :);
                 vel        = vel(1:NUM_BOIDS - n_remove, :);
-                acc        = acc(1:NUM_BOIDS - n_remove, :);
-                last_theta = last_theta(1:NUM_BOIDS - n_remove);
+        acc        = acc(1:NUM_BOIDS - n_remove, :);
+        last_theta = last_theta(1:NUM_BOIDS - n_remove);
+        if DRAW_TRAIL
+            trail       = trail(:, 1:NUM_BOIDS - n_remove, :);
+            trail_count = min(trail_count, NUM_BOIDS - n_remove);
+        end
                 NUM_BOIDS  = NUM_BOIDS - n_remove;
                 pending_remove = pending_remove - n_remove;
                 disp(['Removed ' num2str(n_remove) ' birds, now ' num2str(NUM_BOIDS)]);
@@ -627,6 +638,11 @@ while isgraphics(f)
             acc  = zeros(NUM_BOIDS, 2);
             last_theta = zeros(NUM_BOIDS, 1);
             theta_ema = 0;  theta_ext_ema = 0;  alpha_ema = 0;
+            if DRAW_TRAIL
+                trail       = zeros(TRAIL_LENGTH, NUM_BOIDS, 2);
+                trail_idx   = 1;
+                trail_count = 0;
+            end
             frame = 0;
             pending_reset = false;
             disp(['Flock reset — ' num2str(NUM_BOIDS) ' birds']);
@@ -825,6 +841,14 @@ while isgraphics(f)
         pos(:,1) = mod(pos(:,1), WIDTH);
         pos(:,2) = mod(pos(:,2), HEIGHT);
 
+        % ── Trail: record position (ring buffer) ──────────────────
+        if DRAW_TRAIL
+            trail_idx = mod(trail_idx, TRAIL_LENGTH) + 1;
+            trail(trail_idx, :, 1) = pos(:, 1)';
+            trail(trail_idx, :, 2) = pos(:, 2)';
+            trail_count = min(trail_count + 1, TRAIL_LENGTH);
+        end
+
         % ╔══════════════════════════════════════════════════════════╗
         % ║  SECTION 8 — METRICS COMPUTATION                        ║
         % ╚══════════════════════════════════════════════════════════╝
@@ -872,7 +896,8 @@ while isgraphics(f)
     % ───────────────────────────────────────────────────────────────
     %  RENDER  — update graphics handles (no delete/recreate)
     %    1. Bird triangles (3×N matrices for patch)
-    %    2. Metrics text overlays
+    %    2. Trail polylines (DRAW_TRAIL)
+    %    3. Metrics text overlays
     %    3. Mode badge
     %    4. Pause indicator
     %    5. Help overlay
@@ -899,6 +924,22 @@ while isgraphics(f)
         bird_color = [230 200 160] / 255;
     end
     set(hBoids, 'XData', X, 'YData', Y, 'FaceColor', bird_color);
+
+    % ── Trail rendering ──────────────────────────────────────────
+    if DRAW_TRAIL && trail_count > 1
+        delete(trail_h(ishandle(trail_h)));
+        trail_h = [];
+        for i = 1:NUM_BOIDS
+            order = mod((trail_idx - trail_count : trail_idx - 1), TRAIL_LENGTH) + 1;
+            order(order < 1) = order(order < 1) + TRAIL_LENGTH;
+            tx = trail(order, i, 1);
+            ty = trail(order, i, 2);
+            if length(tx) > 1
+                h = line(tx, ty, 'Color', [85 140 244]/255 * 0.4, 'LineWidth', 0.5);
+                trail_h = [trail_h; h];
+            end
+        end
+    end
 
     % ── Metrics text overlay ──────────────────────────────────────
     fps = 1 / max(toc(t_frame), 0.001);

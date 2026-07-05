@@ -53,6 +53,13 @@ MODE_NAMES = {
 
 
 # ══════════════════════════════════════════════════════════════════════
+#  Trail rendering  (position-history polyline behind each boid)
+# ══════════════════════════════════════════════════════════════════════
+
+DRAW_TRAIL   = False                   # draw position history trail behind each boid
+TRAIL_LENGTH = 50                      # max trail positions to keep
+
+# ══════════════════════════════════════════════════════════════════════
 #  CSV logging
 # ══════════════════════════════════════════════════════════════════════
 

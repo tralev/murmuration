@@ -27,6 +27,7 @@ from occlusion_geom import (
 from flock_core import (
     WIDTH, HEIGHT, V0, BOID_SIZE, MAX_FORCE, VISUAL_RANGE,
     MODE_PROJECTION, MODE_SPATIAL,
+    DRAW_TRAIL, TRAIL_LENGTH,
     Config, SpatialGrid,
 )
 
@@ -42,7 +43,7 @@ class Boid:
       toroidal position wrap.
     """
     __slots__ = ("position", "velocity", "acceleration", "_last_theta",
-                 "_debug_delta", "_debug_merged")
+                 "_debug_delta", "_debug_merged", "history")
 
     def __init__(self):
         self.position = pygame.Vector2(
@@ -57,6 +58,7 @@ class Boid:
         self._last_theta = 0.0          # cached internal opacity
         self._debug_delta = pygame.Vector2(0, 0)   # δ̂ for debug view
         self._debug_merged = []          # merged intervals for debug view
+        self.history = []                # position trail (ring buffer, last TRAIL_LENGTH)
 
     # ╔══════════════════════════════════════════════════════════╗
     # ║  SECTION 9 — PHYSICS UPDATE  (shared by both modes)      ║
@@ -104,6 +106,12 @@ class Boid:
         elif self.position.x < 0:      self.position.x = WIDTH
         if   self.position.y > HEIGHT: self.position.y = 0
         elif self.position.y < 0:      self.position.y = HEIGHT
+
+        # ── Trail history ──────────────────────────────────────
+        if DRAW_TRAIL:
+            self.history.append(pygame.Vector2(self.position))
+            if len(self.history) > TRAIL_LENGTH:
+                self.history.pop(0)
 
     def apply_force(self, force: pygame.Vector2):
         """Accumulate a steering force for the current frame."""
@@ -434,6 +442,11 @@ class Boid:
         back_right = self.position + pygame.Vector2(
             math.cos(direction - 2.3), math.sin(direction - 2.3)
         ) * BOID_SIZE * 1.5
+
+        # ── Trail (position-history polyline, drawn behind the bird) ──
+        if DRAW_TRAIL and len(self.history) > 1:
+            pts = [(p.x, p.y) for p in self.history]
+            pygame.draw.aalines(screen, (85, 140, 244), False, pts, 1)
 
         if config.mode == MODE_PROJECTION:
             color = (200, 210, 230)

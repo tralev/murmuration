@@ -69,6 +69,10 @@ MODE   = 0;                            // 0 = PROJECTION, 1 = SPATIAL
 LOG_FILE  = "murmuration_metrics.csv";
 LOG_EVERY = 10;                        // write a row every N frames
 
+// ── Trail rendering  (position-history polyline behind each boid) ──
+DRAW_TRAIL   = %f;                      // draw position history trail behind each boid
+TRAIL_LENGTH = 50;                      // max trail positions to keep
+
 
 // ╔══════════════════════════════════════════════════════════════════════╗
 // ║  SECTION 2b — CSV LOGGING SETUP                                    ║
@@ -111,6 +115,11 @@ ang  = rand(NUM_BOIDS, 1) * 2 * %pi;                      // random headings
 vel  = [cos(ang), sin(ang)] .* repmat(1 + rand(NUM_BOIDS, 1) * (V0 - 1), 1, 2);
 acc  = zeros(NUM_BOIDS, 2);
 last_theta = zeros(NUM_BOIDS, 1);                          // cached Θ per bird
+if DRAW_TRAIL then
+    trail       = zeros(TRAIL_LENGTH, NUM_BOIDS, 2);
+    trail_idx   = 1;
+    trail_count = 0;
+end
 
 
 // ╔══════════════════════════════════════════════════════════════════════╗
@@ -614,6 +623,9 @@ while running
                 vel        = vel(1:NUM_BOIDS - n_remove, :);
                 acc        = acc(1:NUM_BOIDS - n_remove, :);
                 last_theta = last_theta(1:NUM_BOIDS - n_remove);
+                if DRAW_TRAIL then
+                    trail = trail(:, 1:NUM_BOIDS - n_remove, :);
+                end
                 NUM_BOIDS  = NUM_BOIDS - n_remove;
                 pending_remove = pending_remove - n_remove;
                 disp("Removed " + string(n_remove) + " birds, now " + string(NUM_BOIDS));
@@ -629,6 +641,9 @@ while running
             vel        = [vel; new_vel];
             acc        = [acc; zeros(n_add, 2)];
             last_theta = [last_theta; zeros(n_add, 1)];
+            if DRAW_TRAIL then
+                trail = cat(2, trail, zeros(TRAIL_LENGTH, n_add, 2));
+            end
             NUM_BOIDS  = NUM_BOIDS + n_add;
             pending_add = 0;
             disp("Added " + string(n_add) + " birds, now " + string(NUM_BOIDS));
@@ -652,6 +667,11 @@ while running
             acc  = zeros(NUM_BOIDS, 2);
             last_theta = zeros(NUM_BOIDS, 1);
             theta_ema = 0;  theta_ext_ema = 0;  alpha_ema = 0;
+            if DRAW_TRAIL then
+                trail       = zeros(TRAIL_LENGTH, NUM_BOIDS, 2);
+                trail_idx   = 1;
+                trail_count = 0;
+            end
             frame = 0;
             pending_reset = %f;
             disp("Flock reset — " + string(NUM_BOIDS) + " birds");
@@ -852,6 +872,14 @@ while running
         pos(:,1) = modulo(pos(:,1), WIDTH);
         pos(:,2) = modulo(pos(:,2), HEIGHT);
 
+        // ── Trail: record position (ring buffer) ──────────────────
+        if DRAW_TRAIL then
+            trail_idx = modulo(trail_idx, TRAIL_LENGTH) + 1;
+            trail(trail_idx, :, 1) = pos(:, 1)';
+            trail(trail_idx, :, 2) = pos(:, 2)';
+            trail_count = min(trail_count + 1, TRAIL_LENGTH);
+        end
+
         // ╔══════════════════════════════════════════════════════════╗
         // ║  SECTION 8 — METRICS COMPUTATION                        ║
         // ╚══════════════════════════════════════════════════════════╝
@@ -944,6 +972,22 @@ while running
         bird_color = [230, 200, 160] / 255;
     end
     xfpolys(X_verts, Y_verts, bird_color);
+
+    // ── Trail rendering ──────────────────────────────────────────
+    if DRAW_TRAIL & trail_count > 1 then
+        order = modulo((trail_idx - trail_count : trail_idx - 1), TRAIL_LENGTH) + 1;
+        order(order < 1) = order(order < 1) + TRAIL_LENGTH;
+        for i = 1:NUM_BOIDS
+            tx = trail(order, i, 1);
+            ty = trail(order, i, 2);
+            if length(tx) > 1 then
+                xpoly(tx, ty, "lines", 0);
+                e = gce();
+                e.foreground = addcolor([100, 140, 220]/255);
+                e.thickness = 1;
+            end
+        end
+    end
 
     // ── Metrics text overlay ──────────────────────────────────────
     txt = msprintf("FPS: %.0f    Boids: %d    Frame: %d", ...
