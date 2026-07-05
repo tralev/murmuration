@@ -19,6 +19,10 @@ python3 -m extensions.extended_simulation_3d
 # scilab -f extensions/alg2_extended.sce
 #  or from Scilab console: exec("extensions/alg2_extended.sce");
 
+# Run the GNU Octave extended simulation (all 9 priorities)
+# octave extensions/alg2_extended.m
+#  or from Octave console: run extensions/alg2_extended.m
+
 # Run all tests (original + extension tests)
 python3 -m unittest test_alg2 extensions.test_extensions -v
 
@@ -46,7 +50,8 @@ python3 -m unittest test_alg2 extensions.test_extensions -v
 | — | `extended_simulation_3d.py` | **Full 3D simulation entry point** — Fibonacci sphere occlusion, perspective rendering, CSV logging. Run with `python -m extensions.extended_simulation_3d`. |
 | — | `test_extensions.py` | **111 unit tests** — 2D: pure functions, convex hull, correlation time, multi-viewpoint opacity, anisotropic visibility, spatial chunker, predator dynamics, blind-angle pipeline, inheritance chain. 3D: Fibonacci sphere, spherical cap occlusion, 3D physics. |
 | — | `data_loader.py` | **Real-world 3D trajectory ingestion** — parses CSV data (frame, bird_id, x, y, z, vx, vy, vz), computes Θ/Θ′/α using the project's angular-interval merging algorithms. Supports simple count-per-frame format. |
-| — | `alg2_extended.sce` | **Full Scilab port of all 9 priorities** — standalone extended Scilab simulation with feature flags (ENABLE_1a..3b). 1650 lines. Includes 2D projection with steric repulsion, blind angles, anisotropic bodies, spatial chunker, Graham scan τᵨ, multi-viewpoint Θ′, predator agent, and 3D Fibonacci sphere occlusion. Run with `exec("extensions/alg2_extended.sce");`. |
+| — | `alg2_extended.sce` | **Full Scilab port of all 9 priorities** — standalone extended Scilab simulation with feature flags (ENABLE_1a..3b). 1650 lines. Run with `exec("extensions/alg2_extended.sce");`. |
+| — | `alg2_extended.m` | **Full GNU Octave port of all 9 priorities** — standalone extended Octave simulation with feature flags (ENABLE_1a..3b). 1870 lines. Includes 2D projection with steric repulsion, blind angles, anisotropic bodies, spatial chunker, Graham scan τᵨ, multi-viewpoint Θ′, predator agent, and 3D Fibonacci sphere occlusion. Run with `octave extensions/alg2_extended.m`. |
 
 ---
 
