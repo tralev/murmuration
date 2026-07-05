@@ -15,6 +15,10 @@ python3 -m extensions.extended_simulation
 # Run the 3D simulation (Fibonacci sphere occlusion)
 python3 -m extensions.extended_simulation_3d
 
+# Run the Scilab extended simulation (all 9 priorities)
+# scilab -f extensions/alg2_extended.sce
+#  or from Scilab console: exec("extensions/alg2_extended.sce");
+
 # Run all tests (original + extension tests)
 python3 -m unittest test_alg2 extensions.test_extensions -v
 
@@ -38,9 +42,11 @@ python3 -m unittest test_alg2 extensions.test_extensions -v
 | **2d** | `anisotropic_bodies.py` | **Anisotropic bodies** — elliptical birds with orientation-dependent projected radius. Formula: `√[(a·sin(θ−ψ))² + (b·cos(θ−ψ))²]`. Semi-major a=1.4·BOID_SIZE (length), semi-minor b=0.7·BOID_SIZE (width). Birds seen from the side appear larger; from behind appear smaller. |
 | **3a** | `predator.py` | **Predator agent** — peregrine falcon / sparrowhawk (Goodenough et al. 2017). Pursues nearest bird at 2× speed. Birds within 120px danger radius flee with 1/d² force. |
 | **3b** | `spatial_optimization.py` | **Spatial optimization** — reduces per-bird occlusion cost from O(N) to O(N_near + C). Screen divided into 10×7 grid cells. 3×3 surrounding cells get exact per-bird intervals; far chunks contribute single conservative bounding-circle intervals as passive occluders. Enables 500+ birds at acceptable frame rates. |
-| — | `extended_simulation.py` | **Full 2D simulation entry point** — all 8 extensions active. Press `P` to spawn/remove the predator. Extended help overlay, CSV logging, τᵨ display, and density readout. |
+| — | `extended_simulation.py` | **Full 2D simulation entry point** — all 8 extensions active. Press `f` to spawn/remove the predator. Extended help overlay, CSV logging, τᵨ display, and density readout. |
 | — | `extended_simulation_3d.py` | **Full 3D simulation entry point** — Fibonacci sphere occlusion, perspective rendering, CSV logging. Run with `python -m extensions.extended_simulation_3d`. |
 | — | `test_extensions.py` | **111 unit tests** — 2D: pure functions, convex hull, correlation time, multi-viewpoint opacity, anisotropic visibility, spatial chunker, predator dynamics, blind-angle pipeline, inheritance chain. 3D: Fibonacci sphere, spherical cap occlusion, 3D physics. |
+| — | `data_loader.py` | **Real-world 3D trajectory ingestion** — parses CSV data (frame, bird_id, x, y, z, vx, vy, vz), computes Θ/Θ′/α using the project's angular-interval merging algorithms. Supports simple count-per-frame format. |
+| — | `alg2_extended.sce` | **Full Scilab port of all 9 priorities** — standalone extended Scilab simulation with feature flags (ENABLE_1a..3b). 1650 lines. Includes 2D projection with steric repulsion, blind angles, anisotropic bodies, spatial chunker, Graham scan τᵨ, multi-viewpoint Θ′, predator agent, and 3D Fibonacci sphere occlusion. Run with `exec("extensions/alg2_extended.sce");`. |
 
 ---
 
@@ -78,8 +84,8 @@ All original controls from `alg2.py` work, plus:
 
 | Key | Action |
 |-----|--------|
-| `P` | Spawn / remove predator |
 | `F` | Toggle focal bird debug view (shows blind sector, occlusion arcs) |
+| `f` | Spawn / remove predator (falcon) |
 | `1–5` | Scenario presets |
 | `M` | Toggle PROJECTION / SPATIAL mode |
 | `H` | Toggle extended help overlay |
