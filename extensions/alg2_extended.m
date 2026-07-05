@@ -204,20 +204,25 @@ chunk_cells = {};                       % rebuilt each frame
 function lines = build_help_lines()
     global ENABLE_1a ENABLE_2a ENABLE_2b ENABLE_2c ENABLE_2d ENABLE_3a ENABLE_3b
 
-    function s = onoff(flag)
-        if flag, s = '✓'; else, s = '✗'; end
-    end
+    % Inline checkmark — no nested functions in Octave script files
+    if ENABLE_1a, s1a = '✓'; else, s1a = '✗'; end
+    if ENABLE_2a, s2a = '✓'; else, s2a = '✗'; end
+    if ENABLE_2b, s2b = '✓'; else, s2b = '✗'; end
+    if ENABLE_2c, s2c = '✓'; else, s2c = '✗'; end
+    if ENABLE_2d, s2d = '✓'; else, s2d = '✗'; end
+    if ENABLE_3a, s3a = '✓'; else, s3a = '✗'; end
+    if ENABLE_3b, s3b = '✓'; else, s3b = '✗'; end
 
     lines = {
         'CONTROLS                                       EXTENSIONS';
         '────────────────────────────────────────  ────────────────────';
-        ['m      toggle  PROJECTION / SPATIAL    1a ' onoff(ENABLE_1a) ' direct velocity'];
-        ['p      pause / resume                  2a ' onoff(ENABLE_2a) ' steric'];
-        ['f      toggle predator                 2b ' onoff(ENABLE_2b) ' blind'];
-        ['r      reset flock                     2c ' onoff(ENABLE_2c) ' 3D'];
-        ['h      hide this help                  2d ' onoff(ENABLE_2d) ' aniso'];
-        ['↑/↓    φp  ±0.01                       3a ' onoff(ENABLE_3a) ' predator'];
-        ['←/→    φa  ±0.01                       3b ' onoff(ENABLE_3b) ' chunker'];
+        ['m      toggle  PROJECTION / SPATIAL    1a ' s1a ' direct velocity'];
+        ['p      pause / resume                  2a ' s2a ' steric'];
+        ['f      toggle predator                 2b ' s2b ' blind'];
+        ['r      reset flock                     2c ' s2c ' 3D'];
+        ['h      hide this help                  2d ' s2d ' aniso'];
+        ['↑/↓    φp  ±0.01                       3a ' s3a ' predator'];
+        ['←/→    φa  ±0.01                       3b ' s3b ' chunker'];
         ['[ / ]  σ   ±1                          φp=proj φa=align φn=noise'];
         ['+ / -  add / remove 10 birds            φs=steric  σ=neighbours'];
         'ESC    close window to quit';
@@ -269,7 +274,7 @@ hTextPause  = text(WIDTH/2-100, HEIGHT-30, '', ...
 help_lines = build_help_lines();
 n_help_lines = length(help_lines);
 hHelp = text(WIDTH-460, HEIGHT-10, '', ...
-             'BackgroundColor', [0 0 0 0.85], ...
+             'BackgroundColor', [0 0 0], ...
              'Color', [0.8 0.8 0.6], ...
              'EdgeColor', [0.3 0.3 0.3], ...
              'VerticalAlignment', 'top', ...
