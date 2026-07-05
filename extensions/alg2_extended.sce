@@ -13,6 +13,18 @@
 //  ported from the Python extensions/ directory.  All features can
 //  be individually toggled via the ENABLE_* flags in SECTION 2.
 //
+//  ── CROSS-LANGUAGE COMPARISON ─────────────────────────────────────
+//  Same algorithm is available in three computing environments:
+//
+//    Python      extensions/alg2_extended.py, extensions/three_d.py, …
+//    ⇔ Octave    extensions/alg2_extended.m
+//    ⇔ Scilab    extensions/alg2_extended.sce  ← you are here
+//
+//  All three share identical variable names (ENABLE_*, PHI_*, SIGMA,
+//  NUM_BOIDS, BOID_SIZE, STERIC_RADIUS, etc.) and feature-flag logic.
+//  Look for "⇔" comments throughout to find the equivalent code block
+//  in the other two languages.
+//
 //  Feature flags (set %t or %f at the top of SECTION 2):
 //  ────────────────────────────────────────────────────────────────────
 //    1a — Direct velocity setting (no Reynolds steering)
@@ -1097,6 +1109,14 @@ while running
 
     if ~paused then
 
+        // ═══════════════════════════════════════════════════════════════
+        //  PHASE 1 — APPLY PENDING CHANGES
+        //    • Auto-compute φn = 1 − φp − φa − φs
+        //    • Add / remove birds, reset flock
+        // ═══════════════════════════════════════════════════════════════
+        // ⇔ Octave: alg2_extended.m SECTION 11, steps 1–1c
+        // ⇔ Python: flock_core.py §main loop (state management)
+
         // ── Auto-compute φn ─────────────────────────────────────────
         PHI_N = max(0.0, 1.0 - PHI_P - PHI_A - PHI_S);
 
@@ -1157,14 +1177,26 @@ while running
             disp("Flock reset — " + string(NUM_BOIDS) + " birds");
         end
 
-        // ── Priority 3b: Rebuild spatial chunker ───────────────────
+        // ═══════════════════════════════════════════════════════════════
+        //  PHASE 2 — REBUILD SPATIAL CHUNKER  (Priority 3b)
+        //    Grid-based spatial index for O(N) nearest-neighbour lookup.
+        //    Rebuilt every frame since birds move.
+        // ═══════════════════════════════════════════════════════════════
+        // ⇔ Python: extensions/spatial_optimization.py §rebuild_grid
+        // ⇔ Octave: alg2_extended.m SECTION 6 + main loop step 2
         if ENABLE_3b & ~ENABLE_2c then
             chunk_cells = rebuild_chunker(pos);
         else
             chunk_cells = list();
         end
 
-        // ── Priority 3a: Update predator ───────────────────────────
+        // ═══════════════════════════════════════════════════════════════
+        //  PHASE 3 — UPDATE PREDATOR  (Priority 3a)
+        //    Falcon hunts nearest bird at ~2× cruising speed.
+        //    Trail of last 20 positions stored for rendering.
+        // ═══════════════════════════════════════════════════════════════
+        // ⇔ Python: extensions/predator.py §PredatorAgent
+        // ⇔ Octave: alg2_extended.m main loop step 3
         if ENABLE_3a & predator_active & ~ENABLE_2c then
             // Find nearest bird
             nearest_dist = %inf;
@@ -1210,8 +1242,16 @@ while running
         end
 
         // ═══════════════════════════════════════════════════════════════
-        //  FLOCKING UPDATE
+        //  PHASE 4 — FLOCKING UPDATE
+        //    MODE 0 (PROJECTION): v_i = φp·δ̂ + φa·⟨v̂⟩ + φn·η̂  (Eq. 3)
+        //      • 2D: compute_projection_extended (angular-interval occlusion)
+        //      • 3D: compute_projection_3d (Fibonacci sphere z-buffer)
+        //      • Priority 1a: Direct velocity setting (skip Reynolds steer)
+        //      • Priority 2a: Steric repulsion (1/r² force, O(N²) per bird)
+        //    MODE 1 (SPATIAL): Separation/Alignment/Cohesion (Reynolds 1987)
         // ═══════════════════════════════════════════════════════════════
+        // ⇔ Python: extensions/direct_velocity.py + flock_core.py
+        // ⇔ Octave: alg2_extended.m SECTION 7 + main loop step 4
         if MODE == 0 then
             if ENABLE_2c then
                 // ── 3D Projection ──────────────────────────────────
@@ -1384,7 +1424,13 @@ while running
             end
         end
 
-        // ── Predator flight response (Priority 3a) ──────────────────
+        // ═══════════════════════════════════════════════════════════════
+        //  PHASE 5 — PREDATOR FLIGHT RESPONSE  (Priority 3a)
+        //    Birds within DANGER_RADIUS flee away from the falcon.
+        //    Force ∝ (DANGER_RADIUS − d) / DANGER_RADIUS (linear decay).
+        // ═══════════════════════════════════════════════════════════════
+        // ⇔ Python: extensions/predator.py §PredatorAgent
+        // ⇔ Octave: alg2_extended.m main loop step 5
         if ENABLE_3a & predator_active & ~ENABLE_2c then
             for i = 1:NUM_BOIDS
                 diff_p = pos(i,:) - predator_pos;
@@ -1402,9 +1448,14 @@ while running
             end
         end
 
-        // ╔══════════════════════════════════════════════════════════════
-        // ║  PHYSICS UPDATE
-        // ╚══════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════
+        //  PHASE 6 — PHYSICS UPDATE
+        //    Euler integration: v ← v + a, p ← p + v.
+        //    Speed clamped to [0.3·V₀, V₀]; toroidal wrap at edges.
+        //    Skipped when ENABLE_1a (velocity set directly from Eq. 3).
+        // ═══════════════════════════════════════════════════════════════
+        // ⇔ Python: extensions/direct_velocity.py §Step 5
+        // ⇔ Octave: alg2_extended.m main loop step 6
         if ~ENABLE_1a | MODE == 1 then
             vel = vel + acc;
             spd = sqrt(sum(vel.^2, 2));
@@ -1444,9 +1495,16 @@ while running
             pos(:,3) = modulo(pos(:,3), DEPTH);
         end
 
-        // ╔══════════════════════════════════════════════════════════════
-        // ║  METRICS  (Θ, Θ′, α, τᵨ)
-        // ╚══════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════
+        //  PHASE 7 — METRICS COMPUTATION
+        //    Θ  — mean internal opacity (from projection or sampled)
+        //    Θ′ — multi-viewpoint external opacity (Priority 1b)
+        //    α  — order parameter: |Σv_i| / (N·v₀).  α ≈ 1 = aligned.
+        //    τᵨ — density autocorrelation time (Priority 1c)
+        //    All smoothed by EMA (smooth=0.05).
+        // ═══════════════════════════════════════════════════════════════
+        // ⇔ Python: extensions/multi_viewpoint_opacity.py + metrics.py
+        // ⇔ Octave: alg2_extended.m SECTION 8-9 + main loop step 7
 
         // Θ — internal opacity
         if MODE == 0 then
@@ -1495,7 +1553,10 @@ while running
             tau_ema = tau_ema + (tau_val - tau_ema) * smooth;
         end
 
-        // ── CSV logging ──────────────────────────────────────────────
+        // ═══════════════════════════════════════════════════════════════
+        //  PHASE 8 — CSV LOGGING
+        //    Append metrics row every LOG_EVERY frames.
+        // ═══════════════════════════════════════════════════════════════
         if log_fid ~= -1 & modulo(frame, LOG_EVERY) == 0 then
             fps = 1 / max(toc(t_frame), 0.001);
             mfprintf(log_fid, "%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%.4f,%.1f,%.4f,%.1f\n", ...
@@ -1505,9 +1566,14 @@ while running
 
     end  // ~paused
 
-    // ───────────────────────────────────────────────────────────────
-    //  RENDER
-    // ───────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════
+    //  PHASE 9 — RENDER
+    //    2D: xfpolys bird triangles (mode-dependent colour) + predator
+    //    3D: one circle per bird with depth-dependent size and colour
+    //    Metrics text overlay, mode badge, pause indicator, help overlay.
+    // ═══════════════════════════════════════════════════════════════════
+    // ⇔ Octave: alg2_extended.m main loop step 9
+    // ⇔ Python: boid.py §render + scenario_presets.py
 
     if ~isempty(a.children) then delete(a.children); end
     a.data_bounds = [0, 0; WIDTH, HEIGHT];

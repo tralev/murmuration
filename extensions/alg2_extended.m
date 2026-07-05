@@ -13,6 +13,18 @@
 %  ported from the Python extensions/ directory.  All features can
 %  be individually toggled via the ENABLE_* flags in SECTION 2.
 %
+%  ── CROSS-LANGUAGE COMPARISON ─────────────────────────────────────
+%  Same algorithm is available in three computing environments:
+%
+%    Python      extensions/alg2_extended.py, extensions/three_d.py, …
+%    ⇔ Octave    extensions/alg2_extended.m  ← you are here
+%    ⇔ Scilab    extensions/alg2_extended.sce
+%
+%  All three share identical variable names (ENABLE_*, PHI_*, SIGMA,
+%  NUM_BOIDS, BOID_SIZE, STERIC_RADIUS, etc.) and feature-flag logic.
+%  Look for "⇔" comments throughout to find the equivalent code block
+%  in the other two languages.
+%
 %  Feature flags (set true or false at the top of SECTION 2):
 %  ────────────────────────────────────────────────────────────────────
 %    1a — Direct velocity setting (no Reynolds steering)
@@ -285,6 +297,9 @@ hHelp = text(WIDTH-460, HEIGHT-10, '', ...
 % ╔══════════════════════════════════════════════════════════════════════╗
 % ║  SECTION 4 — ANGULAR-INTERVAL UTILITIES                            ║
 % ╚══════════════════════════════════════════════════════════════════════╝
+%  ⇔ Scilab: alg2_extended.sce SECTION 4 (identical algorithm)
+%  ⇔ Python: flock_core.py — occlusion_geom.py
+%  ──────────────────────────────────────────────────────────────────────
 
 function [merged, n_merged] = merge_angle_intervals(intervals, n_int)
     % Merge overlapping angular intervals on [0, 2π).  O(n_int).
@@ -362,6 +377,8 @@ end
 % ╔══════════════════════════════════════════════════════════════════════╗
 % ║  SECTION 5 — GRAHAM SCAN CONVEX HULL  (Priority 1c: τᵨ)            ║
 % ╚══════════════════════════════════════════════════════════════════════╝
+%  ⇔ Scilab: alg2_extended.sce SECTION 5 (convex_hull_area_2d)
+%  ⇔ Python: extensions/correlation_time.py
 %  Reference:  Graham, R.L. (1972) "An efficient algorithm for
 %              determining the convex hull of a finite planar set."
 %              Information Processing Letters 1(4), 132–133.
@@ -451,6 +468,8 @@ end
 % ╔══════════════════════════════════════════════════════════════════════╗
 % ║  SECTION 6 — SPATIAL CHUNKER  (Priority 3b)                        ║
 % ╚══════════════════════════════════════════════════════════════════════╝
+%  ⇔ Scilab: alg2_extended.sce SECTION 6 (rebuild_chunker)
+%  ⇔ Python: extensions/spatial_optimization.py
 %  Two-pass grid-based spatial partitioning.
 %
 %  Pass 1 — Bin birds: assign each bird to a cell (cx, cy) in the
@@ -524,6 +543,8 @@ end
 % ╔══════════════════════════════════════════════════════════════════════╗
 % ║  SECTION 7 — PROJECTION MODEL WITH ALL 2D EXTENSIONS               ║
 % ╚══════════════════════════════════════════════════════════════════════╝
+%  ⇔ Scilab: alg2_extended.sce SECTION 7 (compute_projection_extended)
+%  ⇔ Python: extensions/direct_velocity.py + flock_core.py
 %  Priorities integrated: 1a, 2a, 2b, 2d, 3b
 %
 %  This is the core occlusion algorithm, shared with the original
@@ -836,6 +857,8 @@ end
 % ╔══════════════════════════════════════════════════════════════════════╗
 % ║  SECTION 7b — 3D PROJECTION MODEL  (Priority 2c)                    ║
 % ╚══════════════════════════════════════════════════════════════════════╝
+%  ⇔ Scilab: alg2_extended.sce SECTION 7b (compute_projection_3d)
+%  ⇔ Python: extensions/three_d.py
 %  Fibonacci sphere z-buffered spherical cap occlusion.
 %
 %  In 2D, each bird subtends a 1D angular interval on a circle.
@@ -1051,6 +1074,8 @@ end
 % ╔══════════════════════════════════════════════════════════════════════╗
 % ║  SECTION 8 — MULTI-VIEWPOINT EXTERNAL OPACITY  (Priority 1b)       ║
 % ╚══════════════════════════════════════════════════════════════════════╝
+%  ⇔ Scilab: alg2_extended.sce SECTION 8 (compute_external_opacity_multi)
+%  ⇔ Python: extensions/multi_viewpoint_opacity.py
 %  Θ′ — fraction of the sky obscured from a distant external observer.
 %
 %  Single viewpoint (ENABLE_1b = false):
