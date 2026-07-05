@@ -23,6 +23,8 @@
        external_opacity_multi_viewpoint,
        FlockMetricsExtended,
    )
+
+⇔ Octave: alg2_extended.m §SECTION 8  ⇔ Scilab: alg2_extended.sce §SECTION 8
 ──────────────────────────────────────────────────────────────────────
 """
 

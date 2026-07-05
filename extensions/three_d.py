@@ -20,6 +20,8 @@
  light-dark boundaries become curves on the surface of a sphere.
 
  Usage:  from extensions.three_d import Boid3D, fibonacci_sphere
+
+⇔ Octave: alg2_extended.m §SECTION 7b  ⇔ Scilab: alg2_extended.sce §SECTION 7b
 ──────────────────────────────────────────────────────────────────────
 """
 

@@ -18,6 +18,8 @@
 
  Builds on DirectVelocityBoid (Roadmap 1a).
 
+⇔ Octave: alg2_extended.m main loop step 4 (Priority 2a)  ⇔ Scilab: alg2_extended.sce main loop PHASE 4
+
  Usage:  from extensions.steric_repulsion import StericBoid
 ──────────────────────────────────────────────────────────────────────
 """

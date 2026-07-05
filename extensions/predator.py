@@ -19,6 +19,8 @@
 
  Builds on OptimizedBoid (Roadmap 3b — full extension chain).
 
+⇔ Octave: alg2_extended.m main loop steps 3+5  ⇔ Scilab: alg2_extended.sce main loop PHASE 3+5
+
  Usage:  from extensions.predator import Predator, PredatorBoid
 ──────────────────────────────────────────────────────────────────────
 """

@@ -7,6 +7,7 @@ source files.  Classes chain via inheritance:
     Boid  →  DirectVelocityBoid  →  StericBoid  →  BlindAnglesBoid  →  PredatorBoid
     (original)   (1a)                (2a)            (2b)                (3a)
 
+⇔ Octave: extensions/alg2_extended.m   ⇔ Scilab: extensions/alg2_extended.sce
 Run:  python -m extensions.extended_simulation
 """
 

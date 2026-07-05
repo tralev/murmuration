@@ -22,6 +22,8 @@
  Usage:  from extensions.spatial_optimization import (
              SpatialChunker, OptimizedBoid
          )
+
+⇔ Octave: alg2_extended.m §SECTION 6  ⇔ Scilab: alg2_extended.sce §SECTION 6
 ──────────────────────────────────────────────────────────────────────
 """
 

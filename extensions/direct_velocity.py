@@ -14,6 +14,8 @@
  In projection mode, update() skips speed clamping (strict v₀).
  In spatial mode, behaviour falls back to the original Boid.
 
+⇔ Octave: alg2_extended.m §SECTION 7 PHASE 4  ⇔ Scilab: alg2_extended.sce §SECTION 7 PHASE 4
+
  Usage:  from extensions.direct_velocity import DirectVelocityBoid
 ──────────────────────────────────────────────────────────────────────
 """

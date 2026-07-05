@@ -18,6 +18,8 @@
 
  Builds on StericBoid (Roadmap 2a).
 
+⇔ Octave: alg2_extended.m §SECTION 7 PHASE 2  ⇔ Scilab: alg2_extended.sce §SECTION 7
+
  Usage:  from extensions.blind_angles import BlindAnglesBoid
 ──────────────────────────────────────────────────────────────────────
 """

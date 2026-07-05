@@ -20,6 +20,8 @@
 
  Usage:
    from extensions.correlation_time import CorrelationTimeTracker
+
+⇔ Octave: alg2_extended.m §SECTION 5+9  ⇔ Scilab: alg2_extended.sce §SECTION 5+9
 ──────────────────────────────────────────────────────────────────────
 """
 
