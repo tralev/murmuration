@@ -232,7 +232,14 @@ and refactor everything for use as educational material.
 
 22. **Verify Python syntax** — run `ast.parse()` on every Python file.
 
-23. **Run all unit tests** — every test must pass.
+23. **Run all unit tests** — every test must pass. Each test file includes a
+    `TestDiscovery` class (via the shared `test_count_mixin.TestCountMixin`)
+    that verifies the total number of `test_` methods hasn't changed. When
+    adding or removing tests, update the `EXPECTED_TEST_COUNT` class attribute
+    to match the new count (found by counting `\n    def test_` lines in the
+    file source, excluding the mixin-provided `test_test_count` method itself).
+    This guards against accidental test method renames, deletions, or discovery
+    regressions.
 
 24. **Run a smoke test** — create objects, run 3–5 frames of the simulation
     loop, verify positions stay in bounds, velocities are non-zero, metrics
@@ -350,7 +357,8 @@ Before declaring the skill complete, verify:
 - [ ] GNU Octave script has matching section banners and math documentation
 - [ ] Scilab script has matching section banners and math documentation
 - [ ] Cross-file audit: same sections, same order, any gaps explained
-- [ ] All 47+ unit tests pass
+- [ ] All unit tests pass (including TestDiscovery count sanity checks)
+- [ ] EXPECTED_TEST_COUNT updated in each test file's TestDiscovery when tests are added/removed
 - [ ] Smoke test: 3–5 frames run without errors, positions in bounds
 - [ ] Main README has paper audit + roadmap + code tour + dependency diagram
 - [ ] Per-language READMEs are self-contained (no cross-references to each other)

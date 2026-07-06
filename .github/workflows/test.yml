@@ -32,6 +32,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run full test suite (158 tests)
+      - name: Test discovery gate (fast — fails early if counts drifted)
+        run: |
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m unittest test_alg2.TestDiscovery extensions.test_extensions.TestDiscovery -v
+
+      - name: Run full test suite
         run: |
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m unittest test_alg2 extensions.test_extensions -v

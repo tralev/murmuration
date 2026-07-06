@@ -729,12 +729,199 @@ Predator dynamics:
 **Scaling approaches**:
 - **Far-field approximation**: for birds at distance d ≫ flock_radius, the flock can be treated as a single extended occluder with angular extent `arcsin(R_flock / d)`. This reduces the per-bird loop from N to O(N_near + log N_far).
 - **Level-of-detail**: use exact angular intervals for the σ nearest birds, approximate the rest as a coarse angular histogram.
-- **Chunked processing**: split the flock into spatial chunks; birds in distant chunks are merged into a small number of representative occluders.
+- **Chunked processing**: split the flock into spatial chunks; birds in distant chunks are merged into a small number of representative occluders.### Priority 4 — Visualization & Interaction
+
+#### 4a. 3D WebGL/WebGPU visualization
+
+**Currently**: The simulation renders in 2D via PyGame. The 3D extension (`extensions/three_d.py`) is headless — it computes 3D physics but has no visual output beyond text metrics.
+
+**Should be**: A browser-based 3D renderer (Three.js with WebGL/WebGPU) that shows the flock in real time with:
+
+- **Particle cloud** — thousands of birds rendered as small meshes or point sprites
+- **Velocity trails** — fading line segments showing recent movement
+- **Visual themes** — ink/paper color schemes (light, dark, graphite, inverse)
+- **Perspective camera** — orbit, pan, zoom controls
+- **Performance scaling** — adaptive quality, level-of-detail, WebGPU compute for large flocks
+
+A TypeScript/Three.js companion project exists with 11 scenario presets, WebGPU compute, and Playwright E2E tests.
+
+#### 4b. Scene rotation / camera controls
+
+**Currently**: The PyGame view is a fixed 2D orthographic projection. No camera rotation, pan, or zoom. The 3D extension renders to stdout only.
+
+**Planned**: Add orbit controls:
+
+```
+Controls:          OrbitControls with damping
+  rotateSpeed      0.62
+  panSpeed         0.45
+  zoomSpeed        0.8
+  minDistance      0.7  (close-up of individual birds)
+  maxDistance      9.0  (full-flock overview)
+  autoRotate       optional automatic scene rotation at 0.45 rad/s
+Keyboard:          R to reset camera to default position
+```
+
+In 2D PyGame, a simpler zoom/pan scheme could be added using the scroll wheel and middle-mouse drag.
+
+#### 4c. Docker interactive Scilab / Octave test toggles
+
+**Currently**: The `docker-compose.yml` has a `shell` service that opens a bash prompt, but the Docker image only includes Python + Pygame — no Scilab or Octave. Scilab/Octave tests run non-interactively via `subprocess` in `test_alg2.py` (`_run_scilab_script_docker`), and would require the image to be extended with Scilab and Octave packages.
+
+**Planned**: 
+
+1. Extend the Docker image to include Scilab CLI and GNU Octave:
+```dockerfile
+RUN apt-get install -y --no-install-recommends octave scilab-cli
+```
+
+2. Add dedicated docker-compose services for interactive testing:
+
+```yaml
+  # docker compose run scilab-interactive
+  scilab-interactive:
+    build: .
+    image: murmuration:latest
+    command: scilab-cli
+    stdin_open: true
+    tty: true
+
+  # docker compose run octave-interactive
+  octave-interactive:
+    build: .
+    image: murmuration:latest
+    command: octave --no-gui
+    stdin_open: true
+    tty: true
+```
+
+This allows developers to manually test boundary toggles (`MARGIN_BOUNDARY`, `MODE`, key handlers) in the exact Docker environment used by CI, without spawning subprocesses from Python.
+
+#### 4d. Full validation pipeline
+
+**Currently**: Tests are run piecemeal and Scilab/Octave tests cannot run in Docker until the image is extended (see 4c):
+
+```bash
+./run.sh tests               # Python unit tests (native)
+./run-docker.sh tests         # Python unit tests (Docker)
+python3 -m unittest test_alg2.TestDiscovery extensions.test_extensions.TestDiscovery  # count gate
+```
+
+Octave and Scilab tests require Octave installed locally or Docker available. There is no single command that runs the full validation suite.
+
+**Planned**: After extending the Docker image with Scilab/Octave, a `scripts/validate-all.sh` that runs:
+
+```bash
+#!/usr/bin/env bash
+# Full validation pipeline — all languages, all environments.
+
+set -euo pipefail
+
+echo "=== 1/5 Test count gate ==="
+./scripts/check-test-count.sh
+
+echo "=== 2/5 Python tests (native) ==="
+python3 -m unittest test_alg2 extensions.test_extensions -v
+
+echo "=== 3/5 Python tests (Docker) ==="
+docker compose run --rm tests
+
+echo "=== 4/5 GNU Octave tests ==="
+octave --no-gui --silent test_toroidal_wrap.m
+octave --no-gui --silent test_key_handler.m
+octave --no-gui --silent test_boundary_toggle.m
+
+echo "=== 5/5 Scilab tests (Docker) ==="
+docker compose run --rm -T shell scilab-cli -nb -f test_toroidal_wrap.sce
+docker compose run --rm -T shell scilab-cli -nb -f test_key_handler.sce
+docker compose run --rm -T shell scilab-cli -nb -f test_boundary_toggle.sce
+
+echo "All validations passed."
+```
+
+### Priority 5 — Ecological & Behavioral Extensions
+
+#### 5a. Additional scenario presets (from companion TypeScript project)
+
+A TypeScript/Three.js companion project defines 11 named presets with finely-tuned parameters for distinct visual behaviors. Below are representative examples (note: the current Python simulation is limited to ~200 birds due to O(N² log N) occlusion; presets with higher counts would require the spatial optimization extension or a GPU backend):
+
+| Preset | Count | Speed | Character |
+|--------|-------|-------|-----------|
+| Quiet Roost | 3,000 | 0.48 | Dense, slow, trail-heavy |
+| Comfort Flight | 4,200 | 0.36 | Smooth gliding, air medium |
+| Swarm Pilot | 6,400 | 0.54 | Responsive chase, dust medium |
+| Acro Swarm | 5,200 | 0.82 | Fast, acrobatic turns |
+| Lava Lamp | 16,000 | — | High density, chaotic motion |
+| Predator Ripple | 12,000 | 0.78 | Threat-driven waves |
+| Storm Turn | 16,000 | 0.90 | Extreme speed, tight turns |
+
+**Planned**: Add 5–7 of these presets to `scenario_presets.py`, mapping Three.js parameters to the Python/Octave/Scilab equivalents. Each preset should include φp, φa, σ, speed, and count adjustments.
+
+#### 5b. Roosting / thermoregulation hypothesis
+
+**Based on Goodenough et al. (2017)**: One hypothesis for why starlings murmurate is to recruit more birds to create larger, warmer roosts (the "warmer together" hypothesis).
+
+**Planned**: Add a "roosting" mode where birds are attracted to a roost site and cluster at dusk. This would involve:
+
+- A roost attractor point (moves over time)
+- Gradual descent and clustering as simulation time progresses
+- Temperature proxy metric (bird density at roost site)
+- Seasonal flock size variation (larger in winter, per Goodenough data)
+
+### Priority 6 — Remaining Paper Audit Gaps
+
+Gaps still open after the extensions/ priority implementations. ✅ items are already implemented and documented in the paper audit above.
+
+| Paper | Gap | Status |
+|-------|-----|--------|
+| Young | H₂ robustness metric / consensus dynamics framework | ❌ Not implemented |
+| Goodenough | Realistic flock sizes (30,000+ birds) — performance-limited to ~200 | ❌ Not implemented |
+| Goodenough | Critical mass threshold (~500 birds to initiate murmuration) | ❌ Not implemented |
+| Goodenough | Seasonal flock size variation (increases Oct–Feb per citizen-science data) | ❌ Not implemented |
+| Goodenough | Roosting / thermoregulation behavior (birds clustering at dusk) | ❌ Not implemented |
+| Young | Default σ = 6–7 (Ballerini optimal) — current default is 4 from Pearce | ⚠️ Adjustable but default differs |
+
+---
+
+## TODO / Not Yet Implemented
+
+Quick-reference list of features present in the companion TypeScript/Three.js project or the research papers, but not yet in this Python/Octave/Scilab codebase:
+
+### Visualization
+
+- [ ] **3D WebGL/WebGPU rendering** — headless 3D extension exists; needs Three.js or similar browser-based frontend
+- [ ] **Scene rotation / camera orbit** — PyGame view is fixed 2D; no pan, zoom, or auto-rotate
+- [ ] **Visual themes** — ink/paper/panel color schemes (light, dark, graphite, inverse)
+- [ ] **Velocity trails in 3D** — DRAW_TRAIL exists in 2D PyGame but not in the 3D headless extension
+- [ ] **Performance adaptive quality** — frame-rate-aware LOD for large flocks
+
+### Testing & Validation
+
+- [ ] **Docker interactive Scilab test toggle** — `docker compose run scilab-interactive` (requires Scilab in Docker image)
+- [ ] **Docker interactive GNU Octave test toggle** — `docker compose run octave-interactive` (requires Octave in Docker image)
+- [ ] **Full validation pipeline** — single `scripts/validate-all.sh` running Python + Octave + Scilab tests (requires extended Docker image)
+- [ ] **Soak testing** — long-running stability tests for memory leaks and performance degradation
+
+### Simulation Features
+
+- [ ] **11+ scenario presets** — companion project has richly-tuned presets (Quiet Roost, Acro Swarm, Predator Ripple, etc.) vs our 5 basic presets
+- [ ] **Medium simulation** — air/dust/starlight/grid medium modes with turbulence and wake effects
+- [ ] **Vacuole formation** — autonomous threat that creates empty space in flock
+- [ ] **Wave propagation** — startle wave amplification through the flock
+
+*(XR/WebXR support, Playwright E2E tests, and browser-based rendering are not applicable without migrating from PyGame to a web frontend.)*
+
+### Ecological Realism
+
+- [ ] **Roosting/thermoregulation hypothesis** — birds attracted to roost site, clustering at dusk
+- [ ] **Seasonal flock size variation** — flock size increases Oct–Feb (per Goodenough 2017 citizen-science data)
+- [ ] **Critical mass threshold** — ~500 birds needed to initiate murmuration (Goodenough)
+- [ ] **H₂ robustness metric** — consensus dynamics framework from Young et al. (2013)
+- [ ] **Default σ = 6–7** — Ballerini/Young optimal neighbor count (current default: 4 from Pearce)
 
 ---
 
 ## Licence
 
 GNU General Public License v3.0 — see [LICENSE](LICENSE).
-
 The PNAS paper content is © 2014 National Academy of Sciences. All research papers included in this repository are for reference and scholarly use.

@@ -18,6 +18,11 @@ Role of projection in the control of bird flocks
 .DS_Store
 Thumbs.db
 
+# Octave workspace files (auto-generated at runtime)
+octave-workspace
+octave-core
+*.oct-workspace
+
 # IDE
 .vscode/
 .idea/

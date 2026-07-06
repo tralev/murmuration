@@ -18,6 +18,8 @@ import unittest
 
 import pygame
 
+from test_count_mixin import TestCountMixin
+
 from extensions.blind_angles import (
     _interval_in_blind_region,
     BlindAnglesBoid,
@@ -1363,3 +1365,13 @@ class TestFlockMetricsExtended(unittest.TestCase):
         for _ in range(100):
             self.metrics.update(boids, clock, self.config)
         self.assertAlmostEqual(self.metrics.dispersion, 0.0, places=1)
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  Test discovery sanity check
+# ══════════════════════════════════════════════════════════════════════
+
+class TestDiscovery(unittest.TestCase, TestCountMixin):
+    """Verify test count to catch accidental regressions in discovery."""
+
+    EXPECTED_TEST_COUNT = 119

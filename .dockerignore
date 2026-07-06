@@ -30,6 +30,23 @@ Thumbs.db
 alg2.m
 alg2.sce
 
+# Session notes (local file, not source code)
+SESSION_NOTES.md
+
+# CI/CD workflows (not needed in Docker image)
+.github/
+
+# Helper scripts (used outside the container)
+scripts/
+
+# Jupyter notebooks (development-only)
+notebooks/
+
+# Octave workspace files (auto-generated)
+octave-workspace
+octave-core
+*.oct-workspace
+
 # Docker files themselves
 Dockerfile
 docker-compose.yml

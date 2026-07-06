@@ -43,6 +43,13 @@ case "$MODE" in
         echo "═══════════════════════════════════════════════════════════"
         echo "  Running unit tests..."
         echo "═══════════════════════════════════════════════════════════"
+        if ! ./scripts/check-test-count.sh; then
+            echo ""
+            echo "→ Test-count check FAILED. Update EXPECTED_TEST_COUNT"
+            echo "  constants and re-run to continue."
+            exit 1
+        fi
+        echo ""
         python3 -m unittest test_alg2 extensions.test_extensions -v
         ;;
     simple)
