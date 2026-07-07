@@ -71,9 +71,9 @@ def main():
     config = Config()
     grid = SpatialGrid(cell_size=VISUAL_RANGE)
 
-    # ── CSV log file ─────────────────────────────────────────────
+    # ── CSV log file (gated by features.ENABLE_CSV_LOGGING) ─────
     log_fid = None
-    if LOG_FILE is not None:
+    if features.ENABLE_CSV_LOGGING and LOG_FILE is not None:
         try:
             os.makedirs(os.path.dirname(LOG_FILE) or ".", exist_ok=True)
             log_fid = open(LOG_FILE, "w")
