@@ -27,7 +27,7 @@ vel = [
 ];
 acc = zeros(8, 2);
 
-// Physics step: core toroidal wrap (vel+=acc, speed clamp, pos+=vel, modulo wrap)
+// Physics step: core toroidal wrap (vel+=acc, speed clamp, pos+=vel, pmodulo wrap)
 // Excludes MARGIN_BOUNDARY nudge block and the random-direction
 // zero-speed floor special-case (neither is triggered by these test inputs).
 vel = vel + acc;

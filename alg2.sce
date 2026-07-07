@@ -908,7 +908,7 @@ while running
         //       - cap at V₀ (max cruising speed)
         //       - floor at 0.3·V₀ (prevent stagnation)
         //    3. p ← p + v          move forward
-        //    4. toroidal wrap      re-enter from opposite edge via modulo()
+        //    4. toroidal wrap      re-enter from opposite edge via pmodulo()
         //    5. a ← 0              reset steering accumulator
         //
         //  Complexity: O(N) — fully vectorized over all birds.
@@ -958,13 +958,13 @@ while running
             pos(:,2) = max(0, min(HEIGHT, pos(:,2)));
         else
             // Toroidal wrap
-            pos(:,1) = modulo(pos(:,1), WIDTH);
-            pos(:,2) = modulo(pos(:,2), HEIGHT);
+            pos(:,1) = pmodulo(pos(:,1), WIDTH);
+            pos(:,2) = pmodulo(pos(:,2), HEIGHT);
         end
 
         // ── Trail: record position (ring buffer) ──────────────────
         if DRAW_TRAIL then
-            trail_idx = modulo(trail_idx, TRAIL_LENGTH) + 1;
+            trail_idx = pmodulo(trail_idx, TRAIL_LENGTH) + 1;
             trail(trail_idx, :, 1) = pos(:, 1)';
             trail(trail_idx, :, 2) = pos(:, 2)';
             trail_count = min(trail_count + 1, TRAIL_LENGTH);
@@ -1006,7 +1006,7 @@ while running
         alpha_ema = alpha_ema + (alpha_raw - alpha_ema) * smooth;
 
         // ── 5. CSV logging  (every LOG_EVERY frames) ─────────────
-        if log_fid ~= -1 & modulo(frame, LOG_EVERY) == 0 then
+        if log_fid ~= -1 & pmodulo(frame, LOG_EVERY) == 0 then
             fps = 1 / max(toc(t_frame), 0.001);
             mfprintf(log_fid, "%d,%d,%d,%.4f,%.4f,%.4f,%d,%.4f,%.4f,%.4f,%.1f\n", ..
                      frame, MODE, NUM_BOIDS, PHI_P, PHI_A, PHI_N, SIGMA, ..
@@ -1065,7 +1065,7 @@ while running
 
     // ── Trail rendering ──────────────────────────────────────────
     if DRAW_TRAIL & trail_count > 1 then
-        order = modulo((trail_idx - trail_count : trail_idx - 1), TRAIL_LENGTH) + 1;
+        order = pmodulo((trail_idx - trail_count : trail_idx - 1), TRAIL_LENGTH) + 1;
         order(order < 1) = order(order < 1) + TRAIL_LENGTH;
         for i = 1:NUM_BOIDS
             tx = trail(order, i, 1);

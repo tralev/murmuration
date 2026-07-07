@@ -149,7 +149,9 @@ and refactor everything for use as educational material.
 
 11. **Port to Scilab.** Similar to Octave but note:
     - Use `//` comments instead of `%`
-    - Use `modulo()` instead of `mod()` for wrap-around
+    - Use `pmodulo()` instead of `mod()` for wrap-around — Scilab's
+      `modulo()` keeps the numerator's sign (`modulo(-6, 1000) = -6`),
+      so negative positions never wrap; `pmodulo()` matches Octave `mod()`
     - Rendering → use `xfpolys()` with NaN-separated vertices for batch drawing
     - Keyboard → figure event handlers with `event_handler_enable = "on"`
     - Use `sleep(1)` (1 ms) before `drawnow()` to yield the event loop

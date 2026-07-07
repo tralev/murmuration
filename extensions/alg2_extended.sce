@@ -366,7 +366,7 @@ function area = convex_hull_area_2d(points)
     // Step 4: shoelace formula
     area = 0;
     for i = 1:m
-        j = modulo(i, m) + 1;
+        j = pmodulo(i, m) + 1;
         area = area + hull(i,1)*hull(j,2) - hull(j,1)*hull(i,2);
     end
     area = abs(area) / 2;
@@ -386,8 +386,8 @@ function chunks = rebuild_chunker(pos)
     // Pass 1: bin birds
     bins = list();
     for i = 1:NUM_BOIDS
-        cx = modulo(floor(pos(i,1) / CELL_W), GRID_COLS);
-        cy = modulo(floor(pos(i,2) / CELL_H), GRID_ROWS);
+        cx = pmodulo(floor(pos(i,1) / CELL_W), GRID_COLS);
+        cy = pmodulo(floor(pos(i,2) / CELL_H), GRID_ROWS);
         key = [cx, cy];
 
         // Find or create bin
@@ -452,14 +452,14 @@ function [delta, vis_idx, vis_dists, n_vis, theta] = ...
         entries = zeros(NUM_BOIDS * 2, 4);  // [dist, centre, half, bird_idx]
 
         // Viewer's cell
-        vx = modulo(floor(pos(i,1) / CELL_W), GRID_COLS);
-        vy = modulo(floor(pos(i,2) / CELL_H), GRID_ROWS);
+        vx = pmodulo(floor(pos(i,1) / CELL_W), GRID_COLS);
+        vy = pmodulo(floor(pos(i,2) / CELL_H), GRID_ROWS);
 
         // Phase 1: near birds (3x3 surrounding cells)
         for dx = -1:1
             for dy = -1:1
-                cx = modulo(vx + dx, GRID_COLS);
-                cy = modulo(vy + dy, GRID_ROWS);
+                cx = pmodulo(vx + dx, GRID_COLS);
+                cy = pmodulo(vy + dy, GRID_ROWS);
                 for c = 1:length(chunks)
                     if chunks(c).key(1) == cx & chunks(c).key(2) == cy then
                         indices = chunks(c).birds;
@@ -952,7 +952,7 @@ function new_tau = compute_tau_from_buffer()
     // Unroll ring buffer
     dens = zeros(m, 1);
     for i = 1:m
-        idx = modulo(tau_idx - m + i - 2, BUFFER_SIZE_TAU) + 1;
+        idx = pmodulo(tau_idx - m + i - 2, BUFFER_SIZE_TAU) + 1;
         dens(i) = tau_buffer(idx);
     end
 
@@ -1268,8 +1268,8 @@ while running
             if spd_p < PREDATOR_SPEED * 0.3 & spd_p > 0.001 then predator_vel = predator_vel / spd_p * PREDATOR_SPEED * 0.3; end
 
             predator_pos = predator_pos + predator_vel;
-            predator_pos(1) = modulo(predator_pos(1), WIDTH);
-            predator_pos(2) = modulo(predator_pos(2), HEIGHT);
+            predator_pos(1) = pmodulo(predator_pos(1), WIDTH);
+            predator_pos(2) = pmodulo(predator_pos(2), HEIGHT);
 
             // Track trail
             predator_trail = [predator_trail; predator_pos];
@@ -1555,7 +1555,7 @@ while running
 
         // ── Trail: record position (ring buffer) ──────────────────
         if DRAW_TRAIL then
-            trail_idx = modulo(trail_idx, TRAIL_LENGTH) + 1;
+            trail_idx = pmodulo(trail_idx, TRAIL_LENGTH) + 1;
             trail(trail_idx, :, 1) = pos(:, 1)';
             trail(trail_idx, :, 2) = pos(:, 2)';
             trail_count = min(trail_count + 1, TRAIL_LENGTH);
@@ -1568,9 +1568,9 @@ while running
             if ENABLE_2c then, pos(:,3) = max(0, min(DEPTH, pos(:,3))); end
         else
             // Toroidal wrap
-            pos(:,1) = modulo(pos(:,1), WIDTH);
-            pos(:,2) = modulo(pos(:,2), HEIGHT);
-            if ENABLE_2c then, pos(:,3) = modulo(pos(:,3), DEPTH); end
+            pos(:,1) = pmodulo(pos(:,1), WIDTH);
+            pos(:,2) = pmodulo(pos(:,2), HEIGHT);
+            if ENABLE_2c then, pos(:,3) = pmodulo(pos(:,3), DEPTH); end
         end
 
         // ═══════════════════════════════════════════════════════════════
@@ -1630,7 +1630,7 @@ while running
                         last_density = density;
                         tau_buffer(tau_idx) = density;
                         tau_frames(tau_idx) = frame;
-                        tau_idx = modulo(tau_idx, BUFFER_SIZE_TAU) + 1;
+                        tau_idx = pmodulo(tau_idx, BUFFER_SIZE_TAU) + 1;
                         if tau_count < BUFFER_SIZE_TAU then tau_count = tau_count + 1; end
                         tau_val = compute_tau_from_buffer();
                     end
@@ -1645,7 +1645,7 @@ while running
         //  PHASE 8 — CSV LOGGING
         //    Append metrics row every LOG_EVERY frames.
         // ═══════════════════════════════════════════════════════════════
-        if log_fid ~= -1 & modulo(frame, LOG_EVERY) == 0 then
+        if log_fid ~= -1 & pmodulo(frame, LOG_EVERY) == 0 then
             fps = 1 / max(toc(t_frame), 0.001);
             mfprintf(log_fid, "%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%.4f,%.1f,%.4f,%.1f,%.4f,%.4f\n", ...
                      frame, MODE, NUM_BOIDS, PHI_P, PHI_A, PHI_N, PHI_S, SIGMA, ...
@@ -1672,7 +1672,7 @@ while running
 
     // ── Trail rendering (2D mode only) ──────────────────────────
     if DRAW_TRAIL & trail_count > 1 & ~ENABLE_2c then
-        order = modulo((trail_idx - trail_count : trail_idx - 1), TRAIL_LENGTH) + 1;
+        order = pmodulo((trail_idx - trail_count : trail_idx - 1), TRAIL_LENGTH) + 1;
         order(order < 1) = order(order < 1) + TRAIL_LENGTH;
         for i = 1:NUM_BOIDS
             tx = trail(order, i, 1);

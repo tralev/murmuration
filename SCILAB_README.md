@@ -172,8 +172,8 @@ fast = find(spd > V0);               // clamp fast birds
 vel(fast,:) = vel(fast,:) ./ repmat(spd(fast), 1, 2) * V0;
 pos = pos + vel;                     // Euler integration
 acc = acc * 0;                       // reset accelerations
-pos(:,1) = modulo(pos(:,1), WIDTH);  // toroidal wrap
-pos(:,2) = modulo(pos(:,2), HEIGHT);
+pos(:,1) = pmodulo(pos(:,1), WIDTH);  // toroidal wrap
+pos(:,2) = pmodulo(pos(:,2), HEIGHT);
 ```
 
 ### Rendering: Batch Polygons
