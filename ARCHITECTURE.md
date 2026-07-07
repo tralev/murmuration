@@ -321,6 +321,7 @@ for algorithm testing).
 | `test_projection_model.py` | `projection_model.py` functions | `occlusion_geom`, `flock_core` |
 | `test_spatial_model.py` | `spatial_model.py` functions | `flock_core` |
 | `test_input_handler.py` | `input_handler.py` event processing | `pygame`, `flock_core` |
+| `test_features.py` | Feature flag gating (`features.py`) | `features`, `flock_core` |
 | `test_3d.py` | 3D physics, grid, flocking (39 tests) | `boid_3d`, `spatial_3d`, `flock_core` |
 | `extensions/test_extensions.py` | Extension modules | Various |
 
