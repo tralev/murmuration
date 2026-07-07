@@ -87,13 +87,31 @@ Method overrides:
 
 All original controls from `alg2.py` work, plus:
 
+### Extended 2D simulation
+
 | Key | Action |
 |-----|--------|
+| `P` | Spawn / remove predator (peregrine falcon) |
 | `F` | Toggle focal bird debug view (shows blind sector, occlusion arcs) |
-| `f` | Spawn / remove predator (falcon) |
+| `B` | Toggle TOROIDAL / MARGIN boundary |
 | `1–5` | Scenario presets |
 | `M` | Toggle PROJECTION / SPATIAL mode |
+| `G` | Toggle grid overlay (SPATIAL mode) |
 | `H` | Toggle extended help overlay |
+
+All base controls from `alg2.py` also work (`↑↓←→` tune φp/φa, `[/]` tune σ, `+/-` add/remove birds, `SPACE` pause, `R` reset, `ESC` quit).
+
+### Extended 3D simulation
+
+The 3D simulation has no PROJECTION/SPATIAL toggle (always PROJECTION), no predator, and no focal bird debug.
+
+| Key | Action |
+|-----|--------|
+| `B` | Toggle TOROIDAL / MARGIN boundary |
+| `1–5` | Scenario presets |
+| `H` | Toggle help overlay |
+
+All base controls from `alg2.py` also work (`↑↓←→` tune φp/φa, `[/]` tune σ, `+/-` add/remove birds, `SPACE` pause, `R` reset, `ESC` quit).
 
 ---
 
@@ -189,4 +207,4 @@ From the roadmap in the main [README.md](../README.md#implementation-roadmap--fu
 
 ## Licence
 
-GNU General Public License v3.0 — see [LICENSE](../LICENSE).
+GNU General Public License v3.0 or later — see [LICENSE](../LICENSE).

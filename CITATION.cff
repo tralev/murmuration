@@ -4,11 +4,13 @@ title: "Murmuration — Dual-Mode Bird Flock Simulation"
 abstract: >
   A Python simulation of starling murmurations implementing two distinct
   flocking algorithms — the hybrid projection model from Pearce et al. (2014,
-  PNAS) and topological Reynolds boids — switchable at runtime. Includes 9
-  roadmap extensions: direct velocity setting, multi-viewpoint opacity,
-  correlation time tracking, steric repulsion, blind angles, a 3D extension
-  with Fibonacci-sphere spherical cap occlusion, anisotropic elliptical
-  bodies, predator-prey dynamics, and spatial optimization for large flocks.
+  PNAS) and topological Reynolds boids — switchable at runtime. Includes 16
+  scenario presets (5 educational + 11 from a companion TypeScript/Three.js
+  project), runtime controls, real-time scientific metrics (opacity Θ, Θ',
+  order parameter α), and 17 roadmap priorities spanning paper fidelity,
+  ecological realism (threat/predator, roosting, H₂ consensus dynamics),
+  GPGPU/WebGPU compute, field-based simulation, trail rendering, adaptive
+  quality, and environmental medium/flow/wander systems.
 authors:
   - family-names: "tralev"
     given-names: ""
@@ -22,7 +24,7 @@ keywords:
   - "projection-model"
   - "boids"
   - "computational-biology"
-license: GPL-3.0
+license: GPL-3.0-or-later
 version: "1.0.0"
 date-released: "2026-07-05"
 references:
@@ -54,3 +56,114 @@ references:
     year: 1987
     doi: "10.1145/37402.37406"
     pages: "25-34"
+  - type: article
+    title: "Interaction ruling animal collective behavior depends on topological rather than metric distance: Evidence from a field study"
+    authors:
+      - family-names: Ballerini
+        given-names: M.
+      - family-names: Cabibbo
+        given-names: N.
+      - family-names: Candelier
+        given-names: R.
+      - family-names: Cavagna
+        given-names: A.
+      - family-names: Cisbani
+        given-names: E.
+      - family-names: Giardina
+        given-names: I.
+      - family-names: Lecomte
+        given-names: V.
+      - family-names: Orlandi
+        given-names: A.
+      - family-names: Parisi
+        given-names: G.
+      - family-names: Procaccini
+        given-names: A.
+      - family-names: Viale
+        given-names: M.
+      - family-names: Zdravkovic
+        given-names: V.
+    journal: "Proceedings of the National Academy of Sciences"
+    volume: 105
+    issue: 4
+    year: 2008
+    doi: "10.1073/pnas.0711437105"
+    pages: "1232-1237"
+  - type: article
+    title: "Empirical investigation of starling flocks: A benchmark study in collective animal behavior"
+    authors:
+      - family-names: Ballerini
+        given-names: M.
+      - family-names: Cabibbo
+        given-names: N.
+      - family-names: Candelier
+        given-names: R.
+      - family-names: Cavagna
+        given-names: A.
+      - family-names: Cisbani
+        given-names: E.
+      - family-names: Giardina
+        given-names: I.
+      - family-names: Lecomte
+        given-names: V.
+      - family-names: Orlandi
+        given-names: A.
+      - family-names: Parisi
+        given-names: G.
+      - family-names: Procaccini
+        given-names: A.
+      - family-names: Viale
+        given-names: M.
+      - family-names: Zdravkovic
+        given-names: V.
+    journal: "Animal Behaviour"
+    volume: 76
+    issue: null
+    year: 2008
+    doi: "10.1016/j.anbehav.2008.02.004"
+    pages: "201-215"
+  - type: article
+    title: "Starling Flock Networks Manage Uncertainty in Consensus at Low Cost"
+    authors:
+      - family-names: Young
+        given-names: G. F.
+      - family-names: Scardovi
+        given-names: L.
+      - family-names: Cavagna
+        given-names: A.
+      - family-names: Giardina
+        given-names: I.
+      - family-names: Leonard
+        given-names: N. E.
+    journal: "PLoS Computational Biology"
+    volume: 9
+    issue: 1
+    year: 2013
+    doi: "10.1371/journal.pcbi.1002894"
+    pages: "e1002894"
+  - type: article
+    title: "Birds of a feather flock together: Insights into starling murmuration behaviour revealed using citizen science"
+    authors:
+      - family-names: Goodenough
+        given-names: A. E.
+      - family-names: Little
+        given-names: N.
+      - family-names: Carpenter
+        given-names: W. S.
+      - family-names: Hart
+        given-names: A. G.
+    journal: "PLoS ONE"
+    volume: 12
+    issue: 6
+    year: 2017
+    doi: "10.1371/journal.pone.0179277"
+    pages: "e0179277"
+  - type: software
+    title: "crs48/murmuration — TypeScript/Three.js Murmuration Simulation (Companion Project)"
+    abstract: >
+      Companion TypeScript/Three.js project providing 11 scenario presets,
+      WebGL/WebGPU compute backends, 3D rendering with trail accumulation,
+      adaptive quality system, threat/predator state machine, pilot/attractor
+      system, environmental medium presets, and VR/WebXR support. Analyzed as
+      a source of implementation patterns, parameter defaults, and roadmap
+      priorities for the Python murmuration repository.

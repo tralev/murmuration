@@ -26,18 +26,21 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Octave/Scilab files (not needed in the Python Docker image)
-alg2.m
-alg2.sce
+# Octave/Scilab algorithm files are now needed — Docker image includes
+# GNU Octave and Scilab CLI for cross-language validation.
 
 # Session notes (local file, not source code)
 SESSION_NOTES.md
+BOUNDARY_MODES.md
 
 # CI/CD workflows (not needed in Docker image)
 .github/
 
 # Helper scripts (used outside the container)
 scripts/
+run.sh
+run-docker.sh
+requirements.txt
 
 # Jupyter notebooks (development-only)
 notebooks/
@@ -51,3 +54,9 @@ octave-core
 Dockerfile
 docker-compose.yml
 .dockerignore
+
+# Python virtual environment (not source code)
+venv/
+
+# Citation metadata (not needed in image)
+CITATION.cff

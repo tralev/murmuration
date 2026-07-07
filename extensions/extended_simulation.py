@@ -29,11 +29,13 @@ import sys
 import math
 import os
 
+import flock_core
 from flock_core import (
     WIDTH, HEIGHT, FPS, NUM_BOIDS, VISUAL_RANGE,
     LOG_FILE, LOG_EVERY, MODE_PROJECTION, MODE_SPATIAL,
     Config, SpatialGrid,
 )
+import boid as boid_module
 from extensions.predator import Predator, PredatorBoid
 from extensions.spatial_optimization import SpatialChunker
 from extensions.blind_angles import BLIND_ANGLE
@@ -125,7 +127,7 @@ def main():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption(
-        "Murmuration EXTENDED — M:toggle 1-5:presets P:predator H:help ESC:quit"
+        "Murmuration EXTENDED — M:toggle B:boundary 1-5:presets P:predator H:help ESC:quit"
     )
 
     clock = pygame.time.Clock()
@@ -243,13 +245,18 @@ def main():
                     else:
                         predator = None
                         predator_active = False
-                        print("Predator REMOVED")
-
-                # ── Visual toggles (g, h) ────────────────────────
+                        print("Predator REMOVED")                # ── Visual toggles  (g, h) ────────────────────────
                 elif key == pygame.K_g:
                     config.show_grid = not config.show_grid
                 elif key == pygame.K_h:
                     config.show_help = not config.show_help
+
+                # ── Boundary mode toggle  (b) ─────────────────────
+                elif key == pygame.K_b:
+                    flock_core.MARGIN_BOUNDARY = not flock_core.MARGIN_BOUNDARY
+                    boid_module.MARGIN_BOUNDARY = flock_core.MARGIN_BOUNDARY
+                    mode_name = "MARGIN" if flock_core.MARGIN_BOUNDARY else "TOROIDAL"
+                    print(f"[BOUNDARY] Switched to {mode_name} wrap")
 
                 # ── Simulation control (space, r, esc) ───────────
                 elif key == pygame.K_SPACE:
@@ -408,6 +415,12 @@ def main():
         )
         screen.blit(ext_badge, (WIDTH - ext_badge.get_width() - 10, 28))
 
+        # ── Boundary mode badge ───────────────────────────────────
+        boundary_text = "MARGIN" if flock_core.MARGIN_BOUNDARY else "TOROIDAL"
+        boundary_color = (220, 140, 100) if flock_core.MARGIN_BOUNDARY else (100, 200, 140)
+        boundary_badge = font_small.render(boundary_text, True, boundary_color)
+        screen.blit(boundary_badge, (WIDTH - boundary_badge.get_width() - 10, 46))
+
         if paused:
             ptext = font_small.render(
                 "PAUSED  (SPACE to resume, R to reset, ESC to quit)",
@@ -434,6 +447,7 @@ _EXT_HELP_LINES = [
     "CONTROLS (Extended)",
     "─────────────────────────────────────────",
     "M         toggle PROJECTION / SPATIAL mode",
+    "B         toggle TOROIDAL / MARGIN boundary",
     "1–5       scenario presets",
     "↑ / ↓     φp  ±0.01",
     "← / →     φa  ±0.01   (φn = 1 − φp − φa)",

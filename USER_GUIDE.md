@@ -38,8 +38,10 @@ After that, read [`README.md`](README.md) for the scientific background and the 
 - [Controls Reference](#controls-reference)
 - [CSV Output](#csv-output)
 - [Tuning Guide](#tuning-guide)
+- [Docker](#running-with-docker)
 - [Troubleshooting](#troubleshooting)
 - [FAQ](#faq)
+  - [How do I use Docker?](#how-do-i-use-docker)
 
 ---
 
@@ -159,13 +161,38 @@ xvfb-run -a python alg2.py
 
 The simulation will run without a visible window. Useful for batch data collection or automated testing.
 
+### Running with Docker
+
+No Python or Pygame installation needed — just Docker:
+
+```bash
+./run-docker.sh              # full simulation (headless)
+./run-docker.sh tests        # run unit tests in container
+./run-docker.sh shell        # open bash shell in container
+./run-docker.sh octave       # open GNU Octave interactive CLI
+./run-docker.sh scilab       # open Scilab interactive CLI
+./run-docker.sh validate-all # full multi-stage validation pipeline
+./run-docker.sh stop         # clean up container and image
+```
+
+Or use docker compose directly:
+
+```bash
+docker compose up                  # run simulation
+docker compose run tests           # run unit tests
+docker compose run shell           # interactive shell
+docker compose run octave          # GNU Octave CLI
+docker compose run scilab          # Scilab CLI
+```
+
 ### Running unit tests (Python)
 
 ```bash
 python3 -m unittest test_alg2 -v
+python3 -m unittest extensions.test_extensions -v
 ```
 
-47 tests covering the angular-interval utilities. No display needed — Pygame is mocked.
+229 tests covering occlusion geometry, all 16 presets, preset toggle behavior, letter-key presets, and the extensions suite. No display needed — Pygame is mocked. Run the full validation pipeline with `./scripts/validate-all.sh` or `./run-docker.sh validate-all`.
 
 ---
 
@@ -184,9 +211,12 @@ python3 -m unittest test_alg2 -v
 | Key | Action |
 |-----|--------|
 | `M` | Toggle **PROJECTION** ↔ **SPATIAL** mode |
+| `B` | Toggle **TOROIDAL** ↔ **MARGIN** boundary |
 
 - **PROJECTION** (default) — birds steer toward light-dark boundaries in their view; produces dense, cohesive flocks
 - **SPATIAL** — classic separation/alignment/cohesion boids; produces looser, school-like formations
+- **TOROIDAL** (default) — birds wrap around edges (exit right → enter left); infinite-feeling space
+- **MARGIN** — birds nudge away from edges and hard-clamp within bounds; contained arena
 
 ### Parameter tuning (live)
 
@@ -207,17 +237,29 @@ python3 -m unittest test_alg2 -v
 
 Changes take effect on the **next unpaused frame**.
 
+### Preset scenarios (16 total)
+
+Press any preset key to apply it. Press the **same key again** to toggle back
+to your previous settings (including mode, weights, and neighbour count).
+
+| Keys | Presets |
+|------|---------|
+| `1` – `5` | Original educational presets (Pure Alignment, Gas, Pearce Default, Dense Ball, Classic Boids) |
+| `6` – `0` | Companion presets (Quiet Roost, Comfort Flight, Acro Swarm, Predator Ripple, Storm Turn) |
+| `s`, `l`, `i`, `v`, `k`, `q` | Letter-key presets (Swarm Pilot, Lava Lamp, Ink Cloud, Vacuole, Silk Sheet, Quest 2 Dense) |
+
 ### Display toggles
 
 | Key | Action |
 |-----|--------|
+| `F` | Toggle focal bird debug view — highlights one bird and draws its occlusion intervals |
 | `G` | Toggle spatial grid overlay (SPATIAL mode only) — shows cell boundaries and occupancy counts |
 | `H` | Toggle help overlay — top-right panel listing all controls |
 
 ### On-screen display
 
 - **Top-left**: FPS, boid count, current mode, φp/φa/φn/σ values, opacity metrics
-- **Top-right**: Mode badge (PROJECTION or SPATIAL) plus help panel (when toggled)
+- **Top-right**: Mode badge (PROJECTION or SPATIAL), boundary badge (TOROIDAL or MARGIN), plus help panel (when toggled)
 - **Bottom-centre**: Pause indicator when paused
 - **Bird colour**: cool blue-white in PROJECTION mode, warm amber in SPATIAL mode
 
@@ -282,6 +324,116 @@ Default values (φp=0.03, φa=0.80, σ=4) produce a dense, cohesive flock with g
 | φp | 0.10 – 0.20 | Higher projection weight spreads birds apart |
 | φa | 0.50 – 0.70 | Lower alignment allows more individual variation |
 | σ | 2 – 3 | Fewer neighbours = weaker social forces |
+
+### Preset exploration — try these to see different flock behaviors
+
+Instead of tuning parameters manually, press a preset key to instantly switch.
+Press the **same key again** to toggle back to your previous settings.
+
+#### 🔵 PROJECTION mode presets (dense, murmuration-like)
+
+| Key | Preset | φp | φa | σ | Visual character |
+|-----|--------|----|----|---|------------------|
+| `3` | Pearce Default | 0.03 | 0.80 | 4 | Canonical bird-flock — marginal opacity emerges naturally |
+| `4` | Dense Ball | 0.15 | 0.70 | 6 | Near-opaque, slow-turning, hypnotic pulsing |
+| `6` | Quiet Roost | 0.08 | 0.82 | 8 | Settled, calm, trail-heavy — like birds at dusk |
+| `7` | Comfort Flight | 0.04 | 0.88 | 5 | Smooth gliding, gentle curves, minimal jitter |
+| `8` | Acro Swarm | 0.02 | 0.85 | 3 | Fast turns, acrobatic, tightly coupled |
+| `s` | Swarm Pilot | 0.05 | 0.85 | 6 | Balanced, controlled flight with crisp turns |
+| `l` | Lava Lamp | 0.12 | 0.65 | 7 | Blobby, slow, fluid — organic pulsing shapes |
+| `i` | Ink Cloud | 0.02 | 0.40 | 2 | Spreading, diffusing — high noise, low alignment |
+| `k` | Silk Sheet | 0.02 | 0.92 | 6 | Near-perfect alignment — thin, smooth, ribbon-like |
+
+#### 🟠 SPATIAL mode presets (loose, school-like)
+
+| Key | Preset | φp | φa | σ | Visual character |
+|-----|--------|----|----|---|------------------|
+| `5` | Classic Boids | 0.30 | 0.50 | 4 | Reynolds school — elongated, fish-like formation |
+| `9` | Predator Ripple | 0.30 | 0.55 | 8 | Reactive, strong separation — birds spread then snap back |
+| `0` | Storm Turn | 0.20 | 0.72 | 10 | Extreme streaming, high alignment — directional banding |
+| `v` | Vacuole | 0.35 | 0.60 | 9 | Hollow voids, cavity-like — birds pushed to edges |
+| `q` | Quest 2 Dense | 0.20 | 0.55 | 10 | Tight, dense school — VR-optimised for close viewing |
+
+#### 🔴 Edge cases — see what happens at extremes
+
+| Key | Preset | φp | φa | σ | What to watch for |
+|-----|--------|----|----|---|-------------------|
+| `1` | Pure Alignment | 0.00 | 0.95 | 8 | No projection force → rigid crystal, no cohesion mechanism. Flock should fragment unless alignment alone holds it. |
+| `2` | Gas / Exploration | 0.10 | 0.20 | 2 | High noise, low alignment → random walk. Birds explore independently; flock barely holds together. |
+
+#### Quick tour (60 seconds)
+
+1. Start with `3` (Pearce Default) — watch for ~20 seconds. See how the flock naturally settles into marginal opacity.
+2. Press `0` (Storm Turn) — the flock switches to SPATIAL mode and forms directional streams.
+3. Press `0` again — toggles back to default. Notice the smooth transition.
+4. Press `l` (Lava Lamp) — watch the blobby, fluid motion for ~15 seconds.
+5. Press `2` (Gas) — the flock disperses. Press `3` to return to normal.
+6. Press `M` to manually toggle modes — compare PROJECTION vs SPATIAL at same parameters.
+
+### Boundary mode — TOROIDAL vs MARGIN
+
+Press `B` to switch between two boundary behaviours. The on-screen badge shows the
+current mode (green = TOROIDAL, amber = MARGIN).
+
+**TOROIDAL (default)** — birds wrapping around edges.
+
+| Behaviour | Details |
+|-----------|---------|
+| Exit right | Reappear at left edge |
+| Exit left | Reappear at right edge |
+| Exit bottom | Reappear at top edge |
+| Exit top | Reappear at bottom edge |
+| Position | Wrapped with `position %= WIDTH`, `position %= HEIGHT` |
+| Velocity | Preserved across wrap |
+
+Use TOROIDAL when you want:
+- **Infinite-feeling space** — no edges, flock never hits a wall
+- **Continuous flow** — birds stream seamlessly across boundaries
+- **Maximum flock mobility** — no edge-avoidance forces interfering with flock dynamics
+- **Large-flock realism** — real starling flocks operate in open sky, not in a cage
+
+**MARGIN** — birds nudged away from edges and hard-clamped within bounds.
+
+| Behaviour | Details |
+|-----------|---------|
+| Margin zone | 200 px from each edge — birds feel a nudge inward |
+| Nudge force | `velocity += 1` toward centre when inside margin zone |
+| Hard clamp | Position hard-clamped to `[0, WIDTH] × [0, HEIGHT]` after each update |
+| Turn factor | `BOUNDARY_TURN_FACTOR = 1` — configurable in `flock_core.py` |
+
+Use MARGIN when you want:
+- **Contained arena** — birds stay in a bounded box, cannot escape
+- **Edge clustering study** — watch how the flock compresses against walls
+- **Confinement effects** — study how boundaries affect flock shape and density
+- **Tighter visuals** — all birds remain visible; no wrapping disorientation
+
+**Visual differences to watch for:**
+
+| Aspect | TOROIDAL | MARGIN |
+|--------|----------|--------|
+| Flock shape | Free, can stretch across edges | Compressed near boundaries |
+| Edge behaviour | Birds flow through edges smoothly | Birds turn away from edges |
+| Density at edges | Uniform (edges are invisible) | Higher (birds stack up against walls) |
+| Opacity (Θ) | Lower (flock spreads across wrap) | Higher (flock contained, more overlap) |
+| Order (α) | Similar in both modes | Slightly lower near edges (turning reduces alignment) |
+
+**Try this experiment:**
+1. Start with `3` (Pearce Default) in TOROIDAL — watch for 15 seconds.
+2. Press `B` to switch to MARGIN — watch the flock compress and bounce off edges.
+3. Press `B` again to return to TOROIDAL — the flock flows freely again.
+4. Try MARGIN with `5` (Classic Boids in SPATIAL mode) — the Reynolds school
+   avoids edges with separation forces, creating a distinct boundary layer.
+
+**Tuning MARGIN parameters** (edit `flock_core.py`):
+
+```python
+BOUNDARY_MARGIN     = 200   # px from edge where nudge begins (lower = steeper wall)
+BOUNDARY_TURN_FACTOR = 1     # nudge strength per frame (higher = sharper turn)
+```
+
+Increase `BOUNDARY_TURN_FACTOR` to make birds avoid edges more aggressively
+(useful for smaller flocks). Increase `BOUNDARY_MARGIN` to give birds more
+room to turn before hitting the hard clamp.
 
 ### Getting maximum performance
 
@@ -461,3 +613,37 @@ Press `H`. Press `H` again to bring it back.
 ### Can I contribute?
 
 Yes — the project is on GitHub at [`tralev/murmuration`](https://github.com/tralev/murmuration). Pull requests, issues, and feature suggestions are welcome.
+
+### How do I use Docker?
+
+Docker runs the simulation **headless** (no visible window). The `SDL_VIDEODRIVER=dummy`
+environment variable tells Pygame to use a virtual framebuffer — the simulation
+computes everything normally but renders to nowhere.
+
+**Quick reference:**
+
+```bash
+./run-docker.sh              # full simulation (headless)
+./run-docker.sh tests        # run unit tests
+./run-docker.sh validate-all # full validation pipeline
+```
+
+**Where does the CSV go?**  
+The `docker-compose.yml` mounts `./output` to `/app/output` inside the container.
+CSV files written to `/app/output/murmuration_metrics.csv` appear in
+`output/murmuration_metrics.csv` on your host machine. If the `output/`
+directory doesn't exist on your host, Docker creates it but the file will
+be owned by `root`.
+
+**Persistent data across runs:**  
+The CSV is written to the mounted `output/` volume, so it persists after
+the container stops. To collect multiple runs, either copy the file between
+runs or change `LOG_FILE` in `flock_core.py` before rebuilding.
+
+**Rebuilding after code changes:**  
+The Docker image copies source files at build time. If you edit `.py` files,
+rebuild with `docker compose build` (or `./run-docker.sh` which auto-builds).
+
+**Viewing logs:**  
+The `run-docker.sh` script uses `docker run` (not `docker compose up`), so
+logs stream directly to your terminal. Press `Ctrl+C` to stop.

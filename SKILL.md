@@ -188,7 +188,7 @@ and refactor everything for use as educational material.
 
 17. **Write unit tests for pure functions.** Anything that doesn't require the
     simulation runtime (e.g., math utilities). Mock any display library.
-    Target 40+ tests covering edge cases: empty input, epsilon tolerance,
+    Cover edge cases: empty input, epsilon tolerance,
     wrap-around, chain merging, bridging.
 
 ---
@@ -268,22 +268,19 @@ project/
 ├── boid.py                    # Agent class with algorithm logic
 ├── metrics.py                 # Scientific metrics + display helpers
 ├── scenario_presets.py        # Educational preset configurations
-├── alg_simple.py              # ~75-line minimal version for students
-├── test_alg2.py               # Unit tests (40+ tests)
+├── alg_simple.py              # Minimal version for students (~75 lines)
 │
 ├── alg2.m                     # GNU Octave port
 ├── alg2.sce                   # Scilab port
-├── alg.py                     # Original legacy code (kept for comparison)
 │
 ├── README.md                  # Scientific docs + paper audit + roadmap + code tour
 ├── OCTAVE_README.md           # Octave-specific docs (self-contained)
 ├── SCILAB_README.md           # Scilab-specific docs (self-contained)
-├── OCTAVE_README.md           # Octave-specific docs (self-contained)
-├── SCILAB_README.md           # Scilab-specific docs (self-contained)
 ├── USER_GUIDE.md              # Practical guide (no math, no citations)
+├── CITATION.cff               # Citation metadata (6 paper references)
 ├── SKILL.md                   # This file (workflow for reuse)
 │
-├── LICENSE                    # GPLv3
+├── LICENSE                    # GPL-3.0-or-later
 └── .gitignore                 # Python artifacts, CSV output, research papers
 ```
 
@@ -306,7 +303,9 @@ project/
   atomically at the start of the next frame.
 - **Performance differs dramatically.** O(N² log N) projection mode caps
   Python at ~200 birds. Octave/Scilab at ~100. Vectorized matrix operations
-  help but don't eliminate the asymptotics.
+  help but don't eliminate the asymptotics. Spatial optimisation extensions
+  (chunk-based far-field approximation) can push this to 500+ birds at
+  acceptable frame rates; GPU backends (WebGL/WebGPU) can handle thousands.
 
 ### Documentation
 
@@ -349,7 +348,7 @@ project/
 
 Before declaring the skill complete, verify:
 
-- [ ] All three papers audited with complete ✅/⚠️/❌ tables
+- [ ] All available papers audited with complete ✅/⚠️/❌ tables
 - [ ] Primary paper deviations documented and either fixed or explained
 - [ ] Implementation roadmap has 3 priority tiers with formulas
 - [ ] Python entry point is ≤300 lines (modules handle the rest)

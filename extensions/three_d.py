@@ -33,6 +33,7 @@ from boid import Boid
 from flock_core import (
     WIDTH, HEIGHT, V0, BOID_SIZE, MAX_FORCE, VISUAL_RANGE,
     MODE_PROJECTION, MODE_SPATIAL, Config,
+    MARGIN_BOUNDARY, BOUNDARY_MARGIN, BOUNDARY_TURN_FACTOR,
 )
 
 
@@ -163,6 +164,21 @@ class Boid3D(Boid):
         # ── Step 1: apply accumulated acceleration ────────────────
         self.velocity += self.acceleration
 
+        # ── Boundary nudge (margin mode — before speed clamp) ───
+        if MARGIN_BOUNDARY:
+            if self.position.x < BOUNDARY_MARGIN:
+                self.velocity.x += BOUNDARY_TURN_FACTOR
+            if self.position.x > WIDTH - BOUNDARY_MARGIN:
+                self.velocity.x -= BOUNDARY_TURN_FACTOR
+            if self.position.y < BOUNDARY_MARGIN:
+                self.velocity.y += BOUNDARY_TURN_FACTOR
+            if self.position.y > HEIGHT - BOUNDARY_MARGIN:
+                self.velocity.y -= BOUNDARY_TURN_FACTOR
+            if self.position.z < BOUNDARY_MARGIN:
+                self.velocity.z += BOUNDARY_TURN_FACTOR
+            if self.position.z > DEPTH - BOUNDARY_MARGIN:
+                self.velocity.z -= BOUNDARY_TURN_FACTOR
+
         # ── Step 2: speed clamping ────────────────────────────────
         #  Cap at V₀ (max cruising speed), floor at 0.3·V₀
         #  (prevent stagnation — a bird with zero speed would be
@@ -191,21 +207,26 @@ class Boid3D(Boid):
         # ── Step 4: reset acceleration ────────────────────────────
         self.acceleration *= 0
 
-        # ── Step 5: toroidal wrap in all 3 dimensions ─────────────
-        #  Each dimension wraps independently.  A bird at x > WIDTH
-        #  wraps to x = 0 (and vice versa).  Same for y, z.
-        if self.position.x > WIDTH:
-            self.position.x = 0
-        elif self.position.x < 0:
-            self.position.x = WIDTH
-        if self.position.y > HEIGHT:
-            self.position.y = 0
-        elif self.position.y < 0:
-            self.position.y = HEIGHT
-        if self.position.z > DEPTH:
-            self.position.z = 0
-        elif self.position.z < 0:
-            self.position.z = DEPTH
+        # ── Step 5: boundary handling (position clamp or wrap) ────
+        if MARGIN_BOUNDARY:
+            # Hard clamp position within bounds (3D)
+            self.position.x = max(0, min(WIDTH, self.position.x))
+            self.position.y = max(0, min(HEIGHT, self.position.y))
+            self.position.z = max(0, min(DEPTH, self.position.z))
+        else:
+            # Toroidal wrap in all 3 dimensions
+            if self.position.x > WIDTH:
+                self.position.x = 0
+            elif self.position.x < 0:
+                self.position.x = WIDTH
+            if self.position.y > HEIGHT:
+                self.position.y = 0
+            elif self.position.y < 0:
+                self.position.y = HEIGHT
+            if self.position.z > DEPTH:
+                self.position.z = 0
+            elif self.position.z < 0:
+                self.position.z = DEPTH
 
     # ═══════════════════════════════════════════════════════════════
     #  Flocking — 3D projection with sterics + blind cone

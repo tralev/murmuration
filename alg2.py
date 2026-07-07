@@ -30,14 +30,51 @@ import sys
 import math
 import os
 
+import flock_core
 from flock_core import (
     WIDTH, HEIGHT, FPS, NUM_BOIDS, VISUAL_RANGE,
     LOG_FILE, LOG_EVERY, MODE_PROJECTION, MODE_SPATIAL,
     Config, SpatialGrid,
 )
+import boid as boid_module
 from boid import Boid
 from metrics import FlockMetrics, _draw_help
 from scenario_presets import apply_preset
+
+
+def _get_preset_key(pygame_key):
+    """Map a pygame key constant to a preset key (int or str).
+    Returns None if the key is not a preset key."""
+    import pygame
+    if pygame.K_1 <= pygame_key <= pygame.K_5:
+        return pygame_key - pygame.K_1 + 1
+    if pygame.K_6 <= pygame_key <= pygame.K_9:
+        return pygame_key - pygame.K_1 + 1
+    if pygame_key == pygame.K_0:
+        return 0
+    key_map = {
+        pygame.K_s: 's', pygame.K_l: 'l', pygame.K_i: 'i',
+        pygame.K_v: 'v', pygame.K_k: 'k', pygame.K_q: 'q',
+    }
+    return key_map.get(pygame_key)
+
+
+def _save_config(config):
+    """Snapshot the mutable parts of a Config for later restoration."""
+    return {
+        'phi_p': config.phi_p,
+        'phi_a': config.phi_a,
+        'sigma': config.sigma,
+        'mode': config.mode,
+    }
+
+
+def _restore_config(config, saved):
+    """Restore a Config from a snapshot dict."""
+    config.phi_p = saved['phi_p']
+    config.phi_a = saved['phi_a']
+    config.sigma = saved['sigma']
+    config.mode = saved['mode']
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
@@ -125,7 +162,7 @@ def main():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption(
-        "Murmuration — M: toggle mode   1-5: presets   H: help   ESC: quit"
+        "Murmuration — M: toggle mode   B: toggle boundary   1-0,s,l,i,v,k,q: presets   H: help   ESC: quit"
     )
 
     # ╔══════════════════════════════════════════════════════════════╗
@@ -165,6 +202,8 @@ def main():
     pending_remove = 0
     preset_label = ""          # on-screen preset name
     focal_index = None         # index of selected focal bird (None = off)
+    last_preset_key = None     # toggle: last preset key (second press restores)
+    saved_config = None        # toggle: snapshot before current preset
 
     # ═══════════════════════════════════════════════════════════════
     #  MAIN FRAME LOOP
@@ -182,39 +221,66 @@ def main():
             elif event.type == pygame.KEYDOWN:
                 key = event.key
 
-                # ── Scenario presets  (1–5) ──────────────────────
-                if pygame.K_1 <= key <= pygame.K_5:
-                    preset_label = apply_preset(config, key - pygame.K_1 + 1)
+                # ── Scenario presets  (toggle: same key = restore) ──
+                preset_key = _get_preset_key(key)
+                if preset_key is not None:
+                    if (last_preset_key == preset_key
+                            and saved_config is not None):
+                        # Second press → restore previous settings
+                        _restore_config(config, saved_config)
+                        preset_label = ""
+                        last_preset_key = None
+                        saved_config = None
+                        print(f"[PRESET {preset_key}] Toggled off "
+                              f"— restored previous settings")
+                    else:
+                        saved_config = _save_config(config)
+                        preset_label = apply_preset(config, preset_key)
+                        last_preset_key = preset_key
 
                 # ── Mode toggle  (m) ─────────────────────────────
                 elif key == pygame.K_m:
                     config.mode = 1 - config.mode
                     mode_name = "PROJECTION" if config.mode == MODE_PROJECTION else "SPATIAL"
                     print(f"[MODE] Switched to {mode_name}")
+                    last_preset_key = None   # invalidate preset toggle
+                    saved_config = None
 
                 # ── φp  (up/down arrows) ─────────────────────────
                 elif key == pygame.K_UP:
                     config.phi_p = min(1.0, config.phi_p + 0.01)
-                    preset_label = ""   # manual tweak clears preset label
+                    preset_label = ""
+                    last_preset_key = None
+                    saved_config = None
                 elif key == pygame.K_DOWN:
                     config.phi_p = max(0.0, config.phi_p - 0.01)
                     preset_label = ""
+                    last_preset_key = None
+                    saved_config = None
 
                 # ── φa  (left/right arrows) ──────────────────────
                 elif key == pygame.K_RIGHT:
                     config.phi_a = min(1.0, config.phi_a + 0.01)
                     preset_label = ""
+                    last_preset_key = None
+                    saved_config = None
                 elif key == pygame.K_LEFT:
                     config.phi_a = max(0.0, config.phi_a - 0.01)
                     preset_label = ""
+                    last_preset_key = None
+                    saved_config = None
 
                 # ── σ  ([ / ] brackets) ──────────────────────────
                 elif key == pygame.K_RIGHTBRACKET:
                     config.sigma = min(50, config.sigma + 1)
                     preset_label = ""
+                    last_preset_key = None
+                    saved_config = None
                 elif key == pygame.K_LEFTBRACKET:
                     config.sigma = max(1,  config.sigma - 1)
                     preset_label = ""
+                    last_preset_key = None
+                    saved_config = None
 
                 # ── Boid count  (+ / -) ──────────────────────────
                 elif key == pygame.K_EQUALS or key == pygame.K_PLUS:
@@ -239,11 +305,20 @@ def main():
                 elif key == pygame.K_h:
                     config.show_help = not config.show_help
 
+                # ── Boundary mode toggle  (b) ─────────────────────
+                elif key == pygame.K_b:
+                    flock_core.MARGIN_BOUNDARY = not flock_core.MARGIN_BOUNDARY
+                    boid_module.MARGIN_BOUNDARY = flock_core.MARGIN_BOUNDARY
+                    mode_name = "MARGIN" if flock_core.MARGIN_BOUNDARY else "TOROIDAL"
+                    print(f"[BOUNDARY] Switched to {mode_name} wrap")
+
                 # ── Simulation control  (space, r, esc) ───────────
                 elif key == pygame.K_SPACE:
                     paused = not paused
                 elif key == pygame.K_r:
                     pending_reset = True
+                    last_preset_key = None   # reset clears toggle state
+                    saved_config = None
                     print("Resetting flock...")
                 elif key == pygame.K_ESCAPE:
                     running = False
@@ -360,6 +435,12 @@ def main():
         badge_color = (120, 180, 220) if config.mode == MODE_PROJECTION else (220, 180, 120)
         badge = font_small.render(badge_text, True, badge_color)
         screen.blit(badge, (WIDTH - badge.get_width() - 10, 10))
+
+        # ── Boundary mode badge ───────────────────────────────────
+        boundary_text = "MARGIN" if flock_core.MARGIN_BOUNDARY else "TOROIDAL"
+        boundary_color = (220, 140, 100) if flock_core.MARGIN_BOUNDARY else (100, 200, 140)
+        boundary_badge = font_small.render(boundary_text, True, boundary_color)
+        screen.blit(boundary_badge, (WIDTH - boundary_badge.get_width() - 10, 30))
 
         if paused:
             ptext = font_small.render(

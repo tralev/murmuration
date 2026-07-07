@@ -427,7 +427,7 @@ The codebase is split into focused modules so students can read them one at a ti
 | `flock_core.py` | 186 | `math`, `random`, `collections` | All constants (WIDTH, V0, BOID_SIZE, etc.), the `Config` class (mutable parameters + auto-computed φn), and `SpatialGrid` (toroidal hash grid for O(1) neighbour queries). |
 | `boid.py` | 335 | `occlusion_geom`, `flock_core`, `pygame` | The `Boid` class — a single bird agent. Contains both flocking modes (`_flock_projection` and `_flock_spatial`), the occlusion-based visibility algorithm (`_compute_projection_and_visibility`), physics (`update`, `apply_force`), and drawing. Look for 🎓 teaching moment callouts. |
 | `metrics.py` | 207 | `occlusion_geom`, `flock_core`, `boid`, `pygame` | `FlockMetrics` class (Θ, Θ′, α with EMA smoothing), `_external_opacity()` (distant observer), and `_draw_help()` (the controls overlay). |
-| `scenario_presets.py` | 90 | `flock_core` | 5 educational preset configurations (keys 1–5) with `apply_preset()`. Students can add their own. |
+| `scenario_presets.py` | 90 | `flock_core` | 16 preset configurations (5 educational + 11 companion, keys 1–0 and s,l,i,v,k,q) with `apply_preset()`. Students can add their own. |
 
 ### Entry point
 
@@ -545,6 +545,8 @@ Three research papers were cross-referenced against `alg2.py` (July 2026).
 | 3 | **Independence of σ from N** — optimal count doesn't depend on flock size | ✅ | σ is fixed regardless of `NUM_BOIDS`. |
 | 4 | **Dependence on flock thickness** — anisotropy (thin vs. spherical flocks) changes optimal σ | ❌ | 2D simulation; no shape anisotropy analysis. |
 | 5 | **Consensus dynamics framework** — Laplacian matrix, H₂ robustness metric | ❌ | Not a consensus model; uses boid dynamics instead. Would require a fundamentally different architecture. |
+| 6 | **Incremental cost of sensing** — asymptotic cost of sensing m neighbors is O(m), cost of reacting to noise scales with H₂ norm | ❌ | No cost/benefit analysis of neighbor count. |
+| 7 | **Optimal m* from empirical data** — m* = 6.05 ± 0.25 for longitudinal (thin) flocks vs m* = 9.78 ± 0.32 for transverse (thick) flocks | ❌ | Default σ = 4 (from Pearce), not tuned per flock shape. |
 
 ### Goodenough, Little, Carpenter & Hart (2017) — PLoS ONE 12(1): e0179277
 
@@ -553,9 +555,11 @@ Three research papers were cross-referenced against `alg2.py` (July 2026).
 | # | Claim from paper | Status | Implementation note |
 |---|---|---|---|
 | 1 | **Mean murmuration size**: ~30,000 birds (max 750,000) | ❌ | Default `NUM_BOIDS = 150`. Python/Pygame performance caps realistic sizes at ~200–300 before O(N log N) occlusion becomes prohibitive. |
-| 2 | **Predators** at 29.6% of murmurations — linked to larger/longer displays | ❌ | No predator agents. Predator-prey dynamics not modelled. |
-| 3 | **Anti-predator function** — dilution, detection, confusion effects | ❌ | Motivation acknowledged in code comments but not simulated. |
+| 2 | **Predators** at 29.6% of murmurations — linked to larger/longer displays. Species: Harrier (*Circus*), Peregrine (*Falco peregrinus*), Sparrowhawk (*Accipiter nisus*). R² = 0.401 (size), R² = 0.258 (duration). | ❌ | No predator agents. Predator-prey dynamics not modelled. |
+| 3 | **Anti-predator function** — dilution, detection, confusion effects. Murmurations more likely to end in "en masse" roosting descent than dispersal when predators present. | ❌ | Motivation acknowledged in code comments but not simulated. |
 | 4 | **Critical mass** — ~500 birds needed to initiate murmuration behaviour | ❌ | Simulation starts with full flock; no gradual assembly or threshold behaviour. |
+| 5 | **Mean duration**: 26 minutes (±44 s SEM). Negatively correlated with temperature (weaker than day-length effect). Positively correlated with day length. | ❌ | No time-of-day simulation; no temperature proxy. |
+| 6 | **Seasonal variation**: flock size increases Oct–Feb, peaks mid-winter, decreases to March. No habitat association (urban, rural, wetland — all used). | ❌ | No seasonal parameter variation. |
 
 ---
 
@@ -841,21 +845,30 @@ echo "All validations passed."
 
 ### Priority 5 — Ecological & Behavioral Extensions
 
-#### 5a. Additional scenario presets (from companion TypeScript project)
+#### 5a. Scenario presets (16 total: 5 original + 11 companion)
 
-A TypeScript/Three.js companion project defines 11 named presets with finely-tuned parameters for distinct visual behaviors. Below are representative examples (note: the current Python simulation is limited to ~200 birds due to O(N² log N) occlusion; presets with higher counts would require the spatial optimization extension or a GPU backend):
+All 11 companion presets from the TypeScript/Three.js project have been ported to `scenario_presets.py`, plus 5 original educational presets. Press a number key (1–0) or letter key (s, l, i, v, k, q) to apply; press the same key again to toggle back to your previous settings.
 
-| Preset | Count | Speed | Character |
-|--------|-------|-------|-----------|
-| Quiet Roost | 3,000 | 0.48 | Dense, slow, trail-heavy |
-| Comfort Flight | 4,200 | 0.36 | Smooth gliding, air medium |
-| Swarm Pilot | 6,400 | 0.54 | Responsive chase, dust medium |
-| Acro Swarm | 5,200 | 0.82 | Fast, acrobatic turns |
-| Lava Lamp | 16,000 | — | High density, chaotic motion |
-| Predator Ripple | 12,000 | 0.78 | Threat-driven waves |
-| Storm Turn | 16,000 | 0.90 | Extreme speed, tight turns |
+| Key | Preset | φp | φa | σ | Mode | Character |
+|-----|--------|----|----|---|------|-----------|
+| 1 | Pure Alignment | 0.00 | 0.95 | 8 | PROJECTION | Rigid crystal, no projection force |
+| 2 | Gas / Exploration | 0.10 | 0.20 | 2 | PROJECTION | Random walk, high noise |
+| 3 | Pearce Default | 0.03 | 0.80 | 4 | PROJECTION | Canonical bird-flock (marginal opacity) |
+| 4 | Dense Ball | 0.15 | 0.70 | 6 | PROJECTION | Near-opaque ball, slow information |
+| 5 | Classic Boids | 0.30 | 0.50 | 4 | SPATIAL | Reynolds school, elongated shape |
+| 6 | Quiet Roost | 0.08 | 0.82 | 8 | PROJECTION | Dense, settled, trail-heavy |
+| 7 | Comfort Flight | 0.04 | 0.88 | 5 | PROJECTION | Smooth gliding, gentle forces |
+| 8 | Acro Swarm | 0.02 | 0.85 | 3 | PROJECTION | Fast, acrobatic, tight turns |
+| 9 | Predator Ripple | 0.30 | 0.55 | 8 | SPATIAL | Reactive school, strong separation |
+| 0 | Storm Turn | 0.20 | 0.72 | 10 | SPATIAL | Extreme streaming, high alignment |
+| s | Swarm Pilot | 0.05 | 0.85 | 6 | PROJECTION | Balanced, controlled flight |
+| l | Lava Lamp | 0.12 | 0.65 | 7 | PROJECTION | Blobby, slow, fluid flow |
+| i | Ink Cloud | 0.02 | 0.40 | 2 | PROJECTION | Spreading, diffusing, high noise |
+| v | Vacuole | 0.35 | 0.60 | 9 | SPATIAL | Hollow, cavity-like voids |
+| k | Silk Sheet | 0.02 | 0.92 | 6 | PROJECTION | Thin, smooth, near-perfect alignment |
+| q | Quest 2 Dense | 0.20 | 0.55 | 10 | SPATIAL | Tight, VR-optimised dense flock |
 
-**Planned**: Add 5–7 of these presets to `scenario_presets.py`, mapping Three.js parameters to the Python/Octave/Scilab equivalents. Each preset should include φp, φa, σ, speed, and count adjustments.
+Note: the companion project uses flock sizes of 3,000–16,000 birds; the Python simulation is limited to ~200 birds due to O(N² log N) occlusion. Presets are tuned for this smaller scale while preserving the visual character.
 
 #### 5b. Roosting / thermoregulation hypothesis
 
@@ -891,9 +904,10 @@ Quick-reference list of features present in the companion TypeScript/Three.js pr
 
 - [ ] **3D WebGL/WebGPU rendering** — headless 3D extension exists; needs Three.js or similar browser-based frontend
 - [ ] **Scene rotation / camera orbit** — PyGame view is fixed 2D; no pan, zoom, or auto-rotate
-- [ ] **Visual themes** — ink/paper/panel color schemes (light, dark, graphite, inverse)
-- [ ] **Velocity trails in 3D** — DRAW_TRAIL exists in 2D PyGame but not in the 3D headless extension
-- [ ] **Performance adaptive quality** — frame-rate-aware LOD for large flocks
+- [ ] **Visual themes** — ink/paper/panel color schemes (light, dark, graphite, inverse) from companion `themes.ts`
+- [ ] **Velocity trails in 3D** — 5-segment geometric trail lines with wave offset (companion `TrailLines.ts`)
+- [ ] **Frame accumulation trails** — semi-transparent overlay ghosting (companion `accumulation.ts`): fadeOpacity formula, autoClear management
+- [ ] **Performance adaptive quality** — three-tier degradation: disable trails → reduce pixel ratio → reduce particle count (companion `adaptiveQuality.ts`)
 
 ### Testing & Validation
 
@@ -904,10 +918,26 @@ Quick-reference list of features present in the companion TypeScript/Three.js pr
 
 ### Simulation Features
 
-- [ ] **11+ scenario presets** — companion project has richly-tuned presets (Quiet Roost, Acro Swarm, Predator Ripple, etc.) vs our 5 basic presets
+- [x] **16 scenario presets** — 5 original educational presets (keys 1–5) + 11 companion presets (keys 6–0 and s,l,i,v,k,q) ported from TypeScript/Three.js project
 - [ ] **Medium simulation** — air/dust/starlight/grid medium modes with turbulence and wake effects
 - [ ] **Vacuole formation** — autonomous threat that creates empty space in flock
 - [ ] **Wave propagation** — startle wave amplification through the flock
+- [ ] **Threat / predator system** — autonomous predator agent with approach/egress phases (see Priority 7 below)
+- [ ] **Attractor / leader system** — leader anchor points with sinusoidal movement attracting nearby birds
+- [ ] **GPGPU / WebGPU compute** — offload flocking physics to GPU for 10,000+ birds
+- [ ] **Split / blackening gains** — threat-driven flock splitting and opacity darkening
+- [ ] **Flow field** — environmental wind/drift field affecting all particles
+- [ ] **Wander behavior** — exploration radius and speed for leaderless wandering
+- [ ] **Field-based simulation** — O(N) structured-anchor mode for 10,000+ birds without neighbor queries (companion `stepField`)
+- [ ] **Shell formation / piloting** — birds orbiting leader in geometric shells (companion `pilotForce`)
+- [ ] **Inertia smoothing** — blend current velocity with desired using `inertia` parameter (companion default: 0.84)
+- [ ] **Blob initialization** — 5-center spherical distribution with volumetric density (companion `particleInitialization.ts`)
+- [ ] **3D spatial hash** — string-keyed 3×3×3 cell queries replacing 2D toroidal grid (companion `cpuSpatialHash.ts`)
+- [ ] **Threat state machine** — full approach/egress phase transitions with arc offsets and phase-specific steering (companion `threat.ts`)
+- [ ] **Geometric trail lines** — 5-segment wave-offset trails with dynamic BufferGeometry (companion `TrailLines.ts`)
+- [ ] **Frame accumulation mode** — semi-transparent overlay for motion-blur ghosting (companion `accumulation.ts`)
+- [ ] **Adaptive quality** — three-tier FPS-based degradation with hysteresis recovery (companion `adaptiveQuality.ts`)
+- [ ] **Rich pilot state** — SimulationPilot with roll, mediumPulse, heading, radius (companion `types.ts`)
 
 *(XR/WebXR support, Playwright E2E tests, and browser-based rendering are not applicable without migrating from PyGame to a web frontend.)*
 
@@ -916,12 +946,1189 @@ Quick-reference list of features present in the companion TypeScript/Three.js pr
 - [ ] **Roosting/thermoregulation hypothesis** — birds attracted to roost site, clustering at dusk
 - [ ] **Seasonal flock size variation** — flock size increases Oct–Feb (per Goodenough 2017 citizen-science data)
 - [ ] **Critical mass threshold** — ~500 birds needed to initiate murmuration (Goodenough)
-- [ ] **H₂ robustness metric** — consensus dynamics framework from Young et al. (2013)
+- [ ] **H₂ robustness metric** — consensus dynamics framework from Young et al. (2013): Laplacian matrix eigenvalues, per-neighbor efficiency η(m), optimal m* from flock shape
 - [ ] **Default σ = 6–7** — Ballerini/Young optimal neighbor count (current default: 4 from Pearce)
+- [ ] **Flock aspect ratio analysis** — thickness/width ratio affecting optimal σ (Young: thinner flocks need fewer neighbors)
+- [ ] **Sensing cost/benefit model** — O(m) cost vs O(log m) benefit trade-off from Young et al.
+
+---
+
+### Priority 7 — Threat & Predator System
+
+**From companion TypeScript/Three.js project**: An autonomous predator agent that attacks the flock, triggering escape waves, vacuole formation, and flock splitting. The companion project uses a state machine with "approach" and "egress" phases.
+
+#### 7a. Threat agent dynamics
+
+```
+Threat update each frame (dt):
+
+  1. Compute direction to swarm center:
+       toSwarm  = unit(swarmCenter - threat.position)
+
+  2. Approach phase: accelerate toward flock
+       attackDir = rotateToward(threat.attackDirection, toSwarm, dt × threatTurnRate)
+       threat.velocity += attackDir × threatAcceleration × dt
+
+  3. Egress phase (after reaching flock): exit at high speed
+       threat.velocity += -toSwarm × threatAcceleration × dt × 2.0
+
+  4. Apply momentum damping:
+       threat.velocity  *= (1 - threatMomentum × dt)
+
+  5. Clamp speed to [0, threatSpeed]:
+       if |v| > threatSpeed:  v = unit(v) × threatSpeed
+
+  6. Update position:
+       threat.position += threat.velocity × dt
+
+Parameters (from companion project defaults):
+  threatSpeed        = 2.0 × bird speed (~8.0)
+  threatAcceleration = 0.042
+  threatMomentum     = 0.85
+  threatRadius       = 4.0   (danger zone radius)
+  threatStrength     = 1.8   (flight response magnitude)
+```
+
+**Implementation plan**:
+1. Add `ThreatState` dataclass in `flock_core.py` or new `threat.py` module.
+2. In `boid.py`, add a `_flee_from_threat()` method: compute vector away from threat, weighted by `threatStrength × (1 − d/threatRadius)` for d < threatRadius, zero otherwise.
+3. Add the flee force to the desired velocity before Reynolds steering.
+4. Add threat rendering: a larger, distinct-colored marker in the simulation.
+5. Add keyboard controls: `T` to spawn/toggle threat, click to place.
+
+#### 7b. Wave propagation
+
+```
+When a bird detects a threat, it amplifies its escape response to neighbours.
+This creates a chain-reaction wave that travels through the flock:
+
+  waveResponse_i  = threatFlee_i  +  waveGain × Σ_{j ∈ neighbours}  waveResponse_j
+
+  where:
+    waveGain  = 0.15  (amplification per neighbour, from companion default)
+    threatFlee_i = threatStrength × (1 − d_i / threatRadius) × r̂_i_to_threat
+
+  Propagation: the wave travels at approximately bird_speed × waveGain per frame.
+  At waveGain=0.15 and V0=4, the wave front advances ~0.6 units/frame (~36 units/s).
+```
+
+**Implementation plan**:
+1. In `Boid._flock_projection()`, after computing steering, add neighbour wave contributions.
+2. Add `wave_response` field to `Boid` (reset each frame to threat-flee magnitude).
+3. In the flock loop, for each bird, sum wave responses from visible neighbours.
+4. Add `waveGain` to `Config` with default 0.15.
+
+#### 7c. Vacuole formation
+
+```
+A "vacuole" is a region of empty space that forms when birds flee a threat
+from all directions, leaving a cavity behind. The companion project implements
+this as an autonomous threat that orbits near the flock center:
+
+  vacuoleStrength  = 1.2   (repulsion force multiplier)
+  threatMode       = "orbit"  (threat circles the flock perimeter)
+
+  For each bird within threatRadius of the vacuole center:
+    flee = vacuoleStrength × unit(bird.position - vacuoleCenter)
+    desired += flee × (1 − d/threatRadius)
+
+  The vacuole persists as long as the threat remains active.
+```
+
+**Implementation plan**: 
+1. Add `vacuoleStrength` to `Config`.
+2. In the threat system, implement `orbit` mode: threat circles at fixed radius from swarm center.
+3. Birds within threatRadius flee radially outward, creating the cavity.
+
+#### 7d. Split / blackening gains
+
+```
+When a threat passes through the flock, two visual effects occur:
+
+  splitGain  = 0.6   — flocks bifurcate into two sub-groups
+    Implementation: apply a lateral bias perpendicular to threat direction.
+    For birds on the left side of the threat path: bias += left_perp × splitGain
+    For birds on the right:                bias += right_perp × splitGain
+
+  blackeningGain = 0.4  — birds nearest the threat become more opaque
+    Implementation: temporarily increase bird rendering opacity for birds
+    within threatRadius, proportional to (1 − d/threatRadius) × blackeningGain.
+    In 2D PyGame: draw a dark overlay halo around birds near the threat.
+```
+
+**Implementation plan**:
+1. Add `splitGain`, `blackeningGain` to `Config`.
+2. In `_flee_from_threat()`, compute lateral component of threat direction and bias birds left/right.
+3. In `boid.draw()`, increase opacity when `d < threatRadius`.
+
+#### 7e. Full threat state machine (from companion `threat.ts`)
+
+```
+The companion project implements a complete two-phase state machine
+with phase-specific steering, arc offsets, and momentum-based transitions:
+
+─── Phase Transition Logic ─────────────────────────────────
+
+  approach → egress:
+    Trigger:  distance(threat, swarmCenter) < centerCaptureRadius
+    where     centerCaptureRadius = max(0.18, threatRadius × 0.72)
+
+  egress → approach:
+    Trigger:  distance(threat, swarmCenter) > clearDistance
+              AND movingTowardCenter < −0.12
+    where     clearDistance = 0.92 + threatRadius × 2.6 + threatMomentum × 1.32
+
+─── Phase-Specific Steering Response ───────────────────────
+
+  approachSteerResponse = 1.86 + (1 − threatMomentum) × 0.48
+  egressSteerResponse   = 0.34 + (1 − threatMomentum) × 0.44
+
+  Higher momentum → lower steering response (more inertia).
+  Approach has much sharper steering (1.86–2.34×) than egress (0.34–0.78×).
+
+─── Arc Offset During Egress ───────────────────────────────
+
+  During egress, the threat doesn't fly straight away — it curves:
+    arcOffset  = slowLift + slowDrift
+    slowLift   = sin(time × 0.7 + seed)  × 0.15
+    slowDrift  = cos(time × 0.5 + seed)  × 0.22
+
+  The threat spirals around the flock rather than exiting directly,
+  creating the distinctive "predator trace" that drives wave propagation.
+
+─── Speed Envelope ─────────────────────────────────────────
+
+  maxSpeed = threatSpeed (default: ~2× bird speed)
+  minSpeed = threatSpeed × phaseMultiplier
+    where phaseMultiplier:
+      approach: 0.34–0.58  (slows near flock to "aim")
+      egress:   0.52–0.76  (exits faster but not full speed)
+
+  The variable minimum prevents the threat from stopping completely
+  while still allowing speed modulation for natural-looking attacks.
+
+─── ThreatMomentum Damping ─────────────────────────────────
+
+  Each frame, velocity is damped toward zero:
+    v_threat *= (1 − threatMomentum × dt)
+
+  With default threatMomentum = 0.74 and dt = 1/60:
+    damping factor = 1 − 0.74/60 = 0.9877 per frame
+    Half-life = ln(0.5) / ln(0.9877) ≈ 56 frames ≈ 0.93 seconds
+
+  This creates a physically plausible "gliding" feel rather than
+  instantaneous direction changes.
+```
+
+**Implementation plan**:
+1. Add `ThreatPhase` enum (`APPROACH`, `EGRESS`) and `ThreatAgent` dataclass.
+2. Implement `_update_threat_phase(threat, swarmCenter, dt)` with the transition logic above.
+3. Add `_compute_threat_steering(threat, target, dt)` with phase-specific response multipliers.
+4. Track `threat.arcOffset` as a cumulative value, not reset each frame.
+5. Add `threatMomentum` to `Config` (default 0.74).
+
+---
+
+### Priority 8 — Attractor & Leader System
+
+**From companion project**: Leader anchor points move in sinusoidal patterns, attracting nearby birds. This creates structured formations (sheets, waves) rather than random swarms.
+
+#### 8a. Leader anchor dynamics
+
+```
+Leader anchors are procedural waypoints that move predictably through space.
+Multiple anchors can be active simultaneously, each attracting birds within range.
+
+  anchor_i.position(t) = center + A × [sin(ω_i×t + φ_i), cos(ω_i×t + φ_i), sin(2ω_i×t)]
+
+  where:
+    A   = attractorRadius  (default: 3.0 units from companion)
+    ω_i = attractorSpeed   (default: 0.5 rad/s from companion)
+    φ_i = random phase per anchor (0 to 2π)
+
+  Birds within attractorRange (default: 12.0) feel a force toward the anchor:
+    attractForce = chaseStrength × unit(anchor.position - bird.position)
+    where chaseStrength = 0.3 (from companion default)
+```
+
+**Implementation plan**:
+1. Add `LeaderAnchor` class with position, phase, amplitude, frequency.
+2. Update anchor position each frame using sinusoidal motion.
+3. In `Boid._flock_projection()`, add attraction force for birds near any active anchor.
+4. Add `numAnchors`, `attractorRadius`, `attractorSpeed`, `chaseStrength` to `Config`.
+5. Render anchors as small target markers (crosshairs).
+
+#### 8b. Multi-anchor formations
+
+```
+With 3+ anchors, birds self-organize into complex spatial patterns:
+  - 3 anchors in a triangle → birds form a connecting sheet
+  - 5 anchors in a circle → birds form a ring
+  - 2 anchors oscillating out of phase → birds shuttle between them
+
+  The anchor count is a preset parameter; each anchor has an independent
+  phase φ_i = 2π × i / N to distribute them evenly around the cycle.
+```
+
+#### 8c. Shell formation via pilotForce (from companion `rules.ts`)
+
+```
+Beyond simple attraction, the companion project has a "piloting" force
+that organizes birds into geometric shells (rings, tubes, hollow spheres).
+This is the mechanism behind the "Quest 2 Dense" and "Silk Sheet" presets.
+
+The pilot acts as a leader bird that birds both follow AND orbit around:
+
+─── Shell Pull (radial spacing) ───────────────────────────
+
+  shellTarget  = desired distance from pilot (the shell radius)
+  coreDist     = |bird.position − pilot.position|
+  shellError   = coreDist − shellTarget
+  shellPull    = shellError × 0.42 × cohesion
+
+  If the bird is too close:  pushed outward (shellError < 0)
+  If the bird is too far:    pulled inward (shellError > 0)
+
+  The 0.42 factor is tuned so birds oscillate gently around the
+  shell radius rather than snapping rigidly to it.
+
+─── Heading Pull (directional alignment with leader) ──────
+
+  pilotHeading = normalized direction the pilot is moving
+  headingPull  = pilotHeading × alignment × 0.12
+
+  This gently biases birds to move in the same direction as the
+  pilot, even when they're not in the shell radius.
+
+─── Combined pilotForce ───────────────────────────────────
+
+  pilotForce = shellPull + headingPull
+
+  This is added to the bird's desired velocity alongside the
+  regular flocking forces. The result: birds form a hollow shell
+  that orbits around the pilot's position, all moving in the
+  same general direction.
+
+─── Pilot Movement ─────────────────────────────────────────
+
+  The pilot itself moves in a deterministic sinusoidal pattern:
+    pilotPos(t) = center + A × [sin(ωt), cos(ωt), sin(2ωt)]
+
+  This is why the "Lava Lamp" and "Swarm Pilot" presets produce
+  smooth, predictable formations rather than chaotic swarms.
+```
+
+**Implementation plan**:
+1. Add `shellRadius`, `pilotHeading` fields to `Config` or preset struct.
+2. Add `_compute_pilot_force(bird, pilot)` in `boid.py` implementing shell + heading pull.
+3. Update pilot position each frame using sinusoidal motion (separate from anchors).
+4. Wire into `_flock_projection()`: `desired += pilotForce` after the main Eq. 3 computation.
+
+---
+
+### Priority 9 — GPGPU & WebGPU Compute
+
+**From companion project**: Offload flocking physics to GPU compute shaders for 10,000+ bird performance.
+
+#### 9a. Texture-based GPGPU (from companion `WebglGpuMurmurationSimulation.ts`)
+
+```
+The companion project uses texture-based state storage (not transform feedback):
+
+─── State Representation ───────────────────────────────────
+
+  Particle positions and velocities are stored as pixel data
+  in WebGLRenderTarget DataTextures:
+    positionTexture[slot]  →  RGBA = (x, y, z, 1)
+    velocityTexture[slot]  →  RGBA = (vx, vy, vz, 1)
+
+  The 1D particle array is mapped to a 2D texture grid:
+    textureWidth  = ceil(sqrt(N))
+    textureHeight = ceil(N / textureWidth)
+    uvForSlot(slot) = ( (slot % w + 0.5) / w,  (floor(slot / w) + 0.5) / h )
+
+─── Ping-Pong Pipeline ─────────────────────────────────────
+
+  Frame N:
+    readTarget  = renderTarget[0]  (contains state from frame N−1)
+    writeTarget = renderTarget[1]  (will contain state for frame N)
+
+  Dispatch:
+    fragmentShader reads from readTarget.texture
+    fragmentShader writes to writeTarget via gl_FragColor
+    swap: renderTarget[0] ↔ renderTarget[1]
+
+  The render pass reads from whichever target holds the latest state.
+
+─── Fragment Shader Computation ────────────────────────────
+
+  For each output pixel (one per bird), the shader:
+    1. Reads own state:     pos, vel = sample(readTexture, uvForSlot(id))
+    2. Samples neighbors:   for j in 0..neighborCount:
+                              nPos, nVel = sample(readTexture, uvForSlot(j))
+    3. Computes forces:     sep, align, coh = boidsRule(pos, vel, neighbors)
+    4. Applies wander:      offset = flockWanderCenter(time, seed, id)
+    5. Writes output:       gl_FragColor = vec4(newPos, 1.0)
+
+  Key shader functions (from companion):
+    stratifiedOffset()  — uses golden ratio (φ = 1.618) for organic spacing
+    flockWanderCenter() — dynamic attractor via trig noise
+    slotRepulsion()     — maintains minimum spacing between particles
+
+─── Performance Characteristics ────────────────────────────
+
+  Texture size for N particles:
+    side = ceil(√N), e.g. √11111 ≈ 106×106 pixels
+  GPU threads:  side² (all fragments execute, masked by gl_FragCoord check)
+  Bottleneck:   texture sampling bandwidth (neighborCount × N samples/frame)
+  Efficiency:   ~30,000 birds at 60 FPS on integrated GPU
+```
+
+**Implementation plan**:
+1. Extract flocking math into pure functions (already done in `occlusion_geom.py`).
+2. Write GLSL fragment shader that replicates `_flock_projection()` and `_flock_spatial()`.
+3. Use Three.js `GPUComputationRenderer` which handles ping-pong and FullScreenQuad.
+4. Implement `uvForSlot()` to map 1D particle index → 2D texture coordinate.
+5. Fall back to CPU simulation when WebGL2 is unavailable.
+
+#### 9b. WebGPU compute shaders
+
+```
+WebGPU provides general-purpose compute shaders with shared memory,
+enabling efficient neighbour lookups without texture round-trips:
+
+  @group(0) @binding(0) var<storage, read>  stateIn  : array<Particle>;
+  @group(0) @binding(1) var<storage, read_write> stateOut : array<Particle>;
+
+  @compute @workgroup_size(256)
+  fn main(@builtin(global_invocation_id) id : vec3<u32>) {
+    let i = id.x;
+    var particle = stateIn[i];
+    // ... compute flocking forces ...
+    stateOut[i] = particle;
+  }
+
+  Performance: ~50,000+ birds at 72 FPS on modern GPU (from companion project target)
+```
+
+---
+
+### Priority 10 — Medium & Flow Simulation
+
+**From companion project**: Environmental medium modes (air, dust, starlight, grid) add ambient drift, turbulence, and visual character to the simulation.
+
+#### 10a. Medium parameters
+
+```
+Medium presets (from companion project mediumPresets.ts):
+
+  | Mode     | opacity | ptScale | turbulence | drift | colorMix | density | jitter |
+  |----------|---------|---------|------------|-------|----------|---------|--------|
+  | air      | 0.32    | 0.68    | 0.26       | 0.24  | 0.58     | 0.44    | 0.19   |
+  | dust     | 0.48    | 0.82    | 0.42       | 0.12  | 0.68     | 0.76    | 0.16   |
+  | starlight| 0.72    | 0.66    | 0.02       | 0.01  | 0.88     | 0.34    | 0.15   |
+  | grid     | 1.00    | 1.00    | 0.00       | 0.00  | 1.00     | 1.00    | 0.00   |
+
+  Where:
+    turbulence = random acceleration noise added per bird per frame
+    drift      = slow ambient velocity bias (global wind)
+    density    = number of passive medium particles (dust motes, etc.)
+    jitter     = random positional offset per medium particle
+```
+
+**Implementation plan**:
+1. Add `MediumConfig` to `flock_core.py` with turbulence, drift, density, jitter fields.
+2. Add medium presets as a separate dict in `scenario_presets.py` or new `medium_presets.py`.
+3. In the update loop, apply `drift` as a global velocity offset to all birds.
+4. Apply `turbulence` as random acceleration per bird per frame.
+5. For `density`/`jitter`: spawn passive particles that drift with the wind but don't interact.
+
+#### 10b. Flow field
+
+```
+A flow field is a velocity field V(x, y) that biases bird movement.
+It can be used to simulate wind, thermals, or terrain effects:
+
+  v_bird += flowStrength × V(bird.position)
+
+  Simple flow implementations:
+    Uniform wind:   V(x, y) = [Wx, Wy]
+    Vortex:         V(x, y) = [−y, x] / sqrt(x² + y²)  (rotational)
+    Perlin noise:   V(x, y) = sample 2D Perlin noise at (x, y)
+
+  Parameters from companion project:
+    flow     = 0.12  (flow strength multiplier)
+    flowMode = "uniform" | "vortex" | "noise"
+```
+
+**Implementation plan**:
+1. Add `flow`, `flowDirection` to `Config`.
+2. In `Boid._flock_projection()`, add `flow × V(position)` to desired velocity.
+3. For Perlin noise flow, add a simple 2D Perlin noise generator or use `noise` library.
+
+#### 10c. Wander behavior (from companion `flockWander.ts`)
+
+```
+When no attractor or threat is active, birds explore via a wander steering
+behavior that produces smooth, random-looking movement patterns.
+
+The companion implements this as a flock-level wander center that ALL
+birds are attracted toward, rather than per-bird wander circles:
+
+─── Wander Center Computation ──────────────────────────────
+
+  The wander center moves through space using composite trigonometric
+  noise on each axis independently:
+
+    t = time × attractorSpeed × wanderSpeed
+
+    x = cos(t × 0.53 + cos(t × 0.37)) × 0.84
+      + sin(t × 0.71) × 0.32
+      + cos(t × 1.13) × 0.18
+
+    y = sin(t × 0.47 + sin(t × 0.41)) × 0.72
+      + cos(t × 0.59) × 0.28
+      + sin(t × 0.83) × 0.22
+
+    z = cos(t × 0.61) × sin(t × 0.43) × 0.66
+      + sin(t × 0.79 + cos(t × 0.31)) × 0.30
+      + cos(t × 1.07) × 0.12
+
+  The raw vector is then normalized (boundedUnitTravel) and scaled:
+    radius = attractorRadius × wanderRadius × radialPulse(t)
+
+─── Radial Pulse ───────────────────────────────────────────
+
+  The wander radius breathes over time, creating expanding/contracting
+  flock movement patterns:
+
+    radialPulse(t) = 0.72 + 0.28 × (0.5 + 0.5 × sin(t × 0.41 + cos(t × 0.17)))
+
+  Range: [0.72, 1.00]
+  The sin(cos(...)) composition creates asymmetric, organic-feeling pulses
+  rather than simple sinusoidal breathing.
+
+─── Bird-Level Wander ──────────────────────────────────────
+
+  Each bird's wander force points from its position toward the wander center:
+    wanderForce = unit(wanderCenter - bird.position) × wanderSpeed
+
+  This creates a "swarm around a moving target" pattern rather than
+  independent per-bird wandering. The result: the flock as a whole
+  explores space while maintaining internal cohesion.
+
+─── Classic Reynolds Wander (alternative) ──────────────────
+
+  The classic per-bird wander from Reynolds uses a wander circle:
+    wanderCenter  = bird.position + unit(bird.velocity) × wanderRadius
+    wanderPoint   = wanderCenter + randomUnitVector() × wanderRadius × 0.5
+    wanderForce   = unit(wanderPoint - bird.position) × wanderSpeed
+
+  This produces independent exploration; each bird drifts randomly.
+  The companion's flock-level approach is more coordinated.
+```
+
+**Implementation plan**:
+1. Add `wanderRadius`, `wanderSpeed`, `attractorSpeed` to `Config`.
+2. Implement `flock_wander_center(time, config)` returning a `Vector2` using the composite trig formulas above.
+3. In the main loop, compute the wander center once per frame (not per bird).
+4. In `Boid._flock_projection()`, add `wanderForce = (wanderCenter − self.position) × config.wanderSpeed` to desired velocity.
+5. For the radial pulse, compute `radialPulse` as shown above; multiply the wander center by it each frame.
+6. Optional: add per-bird wander as a secondary mode for more chaotic presets.
+
+---
+
+### Priority 11 — Field-Based Simulation for Large Flocks
+
+**From companion `CpuMurmurationSimulation.ts`**: When particle count exceeds a threshold (`gridSimulationLimit`, typically ~11,000 birds), the companion switches from boids-style neighbor queries to a **field-based** approach. This is O(N) with no neighbor dependency — critical for scaling to 16,000+ birds.
+
+#### 11a. Two-mode architecture
+
+```
+The companion's CPU simulation has two distinct update methods:
+
+  if count ≤ gridSimulationLimit (~11K):
+    use step()        → spatial hash boids (O(N × neighborCount))
+  else:
+    use stepField()   → structured field approach (O(N))
+
+─── step()  — Boids with spatial hash ──────────────────────
+  For each bird:
+    1. Query spatial hash for candidate neighbors (3×3×3 cells)
+    2. Select topological nearest (neighborCount, default 7)
+    3. Compute: separation, alignment, cohesion via ForceTerms
+    4. Apply: noise, flow, boundary, threat, pilot forces
+    5. Clamp velocity, apply inertia, update position
+
+─── stepField()  — Layered field approach ─────────────────
+  No neighbor queries at all. Instead:
+    1. Birds are assigned to "slots" around layered anchors
+    2. Each anchor is a structured target (sinusoidal path)
+    3. Birds are pulled toward their assigned slot position
+    4. Slot repulsion maintains minimum spacing
+    5. Ripple vectors propagate waves through the formation
+    6. Blob targets and cyclic weights distribute birds evenly
+
+  The field approach trades local-interaction realism for
+  raw throughput — it can handle 50,000+ birds on CPU.
+```
+
+#### 11b. Slot repulsion and ripple propagation
+
+```
+─── Slot Assignment ────────────────────────────────────────
+
+  Birds are assigned to slots on a set of anchors:
+    numSlots  = ceil(N / numAnchors)
+    slot_i    = i % numSlots  (even distribution across anchors)
+
+  Each slot has a target position near its anchor:
+    targetPos = anchor.position + slotOffset[slot_i]
+    slotOffset[i] = stratifiedOffset(i, numSlots)
+      where stratifiedOffset uses golden ratio (1.618) to
+      distribute points evenly on concentric shells.
+
+─── Slot Repulsion ─────────────────────────────────────────
+
+  Birds assigned to the same slot repel each other:
+    for each bird j in same_slot:
+      d = |pos_i − pos_j|
+      if d < minSlotSpacing:
+        repulsion += normalize(pos_i − pos_j) × (minSlotSpacing − d)
+
+  This prevents multiple birds from occupying the same position
+  without requiring all-pairs distance checks.
+
+─── Ripple Propagation ─────────────────────────────────────
+
+  Ripples are wave-like perturbations that travel through the
+  formation. They're implemented as a sinusoidal displacement:
+    rippleVector[i] = A × sin(ωt + k·pos_i + φ_i)
+
+  where:
+    A   = ripple amplitude (scales with waveGain)
+    ω   = ripple frequency
+    k   = wave vector (direction of travel)
+    φ_i = per-bird phase offset (randomized at init)
+
+  The result: smooth, wave-like deformations travel through
+  the flock without any neighbor-to-neighbor communication.
+```
+
+#### 11c. Field-based force composition
+
+```
+In stepField(), each bird's velocity update is:
+
+  v_i(t+1) = inertia × v_i(t)  +
+             (1 − inertia) × [
+               chaseFactor × slotPull_i          +
+               cohesion    × blobAttract_i        +
+               alignment   × headingBias_i        +
+               flow        × fieldVelocity(pos_i) +
+               noise       × randomUnitVector()
+             ]
+
+  Where:
+    slotPull_i    = normalize(targetSlotPos − pos_i) × shellError
+    blobAttract_i = weighted average of blob center pulls
+    headingBias_i = pilot direction (if active)
+
+  Key difference from step(): there is NO separation force.
+  Slot repulsion handles spacing; cohesion + alignment are
+  global biases rather than local neighbor averages.
+```
+
+**Implementation plan**:
+1. Add `SimulationMode` enum: `BOIDS` | `FIELD`.
+2. In `flock_core.py`, add `FieldConfig` with `numAnchors`, `slotsPerAnchor`, `rippleAmplitude`.
+3. Implement `_flock_field()` in `boid.py` with the force composition above.
+4. Compute `stratifiedOffset()` using golden ratio: `φ = (1 + √5) / 2`.
+5. Auto-switch: when `config.mode == FIELD` or `NUM_BOIDS > threshold`, use field method.
+6. Test: verify O(N) performance scaling (linear time increase with bird count).
+
+---
+
+### Priority 12 — Initialization Patterns & Inertia Smoothing
+
+**From companion `particleInitialization.ts` and `settings.ts`**: The companion project initializes birds with structured spatial distributions and applies inertia-based velocity smoothing, both of which affect the visual character of the simulation.
+
+#### 12a. Blob-based initialization
+
+```
+Instead of spawning birds uniformly at random, the companion
+initializes them in 5 distinct "blob" centers:
+
+  initialBlobCenters = [
+    (0.30, 0.10, 0.05),
+    (−0.25, 0.05, −0.12),
+    (0.05, −0.18, 0.08),
+    (−0.12, 0.22, −0.04),
+    (0.18, −0.08, 0.15)
+  ]
+
+  Each bird is assigned to one blob center (round-robin):
+    blobIdx = i % 5
+    center  = initialBlobCenters[blobIdx]
+
+  Position within the blob (spherical distribution):
+    theta   = random(0, 2π)        (azimuthal angle)
+    phi     = acos(1 − 2 × random())  (polar angle, uniform on sphere)
+    r       = blobRadius × cube_root(random())  (volumetric density)
+    jitter  = random(−0.045, 0.045) per axis
+
+    pos = center + r × (sin(φ)cos(θ),  sin(φ)sin(θ),  cos(φ)) + jitter
+
+  The cube_root ensures uniform volumetric density — without it,
+  more birds would cluster near the center of each blob.
+
+  Velocity initialization:
+    drift = (0.34, 0, 0.08)            (global flow direction)
+    v_i   = drift + random(−0.05, 0.05) per axis
+```
+
+**Implementation plan**:
+1. Add `INIT_BLOB_CENTERS` list to `flock_core.py`.
+2. In `alg2.py` reset logic, use blob-based spawning when `config.use_blob_init` is true.
+3. Add `cube_root` helper: `r = blobRadius × random() ** (1/3)`.
+4. Make the initialization method a preset parameter (some presets benefit from blobs, others from uniform).
+
+#### 12b. Inertia smoothing
+
+```
+The companion applies inertia by blending current velocity with
+the new desired velocity each frame. This smooths out sudden
+direction changes and gives the flock a "fluid" feel:
+
+  v_i(t+1) = inertia × v_i(t)  +  (1 − inertia) × v_desired
+
+  With default inertia = 0.84:
+    New frame contribution = 0.16 × v_desired
+    Old velocity retained  = 0.84 × v_i
+    Effective smoothing half-life = ln(0.5) / ln(0.84) ≈ 4 frames
+
+  Birds take ~4 frames to turn 50% toward a new direction,
+  creating natural-looking curves instead of sharp snaps.
+
+  The current murmuration repo uses Reynolds steering, which
+  is mathematically similar but uses a different parameterization:
+    steer = clamp(v_desired − v_current, MAX_FORCE)
+    v += steer
+
+  The inertia approach is simpler and directly tunable with
+  a single parameter (0 = instant response, 1 = frozen).
+```
+
+**Implementation plan**:
+1. Add `inertia` to `Config` (default 0.84 from companion).
+2. In `Boid.update()`, replace or augment Reynolds steering with inertia blend.
+3. Test: verify that high inertia (0.95+) produces smooth, laggy flocks; low inertia (0.3−) produces twitchy, responsive flocks.
+
+---
+
+### Priority 13 — 3D Spatial Hash (from companion `cpuSpatialHash.ts`)
+
+**From companion project**: The current murmuration repo uses a 2D toroidal grid. For 3D simulation, the companion uses a proper 3D spatial hash with string-based cell keys and 3×3×3 neighborhood queries.
+
+#### 13a. 3D cell keying
+
+```
+The companion's spatial hash uses string keys rather than tuples,
+which improves lookup performance in JavaScript/TypesScript:
+
+  cellKey(x, y, z) = "⌊x/cellSize⌋,⌊y/cellSize⌋,⌊z/cellSize⌋"
+
+  Example: position (12.7, −3.2, 8.9) with cellSize=5.0
+    → key = "2,−1,1"
+
+  The cellSize is configurable and typically set to:
+    cellSize = max(neighborRadius, visualRange) × 1.2
+
+─── Query: 3×3×3 Neighborhood ─────────────────────────────
+
+  For a bird at position (x, y, z):
+    cx = floor(x / cellSize)
+    cy = floor(y / cellSize)
+    cz = floor(z / cellSize)
+
+    candidates = []
+    for dx in [−1, 0, 1]:
+      for dy in [−1, 0, 1]:
+        for dz in [−1, 0, 1]:
+          key = "(cx+dx),(cy+dy),(cz+dz)"
+          candidates.extend(hashmap[key])
+
+  27 cells checked (3×3×3), sorted by distance², sliced to neighborCount.
+
+─── Comparison: 2D vs 3D Grid ─────────────────────────────
+
+  Current 2D grid (murmuration repo):
+    - Tuple keys: (cx, cy)
+    - Toroidal wrap: cx % cols, cy % rows
+    - Cell count: ~(WIDTH/cellSize) × (HEIGHT/cellSize) ≈ 25
+
+  Companion 3D grid:
+    - String keys: "cx,cy,cz"
+    - No wrapping (uses boundary force instead)
+    - Cell count: unbounded (but only populated cells exist)
+    - Query: 27 cells instead of ~9 in 2D
+
+  The string-key approach is trivially portable to Python
+  (dict lookups with string keys are O(1) and fast).
+```
+
+**Implementation plan**:
+1. Extend `SpatialGrid` in `flock_core.py` to accept `gridType: "2D" | "3D"`.
+2. In 3D mode, use string keys `f"{cx},{cy},{cz}"` and query 3×3×3 cells.
+3. Remove toroidal wrapping in 3D mode (use boundary push-back instead).
+4. Add `neighborRadius` to `Config` (default 0.12 from companion).
+
+---
+
+### Priority 14 — Trail Rendering System
+
+**From companion `TrailLines.ts` and `accumulation.ts`**: The companion project has two distinct trail rendering modes — geometric line segments and frame accumulation — which give the flock a sense of motion and history.
+
+#### 14a. Geometric trail lines
+
+```
+Each bird draws 5 trailing line segments behind it, creating a comet-like
+tail. The segments are stored in a single BufferGeometry for GPU efficiency.
+
+─── Trail Geometry ─────────────────────────────────────────
+
+  For each bird i with position (x, y, z) and velocity (vx, vy, vz):
+
+    For segment s in [0..4] (5 segments, 0 = closest to bird):
+      t = s / 4                          (normalized: 0 = head, 1 = tail)
+      trailPos = pos − vel × t × trailLength
+
+      The segment is a line pair: (trailPos_prev, trailPos_curr)
+
+    Wave offset (sinusoidal distortion):
+      tailWave = sin(speed × trailWaviness + seed × 1.7) × 0.015
+      headWave = sin(speed × trailWaviness + seed × 2.3) × 0.012
+
+      trailPos += perpendicular(vel) × (tailWave + headWave) × 0.5
+
+    The wave creates a side-to-side waviness that makes the trails
+    look like organic ribbons rather than straight ruler lines.
+
+─── Buffer Management ──────────────────────────────────────
+
+  Total vertices = count × 5 segments × 2 endpoints × 3 components (xyz)
+
+  Example: 200 birds → 200 × 5 × 2 × 3 = 6,000 floats
+
+  The buffer is reallocated when bird count changes (ensureCapacity).
+  Each frame, the position attribute is updated directly via Float32Array
+  and marked needsUpdate = true for GPU upload.
+
+  setDrawRange(0, count × 5 × 2) ensures only active birds are drawn.
+
+─── Material ───────────────────────────────────────────────
+
+  LineBasicMaterial with:
+    color:     inkColor (from current theme)
+    opacity:   trailOpacity (default 0.72)
+    transparent: true
+
+  Opacity is global — all segments share the same alpha. The "fading"
+  illusion comes from the geometry getting sparser toward the tail.
+```
+
+**Implementation plan (2D PyGame)**:
+1. In `Boid`, store `trail_history: deque[(x, y), ...]` of last N positions.
+2. Each frame, prepend current position; pop oldest when len > trailLength.
+3. In `draw()`, render trail as a polyline with decreasing alpha.
+4. Apply wave offset: `perp = (−vy, vx); offset = sin(speed × waviness + i × 0.7) × 0.5`.
+5. Add `trailLength`, `trailWaviness`, `trailOpacity` to `Config`.
+
+#### 14b. Frame accumulation mode
+
+```
+Instead of drawing individual trail lines, the accumulation mode
+renders a semi-transparent overlay on top of the previous frame.
+This creates a ghosting effect where old positions naturally fade.
+
+─── How It Works ───────────────────────────────────────────
+
+  Each frame:
+    1. Disable renderer.autoClear (don't clear the canvas!)
+    2. Draw a full-screen quad colored with the paper/background color
+       at a very low opacity (the "fade layer")
+    3. Draw the current flock positions at full opacity
+    4. Re-enable autoClear
+
+  The fade layer partially obscures the previous frame:
+    newPixel = fadeLayer × accumulationFadeOpacity
+             + (1 − accumulationFadeOpacity) × previousPixel
+
+  Over multiple frames, old positions progressively fade away.
+
+─── Accumulation Fade Opacity ──────────────────────────────
+
+  accumulationFadeOpacity = clamp(
+    0.032 × (1 − trailLength) × (1 − trailOpacity),
+    0.018, 0.32
+  )
+
+  Longer trails (higher trailLength) → slower fade → longer ghost trails.
+  Higher trailOpacity → slower fade → more persistent trails.
+
+  Clamped to [0.018, 0.32] to prevent:
+    - Instant clear (too high opacity → no trailing effect)
+    - Permanent smearing (too low opacity → never clears)
+
+─── Activation Condition ───────────────────────────────────
+
+  Accumulation only activates when:
+    trailMode == "accumulation"
+    trailLength > 0
+    trailOpacity > 0
+
+  Otherwise, the renderer clears normally each frame (no trails).
+```
+
+**Implementation plan (2D PyGame)**:
+1. Instead of `screen.fill(0, 0, 0)`, draw a semi-transparent black rectangle:
+   `s = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)`
+   `s.fill((0, 0, 0, fadeAlpha))`
+   `screen.blit(s, (0, 0))`
+2. Compute `fadeAlpha` from the accumulation formula above.
+3. Add `trailMode` to `Config`: `"none"` | `"lines"` | `"accumulation"`.
+4. The accumulation mode is simpler to implement than trail lines in PyGame
+   and produces a beautiful, natural-looking motion blur.
+
+---
+
+### Priority 15 — Adaptive Quality System
+
+**From companion `adaptiveQuality.ts`**: When frame rate drops below a threshold, the companion automatically degrades rendering quality to maintain smooth animation. This is essential for large flocks on lower-end hardware.
+
+#### 15a. Quality degradation tiers
+
+```
+The adaptive quality system monitors actual frame rate against a target
+and applies progressive degradation when performance is insufficient:
+
+─── Trigger Condition ──────────────────────────────────────
+
+  Activated when:  actualFPS < targetFPS × 0.78
+  Cooldown:        1800ms between adjustments (prevents oscillation)
+
+  Example: targetFPS = 60 → trigger when actualFPS < 46.8
+
+─── Tier 1 — Disable Trail Rendering ──────────────────────
+
+  trailMode = "off"
+
+  Trails are the most expensive visual feature (5 segments × N vertices
+  updated every frame). Disabling them first preserves the core simulation
+  and particle rendering.
+
+  Recovery: trails are re-enabled manually or on next simulation reset.
+
+─── Tier 2 — Reduce Pixel Ratio ───────────────────────────
+
+  if pixelRatioCap > 0.8:
+    pixelRatioCap = max(0.75, pixelRatioCap − 0.15)
+
+  Reduces rendering resolution by 15% per step, down to 0.75×.
+  At 0.75×, the canvas renders at 75% resolution and is upscaled.
+  This reduces fragment shader invocations by ~44%.
+
+─── Tier 3 — Reduce Particle Count ────────────────────────
+
+  if count > 512:
+    count = max(512, floor(count × 0.82))
+
+  Removes 18% of birds per step, with a floor of 512.
+  Reducing particle count is the most aggressive optimization —
+  it visibly changes the simulation, so it's applied last.
+```
+
+#### 15b. Implementation math
+
+```
+─── Frame Rate Moving Average ──────────────────────────────
+
+  fpsSmoothed(t) = fpsSmoothed(t−1) × 0.9 + currentFPS(t) × 0.1
+
+  The 0.9/0.1 EMA prevents single-frame FPS dips from triggering
+  unnecessary quality reductions.
+
+─── Degradation Decision ───────────────────────────────────
+
+  shouldDegrade = (fpsSmoothed < targetFPS × 0.78)
+                  AND (timeSinceLastAdjust > 1800ms)
+
+  if shouldDegrade:
+    apply next available tier
+    lastAdjustTime = now()
+
+─── Recovery Decision ──────────────────────────────────────
+
+  shouldUpgrade = (fpsSmoothed > targetFPS × 0.92)
+                  AND (timeSinceLastAdjust > 3000ms)
+                  AND (currentTier > 0)
+
+  if shouldUpgrade:
+    revert previous tier
+    lastAdjustTime = now()
+
+  Recovery requires a higher threshold (92% vs 78%) to prevent
+  oscillation between quality levels (hysteresis).
+
+─── Tier State ─────────────────────────────────────────────
+
+  qualityTier: 0 = full quality, 3 = maximum degradation
+
+  savedStates[0] = { trailMode, pixelRatioCap, count }  ← original
+  savedStates[1] = after tier 1
+  savedStates[2] = after tier 2
+  savedStates[3] = after tier 3
+```
+
+**Implementation plan**:
+1. Add `targetFPS`, `qualityTier`, `lastAdjustTime` to `Config`.
+2. In the main loop, compute `fpsSmoothed` via EMA (α = 0.1).
+3. Check degrade/upgrade conditions each frame; apply tier changes.
+4. For 2D PyGame, "pixel ratio" maps to render scale factor (pygame.transform.scale).
+5. For trail disabling, skip trail rendering in the draw pass.
+6. For particle reduction, remove birds evenly (every Nth bird) to preserve distribution.
+7. Add `A` key to toggle adaptive quality on/off.
+
+---
+
+### Priority 16 — SimulationPilot Rich State
+
+**From companion `types.ts`**: The companion's `SimulationPilot` interface tracks more state than a simple position + heading. This richer model enables more sophisticated leader behaviors.
+
+#### 16a. Full pilot state
+
+```
+interface SimulationPilot:
+  corePosition   : Vec3    // current position of the pilot
+  coreVelocity   : Vec3    // current velocity (for headingPull)
+  heading        : Vec3    // forward direction (used by pilotForce)
+  radius         : number  // shell radius for orbiting birds
+  roll           : number  // bank angle (for visual rotation)
+  mediumPulse    : number  // 0–1 pulse that modulates turbulence
+
+─── Roll ───────────────────────────────────────────────────
+
+  The pilot's roll angle changes during turns:
+    roll(t) = atan2(turnRadius, speed) × rollDamping
+    where rollDamping = 0.6 (smooths rapid roll changes)
+
+  In 3D rendering: rotates the pilot model.
+  In 2D: can be used to modulate the shell shape (stretch/compress).
+
+─── Medium Pulse ───────────────────────────────────────────
+
+  mediumPulse is a 0–1 value that rises when the pilot passes through
+  dense medium regions (dust, air turbulence):
+    mediumPulse(t) = smoothstep(0, 0.5, sampleMediumDensity(corePosition))
+
+  This modulates medium parameters on the fly:
+    turbulence_effective = turbulence × (1 + mediumPulse × 0.5)
+
+  Creates natural variation: flock gets bumpier when flying through
+  "thick air" and smoother in "clear air".
+```
+
+**Implementation plan**:
+1. Add `SimulationPilot` dataclass with all six fields.
+2. In `_compute_pilot_force()`, use `heading` directly (already computed).
+3. Compute `roll` from lateral acceleration: `roll = atan2(latAccel, V0) × 0.6`.
+4. Add `mediumDensity` field to `MediumConfig`; compute `mediumPulse` from it.
+5. Apply `mediumPulse` to turbulence scaling in the flow update.
+
+---
+
+### Priority 17 — H₂ Robustness & Consensus Dynamics (Young et al. 2013)
+
+**From Young et al. (2013) "Starling Flock Networks Manage Uncertainty in Consensus at Low Cost"**: Uses a systems-theoretic approach to prove that 6–7 neighbors is mathematically optimal for flock cohesion under noise. This is the formal mathematical framework that explains *why* topological interaction works — complementing Ballerini's empirical observation.
+
+#### 17a. Linear consensus model
+
+```
+Young et al. model flocking as a linear consensus dynamical system
+where each bird adjusts its state toward the average of its neighbors:
+
+  dx_i/dt  =  Σ_{j ∈ N_i}  a_ij · (x_j − x_i)  +  ξ_i(t)
+
+  where:
+    x_i      = state of bird i (e.g., heading direction, in ℝ)
+    N_i      = set of m neighbors that bird i senses
+    a_ij     = edge weight (1 for unweighted; exp(−d²/2σ²) for weighted)
+    ξ_i(t)   = uncorrelated Gaussian white noise
+               ⟨ξ_i(t)⟩ = 0,  ⟨ξ_i(t)ξ_j(τ)⟩ = δ_ij δ(t−τ)
+
+  In matrix form for N birds:
+    ẋ  =  −L · x  +  ξ
+
+  where L is the N×N weighted graph Laplacian:
+    L_ij  =  −a_ij           for i ≠ j,  j ∈ N_i
+    L_ii  =   Σ_{k ∈ N_i} a_ik   (weighted degree)
+    L_ij  =   0               otherwise
+
+  Note: This is a LINEAR model. Real flocking is nonlinear (cos/sin of
+  angles, projection model), but the linear analysis provides a rigorous
+  framework for understanding neighbour count optimality.
+```
+
+#### 17b. H₂ robustness metric
+
+```
+The H₂ norm quantifies how much noise-induced disagreement persists
+in the flock at steady state:
+
+─── Disagreement Vector ────────────────────────────────────
+
+  δ(t) = x(t) − x̄(t) · 1    (deviation from group consensus)
+  where x̄(t) = (1/N) Σ_i x_i(t)    (group average)
+
+─── System with Noise Input ────────────────────────────────
+
+  δ̇  =  −L̃ · δ  +  Q · ξ
+
+  where:
+    L̃  = L projected onto disagreement subspace (rank N−1)
+    Q  = I − (1/N)11^T    (projects onto disagreement)
+
+─── H₂ Norm Definition ─────────────────────────────────────
+
+  H₂(L)² = lim_{t→∞}  E[||δ(t)||²]
+         = trace( ∫₀^∞  e^{−L̃t} · Q · e^{−L̃^T t}  dt )
+
+  For undirected graphs (symmetric Laplacian):
+    H₂² = Σ_{k=2}^N  1 / (2λ_k)
+
+  where λ_k are the nonzero eigenvalues of L (sorted: 0 = λ₁ < λ₂ ≤ ... ≤ λ_N)
+
+  Intuition:
+    - H₂ is the steady-state variance of disagreement under unit noise
+    - Smaller H₂ = flock stays tighter under disturbance
+    - More neighbors → larger eigenvalues → smaller H₂ → more robust
+    - But with diminishing returns: adding the 20th neighbor helps less
+      than adding the 2nd
+
+  The eigenvalues λ_k of the Laplacian encode network connectivity:
+    - λ₂ (algebraic connectivity): how well-connected the graph is
+    - Large λ₂ = fast consensus, small H₂ = robust to noise
+```
+
+#### 17c. Per-neighbor contribution to robustness
+
+```
+The key insight from Young et al.: adding more neighbors always
+improves robustness (lowers H₂), but with diminishing returns.
+The efficiency metric is:
+
+  η(m) =  [H₂(m−1) − H₂(m)] / H₂(m)
+
+  where m = number of sensed neighbors (σ in our notation)
+
+  η(m) measures the FRACTIONAL improvement in robustness when
+  increasing from m−1 to m neighbors.
+
+  m* = argmax η(m)   (optimal neighbor count)
+
+─── Empirical Findings from Young's Analysis ───────────────
+
+  Analyzed real 3D starling flock configurations from Ballerini et al.:
+
+  Flock type          |  m* (optimal)  |  Flocks analyzed
+  --------------------|----------------|------------------
+  Longitudinal (thin) |  6.05 ± 0.25   |  5 flocks
+  Transverse (thick)  |  9.78 ± 0.32   |  5 flocks
+
+  Thin flocks (more 2D-like): fewer neighbors needed
+  Thick flocks (more 3D-like): more neighbors needed
+
+  H₂ scales with flock aspect ratio (thickness / width):
+    thinner → less noise coupling across dimensions → lower m*
+    thicker → more noise pathways → higher m*
+
+─── Cost-Benefit Trade-off ─────────────────────────────────
+
+  Cost of sensing m neighbors:    O(m)  (attention/processing)
+  Robustness benefit:             O(log m)  (diminishing returns)
+
+  The sweet spot where marginal benefit = marginal cost is m* ≈ 6–7.
+
+  This is WHY starlings have evolved to track 6–7 neighbors:
+  it's the mathematically optimal trade-off between cohesion and effort.
+```
+
+#### 17d. Implementation strategy
+
+```
+─── Step 1: Build the sensing graph ────────────────────────
+
+  For each bird i, determine its m nearest neighbors:
+    neighbors[i] = indices of m closest birds by Euclidean distance
+
+  Build the adjacency matrix (sparse for efficiency):
+    A_ij = 1 if j ∈ neighbors[i], 0 otherwise
+
+  For weighted edges (distance-dependent):
+    A_ij = exp(−d_ij² / (2σ_k²))  if j ∈ neighbors[i]
+    where σ_k = median distance to neighbors (adaptive bandwidth)
+
+─── Step 2: Compute the Laplacian ──────────────────────────
+
+  L = spdiag(A · 1) − A     (unnormalized Laplacian)
+
+─── Step 3: Compute H₂ via eigenvalues ─────────────────────
+
+  eigenvalues = sorted(eig(L))
+  λ_2 ... λ_N = eigenvalues[1:]    (exclude λ_1 = 0)
+  H₂² = Σ_{k=2}^N  1 / (2λ_k)
+
+  For large N, use scipy.sparse.linalg.eigsh to get only k smallest
+  eigenvalues (the largest eigenvalues contribute little to H₂).
+
+─── Step 4: Compute optimal σ* ─────────────────────────────
+
+  For m in [1..20]:
+    Build sensing graph with m nearest neighbors
+    Compute H₂(m)
+    η(m) = (H₂(m−1) − H₂(m)) / H₂(m)
+  σ* = argmax η(m)
+
+─── Step 5: Compute flock thickness ────────────────────────
+
+  thickness = smallest eigenvalue of covariance matrix of positions
+  width     = largest eigenvalue
+  aspect_ratio = thickness / width
+
+  Compare to Young's finding: σ* increases with thickness.
+
+─── Step 6: Display ────────────────────────────────────────
+
+  Show in metrics overlay:
+    H₂ (robustness):   current value
+    σ* (optimal):      computed optimum
+    η(σ) (efficiency):  per-neighbor benefit at current σ
+    Aspect ratio:       flock thinness
+```
+
+**Implementation plan**:
+1. Add `FlockConsensus` class to `metrics.py` with `build_sensing_graph()`, `build_laplacian()`, `compute_h2()`, `compute_optimal_sigma()`.
+2. Use `scipy.sparse.csgraph.laplacian` and `scipy.sparse.linalg.eigsh` for eigenvalue computation.
+3. In `FlockMetrics`, add `h2_norm`, `optimal_sigma`, `flock_aspect_ratio` properties updated each frame.
+4. Display H₂, σ*, aspect ratio in the metrics overlay (top-right corner).
+5. Add per-frame computation: rebuild sensing graph → Laplacian → eigenvalues → H₂.
+6. Compute optimal σ once per second (not every frame — eigenvalue computation is O(N³)).
+7. Test: verify H₂ decreases as σ increases.
+8. Test: verify σ* ≈ 6–7 for isotropic 2D flock.
 
 ---
 
 ## Licence
 
-GNU General Public License v3.0 — see [LICENSE](LICENSE).
+GNU General Public License v3.0 or later — see [LICENSE](LICENSE).
 The PNAS paper content is © 2014 National Academy of Sciences. All research papers included in this repository are for reference and scholarly use.

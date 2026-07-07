@@ -4,10 +4,13 @@
 # No Python or Pygame installation needed — just Docker.
 #
 # Usage:
-#   ./run-docker.sh         — full simulation (builds image, runs headless)
-#   ./run-docker.sh tests   — run unit tests in container
-#   ./run-docker.sh shell   — open a bash shell in the container
-#   ./run-docker.sh stop    — stop and remove the container + image
+#   ./run-docker.sh              — full simulation (builds image, runs headless)
+#   ./run-docker.sh tests        — run unit tests in container
+#   ./run-docker.sh shell        — open a bash shell in the container
+#   ./run-docker.sh octave       — open GNU Octave interactive CLI in container
+#   ./run-docker.sh scilab       — open Scilab interactive CLI in container
+#   ./run-docker.sh validate-all — full multi-stage validation pipeline
+#   ./run-docker.sh stop         — stop and remove the container + image
 #
 # Requirements: Docker with compose plugin, or docker-compose standalone
 # ──────────────────────────────────────────────────────────────────────
@@ -44,6 +47,33 @@ case "$MODE" in
         echo "  (type 'exit' to leave)"
         $COMPOSE build 2>&1
         $COMPOSE run --rm shell
+        ;;
+
+    octave)
+        echo "→ Opening GNU Octave CLI in the murmuration container..."
+        echo "  (type 'exit' to leave)"
+        $COMPOSE build 2>&1
+        $COMPOSE run --rm octave
+        ;;
+
+    scilab)
+        echo "→ Opening Scilab CLI in the murmuration container..."
+        echo "  (type 'exit' to leave)"
+        $COMPOSE build 2>&1
+        $COMPOSE run --rm scilab
+        ;;
+
+    validate-all)
+        echo "═══════════════════════════════════════════════════════════"
+        echo "  Full Validation Pipeline (all languages, all environments)"
+        echo "═══════════════════════════════════════════════════════════"
+        echo ""
+        if [ -x scripts/validate-all.sh ]; then
+            scripts/validate-all.sh
+        else
+            echo "ERROR: scripts/validate-all.sh not found or not executable."
+            exit 1
+        fi
         ;;
 
     stop)

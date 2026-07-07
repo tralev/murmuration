@@ -48,3 +48,19 @@ services:
     command: /bin/bash
     stdin_open: true
     tty: true
+
+  # ── GNU Octave interactive — run with:  docker compose run octave ───
+  octave:
+    build: .
+    image: murmuration:latest
+    command: octave --no-gui
+    stdin_open: true
+    tty: true
+
+  # ── Scilab interactive — run with:  docker compose run scilab ───────
+  scilab:
+    build: .
+    image: murmuration:latest
+    command: scilab-cli
+    stdin_open: true
+    tty: true

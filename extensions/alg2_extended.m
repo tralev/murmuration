@@ -60,6 +60,7 @@
 global NUM_BOIDS BOID_SIZE WIDTH HEIGHT VISUAL_RANGE DEPTH
 global MODE DIMENSIONS paused PHI_P PHI_A PHI_N PHI_S SIGMA
 global pending_add pending_remove pending_reset show_help predator_active
+global MARGIN_BOUNDARY BOUNDARY_MARGIN BOUNDARY_TURN_FACTOR
 global ENABLE_1a ENABLE_1b ENABLE_1c ENABLE_2a ENABLE_2b ENABLE_2c ENABLE_2d ENABLE_3a ENABLE_3b
 global K_VIEWPOINTS R_EXT BLIND_ANGLE_VAL STERIC_RADIUS
 global BOID_SEMI_MAJOR BOID_SEMI_MINOR BUFFER_SIZE_TAU CORR_SAMPLE_INTERVAL MAX_LAG_FRACTION
@@ -243,6 +244,7 @@ function lines = build_help_lines()
     lines = {
         'CONTROLS                                       EXTENSIONS';
         '────────────────────────────────────────  ────────────────────';
+        ['b      toggle  TOROIDAL / MARGIN       1a ' s1a ' direct velocity'];
         ['m      toggle  PROJECTION / SPATIAL    1a ' s1a ' direct velocity'];
         ['p      pause / resume                  2a ' s2a ' steric'];
         ['f      toggle predator                 2b ' s2b ' blind'];
@@ -262,7 +264,7 @@ end
 % ╚══════════════════════════════════════════════════════════════════════╝
 
 f = figure('Name', ...
-    'Murmuration Extended  [m:mode p:pause f:falcon h:help]', ...
+    'Murmuration Extended  [m:mode b:boundary p:pause f:falcon h:help]', ...
     'NumberTitle', 'off', ...
     'Position', [100, 100, WIDTH, HEIGHT], ...
     'Color', [0.08 0.09 0.12]);
@@ -291,6 +293,7 @@ hTextTheta  = text(10, 45,  '', 'Color', [170 200 170]/255, 'FontSize', 12);
 hTextExt    = text(10, 65,  '', 'Color', [170 200 170]/255, 'FontSize', 12);
 hTextTau    = text(10, 85,  '', 'Color', [170 200 170]/255, 'FontSize', 12);
 hTextPower  = text(10, 105, '', 'Color', [170 200 170]/255, 'FontSize', 12);
+hTextBdyBadge  = text(WIDTH-300, 25, '', 'Color', [170 200 170]/255, 'FontSize', 12);
 hTextBadge  = text(WIDTH-300, 5, '', 'Color', [170 200 170]/255, 'FontSize', 12);
 
 % ── Pause indicator ─────────────────────────────────────────────────
@@ -1250,6 +1253,7 @@ end
 function key_handler_extended(src, event)
     global MODE paused PHI_P PHI_A SIGMA
     global pending_add pending_remove pending_reset show_help predator_active
+    global MARGIN_BOUNDARY
 
     switch event.Key
         % ── Mode toggle ────────────────────────────────────────────
@@ -1257,6 +1261,12 @@ function key_handler_extended(src, event)
             MODE = 1 - MODE;
             if MODE == 0, disp('PROJECTION mode');
             else,         disp('SPATIAL mode'); end
+
+        % ── Boundary toggle ───────────────────────────────────────
+        case {'b', 'B'}
+            MARGIN_BOUNDARY = ~MARGIN_BOUNDARY;
+            if MARGIN_BOUNDARY, disp('MARGIN boundary');
+            else,               disp('TOROIDAL wrap'); end
 
         % ── Pause ──────────────────────────────────────────────────
         case {'p', 'P'}
@@ -1712,6 +1722,19 @@ while isgraphics(f)
 
         if ~ENABLE_1a || MODE == 1
             vel = vel + acc;
+
+            % ── Boundary nudge (margin mode — before speed clamp) ───
+            if MARGIN_BOUNDARY
+                near_left  = find(pos(:,1) < BOUNDARY_MARGIN);
+                near_right = find(pos(:,1) > WIDTH - BOUNDARY_MARGIN);
+                near_top   = find(pos(:,2) < BOUNDARY_MARGIN);
+                near_btm   = find(pos(:,2) > HEIGHT - BOUNDARY_MARGIN);
+                vel(near_left,  1) = vel(near_left,  1) + BOUNDARY_TURN_FACTOR;
+                vel(near_right, 1) = vel(near_right, 1) - BOUNDARY_TURN_FACTOR;
+                vel(near_top,   2) = vel(near_top,   2) + BOUNDARY_TURN_FACTOR;
+                vel(near_btm,   2) = vel(near_btm,   2) - BOUNDARY_TURN_FACTOR;
+            end
+
             spd = sqrt(sum(vel.^2, 2));
 
             fast = find(spd > V0);
@@ -1743,18 +1766,9 @@ while isgraphics(f)
         pos = pos + vel;
         acc = acc * 0;
 
-        % ── Boundary handling ───────────────────────────────────
+        % ── Position boundary handling ─────────────────────────
         if MARGIN_BOUNDARY
-            % keepWithinBounds: nudge velocity toward center near edges
-            near_left  = find(pos(:,1) < BOUNDARY_MARGIN);
-            near_right = find(pos(:,1) > WIDTH - BOUNDARY_MARGIN);
-            near_top   = find(pos(:,2) < BOUNDARY_MARGIN);
-            near_btm   = find(pos(:,2) > HEIGHT - BOUNDARY_MARGIN);
-            vel(near_left,  1) = vel(near_left,  1) + BOUNDARY_TURN_FACTOR;
-            vel(near_right, 1) = vel(near_right, 1) - BOUNDARY_TURN_FACTOR;
-            vel(near_top,   2) = vel(near_top,   2) + BOUNDARY_TURN_FACTOR;
-            vel(near_btm,   2) = vel(near_btm,   2) - BOUNDARY_TURN_FACTOR;
-            % Hard clamp position within bounds
+            % Hard clamp at boundaries
             pos(:,1) = max(0, min(WIDTH,  pos(:,1)));
             pos(:,2) = max(0, min(HEIGHT, pos(:,2)));
             if ENABLE_2c, pos(:,3) = max(0, min(DEPTH, pos(:,3))); end
@@ -1965,6 +1979,13 @@ end
 
     % ── Mode badge ─────────────────────────────────────────────────
     set(hTextBadge, 'String', mode_names{MODE + 1});
+
+    % ── Boundary mode badge ───────────────────────────────────────
+    if MARGIN_BOUNDARY
+        set(hTextBdyBadge, 'String', 'MARGIN', 'Color', [220 140 100]/255);
+    else
+        set(hTextBdyBadge, 'String', 'TOROIDAL', 'Color', [100 200 140]/255);
+    end
 
     % ── Pause indicator ────────────────────────────────────────────
     if paused

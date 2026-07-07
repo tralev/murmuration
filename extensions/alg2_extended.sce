@@ -60,6 +60,7 @@
 global NUM_BOIDS BOID_SIZE WIDTH HEIGHT VISUAL_RANGE DEPTH
 global MODE DIMENSIONS paused PHI_P PHI_A PHI_N PHI_S SIGMA
 global pending_add pending_remove pending_reset show_help
+global MARGIN_BOUNDARY BOUNDARY_MARGIN BOUNDARY_TURN_FACTOR
 global ENABLE_1a ENABLE_1b ENABLE_1c ENABLE_2a ENABLE_2b ENABLE_2c ENABLE_2d ENABLE_3a ENABLE_3b
 global K_VIEWPOINTS R_EXT BLIND_ANGLE_VAL PHI_STERIC STERIC_RADIUS
 global BOID_SEMI_MAJOR BOID_SEMI_MINOR BUFFER_SIZE_TAU CORR_SAMPLE_INTERVAL MAX_LAG_FRACTION
@@ -224,7 +225,7 @@ chunk_cells = list();                  // list of chunks
 // ║  SECTION 2c — FIGURE & GRAPHICS SETUP                              ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
-f = figure("Figure_name", "Murmuration Extended  [m:mode p:pause f:falcon h:help]", ...
+f = figure("Figure_name", "Murmuration Extended  [m:mode b:boundary p:pause f:falcon h:help]", ...
            "Position", [100, 100, WIDTH, HEIGHT], ...
            "Background", [20, 22, 30] / 255);
 f.event_handler = "key_handler";
@@ -997,6 +998,7 @@ function _draw_help_overlay_ext()
     lines = [..
         "CONTROLS                                       EXTENSIONS";..
         "────────────────────────────────────────  ────────────────────";..
+        "b      toggle  TOROIDAL / MARGIN       " + iif(ENABLE_1a,"1a ✓ direct velocity","1a ✗");..
         "m      toggle  PROJECTION / SPATIAL    " + iif(ENABLE_1a,"1a ✓ direct velocity","1a ✗");..
         "p      pause / resume                  " + iif(ENABLE_2a,"2a ✓ steric","2a ✗");..
         "f      toggle predator                 " + iif(ENABLE_2b,"2b ✓ blind","2b ✗");..
@@ -1036,7 +1038,7 @@ endfunction
 // ╚══════════════════════════════════════════════════════════════════════╝
 
 function key_handler(win_id, x, y, ibut)
-    global MODE paused PHI_P PHI_A SIGMA pending_add pending_remove pending_reset show_help predator_active
+    global MODE paused PHI_P PHI_A SIGMA pending_add pending_remove pending_reset show_help predator_active MARGIN_BOUNDARY
     if ibut < 0 then
         k = abs(ibut);
 
@@ -1044,6 +1046,11 @@ function key_handler(win_id, x, y, ibut)
             MODE = 1 - MODE;
             if MODE == 0 then disp("PROJECTION mode");
             else              disp("SPATIAL mode"); end
+
+        elseif k == 98 | k == 66 then  // b/B — boundary toggle
+            MARGIN_BOUNDARY = ~MARGIN_BOUNDARY;
+            if MARGIN_BOUNDARY then disp("MARGIN boundary");
+            else                   disp("TOROIDAL wrap"); end
 
         elseif k == 112 then  // p — pause
             paused = ~paused;
@@ -1503,6 +1510,19 @@ while running
 
         if ~ENABLE_1a | MODE == 1 then
             vel = vel + acc;
+
+            // ── Boundary nudge (margin mode — before speed clamp) ───
+            if MARGIN_BOUNDARY then
+                near_left  = find(pos(:,1) < BOUNDARY_MARGIN);
+                near_right = find(pos(:,1) > WIDTH - BOUNDARY_MARGIN);
+                near_top   = find(pos(:,2) < BOUNDARY_MARGIN);
+                near_btm   = find(pos(:,2) > HEIGHT - BOUNDARY_MARGIN);
+                vel(near_left,  1) = vel(near_left,  1) + BOUNDARY_TURN_FACTOR;
+                vel(near_right, 1) = vel(near_right, 1) - BOUNDARY_TURN_FACTOR;
+                vel(near_top,   2) = vel(near_top,   2) + BOUNDARY_TURN_FACTOR;
+                vel(near_btm,   2) = vel(near_btm,   2) - BOUNDARY_TURN_FACTOR;
+            end
+
             spd = sqrt(sum(vel.^2, 2));
             fast = find(spd > V0);
             if ~isempty(fast) then
@@ -1543,16 +1563,6 @@ while running
 
         // ── Boundary handling ───────────────────────────────────
         if MARGIN_BOUNDARY then
-            // keepWithinBounds: nudge velocity toward center near edges
-            near_left  = find(pos(:,1) < BOUNDARY_MARGIN);
-            near_right = find(pos(:,1) > WIDTH - BOUNDARY_MARGIN);
-            near_top   = find(pos(:,2) < BOUNDARY_MARGIN);
-            near_btm   = find(pos(:,2) > HEIGHT - BOUNDARY_MARGIN);
-            vel(near_left,  1) = vel(near_left,  1) + BOUNDARY_TURN_FACTOR;
-            vel(near_right, 1) = vel(near_right, 1) - BOUNDARY_TURN_FACTOR;
-            vel(near_top,   2) = vel(near_top,   2) + BOUNDARY_TURN_FACTOR;
-            vel(near_btm,   2) = vel(near_btm,   2) - BOUNDARY_TURN_FACTOR;
-            // Hard clamp position within bounds
             pos(:,1) = max(0, min(WIDTH,  pos(:,1)));
             pos(:,2) = max(0, min(HEIGHT, pos(:,2)));
             if ENABLE_2c then, pos(:,3) = max(0, min(DEPTH, pos(:,3))); end
@@ -1775,6 +1785,13 @@ while running
 
     // Mode badge
     xstring(WIDTH - 250, 5, mode_names(MODE + 1));
+
+    // Boundary mode badge
+    if MARGIN_BOUNDARY then
+        xstring(WIDTH - 250, 25, "MARGIN");
+    else
+        xstring(WIDTH - 250, 25, "TOROIDAL");
+    end
 
     // Pause indicator
     if paused then xstring(WIDTH/2 - 100, HEIGHT - 30, "PAUSED"); end

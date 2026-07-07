@@ -83,12 +83,30 @@ class Boid:
         """
         Euler integration step.
         v ← v + a               (apply accumulated steering)
+        boundary nudge          (margin mode: steer away from walls)
         speed clamped to [0.3·V₀, V₀]
         p ← p + v               (move)
-        toroidal wrap at edges
+        position clamp / wrap   (keep within bounds)
         a ← 0                   (reset steering accumulator)
         """
         self.velocity += self.acceleration
+
+        # ── Boundary nudge (margin mode — before speed clamp) ───
+        #  Nudging before the clamp means speed is re-normalized
+        #  afterward, eliminating the one-frame overshoot and
+        #  reducing wall-jitter from the speed floor.
+        if MARGIN_BOUNDARY:
+            # keepWithinBounds: nudge velocity toward center near edges
+            if self.position.x < BOUNDARY_MARGIN:
+                self.velocity.x += BOUNDARY_TURN_FACTOR
+            if self.position.x > WIDTH - BOUNDARY_MARGIN:
+                self.velocity.x -= BOUNDARY_TURN_FACTOR
+            if self.position.y < BOUNDARY_MARGIN:
+                self.velocity.y += BOUNDARY_TURN_FACTOR
+            if self.position.y > HEIGHT - BOUNDARY_MARGIN:
+                self.velocity.y -= BOUNDARY_TURN_FACTOR
+
+        # ── Speed clamp ────────────────────────────────────────
         speed = self.velocity.length()
         if speed > V0:
             self.velocity.scale_to_length(V0)
@@ -102,18 +120,8 @@ class Boid:
         self.position += self.velocity
         self.acceleration *= 0
 
-        # ── Boundary handling ───────────────────────────────────
+        # ── Position boundary handling ─────────────────────────
         if MARGIN_BOUNDARY:
-            # keepWithinBounds: nudge velocity toward center near edges,
-            # then hard-clamp position (matching boids.js behavior).
-            if self.position.x < BOUNDARY_MARGIN:
-                self.velocity.x += BOUNDARY_TURN_FACTOR
-            if self.position.x > WIDTH - BOUNDARY_MARGIN:
-                self.velocity.x -= BOUNDARY_TURN_FACTOR
-            if self.position.y < BOUNDARY_MARGIN:
-                self.velocity.y += BOUNDARY_TURN_FACTOR
-            if self.position.y > HEIGHT - BOUNDARY_MARGIN:
-                self.velocity.y -= BOUNDARY_TURN_FACTOR
             # Hard clamp position within bounds
             self.position.x = max(0, min(WIDTH, self.position.x))
             self.position.y = max(0, min(HEIGHT, self.position.y))
