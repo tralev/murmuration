@@ -14,46 +14,46 @@ and 3D (ModernGL GPU rendering) — that share only the pure-math occlusion
 geometry and the constants/config module.
 
 ```
-                    ┌──────────────────┐
-                    │  occlusion_geom  │  pure math — angular intervals
-                    └────────┬─────────┘
-                             │
-                    ┌────────▼─────────┐
-                    │   flock_core     │  constants, Config, SpatialGrid
-                    └────────┬─────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              │              │              │
-    ┌─────────▼────────┐    │    ┌─────────▼─────────┐
-    │  projection_model │    │    │   spatial_model   │
-    └─────────┬────────┘    │    └─────────┬─────────┘
-              │              │              │
-    ┌─────────▼────────┐    │              │
-    │      boid.py     │◄───┘──────────────┘
-    └─────────┬────────┘
-              │
-    ┌─────────▼────────┐
-    │    metrics.py    │────────────── external_opacity.py
-    └─────────┬────────┘
-              │
-    ┌─────────▼────────┐     ┌──────────────────┐
-    │    alg2.py       │────▶│  input_handler   │
-    │  (2D entry point)│     │  (imports boid,   │
-    └──────────────────┘     │   flock_core,      │
-                             │   scenario_presets)│
-                             └──────────────────┘
-                             ┌──────────────────┐
-                             │  simulation.py   │
-                             │  (imports boid,   │
-                             │   metrics,        │
-                             │   flock_core)     │
-                             └──────────────────┘
-                             ┌──────────────────┐
-                             │  help_overlay.py │
-                             └──────────────────┘
-                             ┌──────────────────┐
-                             │  focal_debug.py  │
-                             └──────────────────┘
+    ┌──────────────────┐        ┌──────────────────┐
+    │  occlusion_geom  │        │    flock_core    │
+    │  pure math —     │        │  constants,      │
+    │  angular         │        │  Config,         │
+    │  intervals       │        │  SpatialGrid     │
+    └────────┬─────────┘        └────────┬─────────┘
+             │   two zero-dependency     │
+             │   roots — flock_core      │
+             │   imports stdlib only     │
+             └────────────┬──────────────┘
+                          │  (imported by every module below)
+         ┌────────────────┼────────────────────┐
+         │                │                    │
+┌────────▼─────────┐ ┌────▼──────────────┐ ┌───▼──────────────┐
+│ projection_model │ │   spatial_model   │ │ external_opacity │
+└────────┬─────────┘ └────┬──────────────┘ └───┬──────────────┘
+         └───────┬────────┘                    │
+        ┌────────▼─────────┐          ┌────────▼─────────┐
+        │      boid.py     │          │    metrics.py    │
+        └────────┬─────────┘          └────────┬─────────┘
+                 │        metrics duck-types   │
+                 │        the flock — it does  │
+                 │        NOT import boid      │
+    ┌────────────┴─────────────┐               │
+    │                          │               │
+┌───▼──────────────┐ ┌─────────▼────────┐      │
+│  input_handler   │ │  simulation.py   │◄─────┘
+│  (also imports   │ │  (also imports   │
+│ scenario_presets)│ │   metrics)       │
+└───┬──────────────┘ └─────────┬────────┘
+    │                          │
+┌───▼──────────────────────────▼────────────────┐
+│           alg2.py  (2D entry point)           │
+│  also imports boid, metrics, help_overlay,    │
+│  and focal_debug directly                     │
+└───────────────────────────────────────────────┘
+
+    ┌──────────────────┐   ┌──────────────────┐
+    │  help_overlay.py │   │  focal_debug.py  │   (leaf render helpers —
+    └──────────────────┘   └──────────────────┘    import flock_core only)
 ```
 
 ### 3D Stack (independent of 2D, shares only occlusion_geom + flock_core)
@@ -85,6 +85,15 @@ geometry and the constants/config module.
     │  (imports scenario_presets for presets)  │
     └──────────────────────────────────────────┘
 
+    ┌──────────────────────────────────────────┐
+    │             capture_3d.py                │
+    │  headless 3D entry point — renders via   │
+    │  ModernGL FBO, assembles an animated     │
+    │  GIF with Pillow (same stack as main_3d, │
+    │  minus pygame, scenario_presets,         │
+    │  and features)                           │
+    └──────────────────────────────────────────┘
+
     ┌──────────────────┐
     │ scenario_presets │  (imported by both
     │  (imports        │   2D input_handler
@@ -98,9 +107,9 @@ geometry and the constants/config module.
 |------|--------|
 | No circular imports | Every module imports only "upstream" modules |
 | `occlusion_geom.py` has zero project dependencies | Pure math — imported by both 2D and 3D stacks |
-| `flock_core.py` depends only on `occlusion_geom` | Constants + Config shared by both stacks |
-| 3D modules use duck typing for boids | `spatial_3d.py` accesses `.pos`, `.vel`, `.apply_force()` without importing `boid_3d.py` |
-| Entry points import the full stack | `alg2.py` and `main_3d.py` are the only modules that import from every layer |
+| `flock_core.py` also has zero project dependencies | Constants + Config shared by both stacks — a second root alongside `occlusion_geom` (stdlib imports only) |
+| 3D modules use duck typing for boids | `spatial_3d.py` accesses `.pos`, `.vel`, `.apply_force()` without importing `boid_3d.py`; `metrics.py` duck-types the flock the same way |
+| Entry points import the full stack | `alg2.py`, `main_3d.py`, and headless `capture_3d.py` import from every layer of their stack. Note: `capture_3d.py` does not import `features`, so it bypasses the `ENABLE_3D` guard |
 
 ---
 
@@ -323,6 +332,7 @@ for algorithm testing).
 | `test_input_handler.py` | `input_handler.py` event processing | `pygame`, `flock_core` |
 | `test_features.py` | Feature flag gating (`features.py`) | `features`, `flock_core` |
 | `test_3d.py` | 3D physics, grid, flocking (39 tests) | `boid_3d`, `spatial_3d`, `flock_core` |
+| `test_count_mixin.py` | *(helper, contributes no tests)* — shared `TestCountMixin` for the per-module test-count discovery gates | None |
 | `extensions/test_extensions.py` | Extension modules | Various |
 
 Run all tests:
