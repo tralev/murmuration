@@ -46,9 +46,9 @@ end
 
 pos = pos + vel;
 
-// Toroidal wrap
-pos(:,1) = modulo(pos(:,1), WIDTH);
-pos(:,2) = modulo(pos(:,2), HEIGHT);
+// Toroidal wrap — pmodulo matches Octave mod() / Python % for negatives
+pos(:,1) = pmodulo(pos(:,1), WIDTH);
+pos(:,2) = pmodulo(pos(:,2), HEIGHT);
 
 // Print results
 for i = 1:size(pos,1)

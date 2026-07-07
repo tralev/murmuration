@@ -761,12 +761,17 @@ class TestToroidalWrapOctaveScilab(unittest.TestCase):
                     f"No shared keys in {name} check")
 
                 if sci_only:
+                    # sci_only holds test-ID prefixes (e.g. 'T31'), not
+                    # full key names — expand against the actual keys.
+                    sci_only_keys = {k for k in sci_keys
+                                     if any(k.startswith(p)
+                                            for p in sci_only)}
                     self.assertEqual(oct_keys - sci_keys, set(),
                         f"Unexpected Octave-only {name} keys: "
                         f"{sorted(oct_keys - sci_keys)}")
-                    self.assertEqual(sci_keys - oct_keys, sci_only,
+                    self.assertEqual(sci_keys - oct_keys, sci_only_keys,
                         f"Unexpected Scilab-only {name} keys: "
-                        f"{sorted((sci_keys - oct_keys) - sci_only)}")
+                        f"{sorted((sci_keys - oct_keys) - sci_only_keys)}")
                 else:
                     self.assertEqual(oct_keys, sci_keys,
                         f"{name} key set mismatch: "

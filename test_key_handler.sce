@@ -339,6 +339,9 @@ mprintf("T29_PHIP_AT_CEILING=%d\n", PHI_P == 1.0);
 phip30_before = PHI_P;
 phia30_before = PHI_A;
 sigma30_before = SIGMA;
+add30_before = pending_add;
+rmv30_before = pending_remove;
+reset30_before = pending_reset;
 
 key_handler(0, 0, 0, 1);     // ibut = 1 (positive, mouse click)
 key_handler(0, 0, 0, 100);   // ibut = 100 (mouse move)
@@ -351,6 +354,9 @@ mprintf("T30_MARGIN_UNCHANGED=%d\n", MARGIN_BOUNDARY == margin_before);
 mprintf("T30_MODE_UNCHANGED=%d\n", MODE == mode_before);
 mprintf("T30_PAUSED_UNCHANGED=%d\n", paused == paused_before);
 mprintf("T30_HELP_UNCHANGED=%d\n", show_help == help_before);
+mprintf("T30_PENDADD_UNCHANGED=%d\n", pending_add == add30_before);
+mprintf("T30_PENDRMV_UNCHANGED=%d\n", pending_remove == rmv30_before);
+mprintf("T30_RESET_UNCHANGED=%d\n", pending_reset == reset30_before);
 
 // ── T31: ibut = 0 boundary case (focused, isolated) ──────────────
 //  T30 tested ibut=0 mixed with +1/+100.  T31 verifies the boundary
