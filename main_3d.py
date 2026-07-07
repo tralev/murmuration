@@ -29,6 +29,15 @@
 
 import sys
 
+import features
+
+# ── Modularity guard — set features.ENABLE_3D = False to disable ──
+if not features.ENABLE_3D:
+    raise ImportError(
+        "3D simulation is disabled. "
+        "Set features.ENABLE_3D = True before importing main_3d."
+    )
+
 import pygame
 from pygame.locals import *
 

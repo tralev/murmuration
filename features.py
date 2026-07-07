@@ -3,37 +3,41 @@
 ║  FEATURE TOGGLES — enable/disable modules at import time            ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
-Set flags to True/False BEFORE importing simulation modules.
-Used by boid.py, alg2.py, and extensions to conditionally load features.
+Set flags to True/False BEFORE importing any simulation modules.
+Flags are read at module load time by the relevant modules to
+enable or disable features without code changes.
 
-Example:
+Example usage:
     import features
     features.ENABLE_TRAILS = False
-    features.ENABLE_FOCAL_DEBUG = True
-    from boid import Boid  # now runs without trails
+    features.ENABLE_3D = True
+    from boid import Boid          # runs without trails
+    from main_3d import main       # 3D simulation is enabled
 
-See USER_GUIDE.md for full list of features and their dependencies.
+Flag summary:
+    ENABLE_TRAILS         — position-history trail behind each boid
+    ENABLE_FOCAL_DEBUG    — focal bird debug overlay (F key)
+    ENABLE_GRID_OVERLAY   — spatial grid overlay (G key)
+    ENABLE_3D             — 3D simulation (requires moderngl, PyGLM)
+    ENABLE_CSV_LOGGING    — write metrics to CSV every N frames
+
+For the full module dependency graph and educational learning path,
+see USER_GUIDE.md and README.md (Step-by-Step Build Guide).
 ──────────────────────────────────────────────────────────────────────
 """
 
-# ── Core features  (affect boid.py and alg2.py) ────────────────────────
+# ── Visual features  (affect boid.py and alg2.py) ────────────────────
 
 ENABLE_TRAILS        = False   # position-history trail behind each boid
 ENABLE_FOCAL_DEBUG   = False   # focal bird debug overlay (F key)
 ENABLE_GRID_OVERLAY  = False   # spatial grid overlay (G key)
 
-# ── Behavioural features  (affect boid.py and extensions) ─────────────
+# ── Simulation mode  (affects which entry point modules are loaded) ──
 
-ENABLE_STERIC        = True    # steric repulsion between nearby boids
-ENABLE_BLIND_ANGLES  = True    # blind-angle occlusion filtering (rear 60°)
-ENABLE_ANISOTROPIC   = True    # elliptical bird body projection
+ENABLE_3D            = True    # 3D simulation (main_3d.py, renderer_3d.py,
+                               #   spatial_3d.py, boid_3d.py)
+                               #   Requires: moderngl, PyGLM, numpy
 
-# ── Performance features  (affect extensions) ──────────────────────────
-
-ENABLE_SPATIAL_OPT   = True    # spatial chunking optimisation (Priority 3b)
-ENABLE_PREDATOR      = False   # predator agent (Priority 7)
-ENABLE_3D            = False   # 3D simulation mode (Priority 2c)
-
-# ── Cross-language flags  (affect alg2.m / alg2.sce equivalents) ──────
+# ── Data output  (affects alg2.py, alg2.m, alg2.sce) ─────────────────
 
 ENABLE_CSV_LOGGING   = True    # write metrics to CSV every N frames

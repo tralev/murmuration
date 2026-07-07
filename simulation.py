@@ -110,7 +110,7 @@ def update_frame(config, flock, metrics, grid, frame, clock,
     metrics.update(flock, clock, config)
 
     # ── CSV logging  (every LOG_EVERY frames) ─────────────────
-    if log_fid is not None and frame % LOG_EVERY == 0:
+    if features.ENABLE_CSV_LOGGING and log_fid is not None and frame % LOG_EVERY == 0:
         fps_val = clock.get_fps()
         n = len(flock)
         log_fid.write(
