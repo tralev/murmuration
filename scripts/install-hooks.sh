@@ -2,9 +2,10 @@
 # install-hooks.sh — Install git hooks for this repository.
 #
 # Installs a pre-commit hook that:
-#   1. Runs the TestDiscovery count check (prevents test-count drift).
-#   2. Runs the full Python test suite (457 tests on 11 test modules).
-# If either fails, the commit is blocked.
+#   1. Runs py_compile syntax check on all .py files.
+#   2. Runs the TestDiscovery count check (prevents test-count drift).
+#   3. Runs the full Python test suite (457 tests on 11 test modules).
+# If any fails, the commit is blocked.
 #
 # Usage:
 #   ./scripts/install-hooks.sh
@@ -23,21 +24,39 @@ fi
 
 cat > "$HOOK" << 'EOF'
 #!/usr/bin/env bash
-# pre-commit — Test count gate → full test suite.
-# If either stage fails, the commit is blocked.
+# pre-commit — Syntax check → test-count gate → full test suite.
+# If any stage fails, the commit is blocked.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  PRE-COMMIT  —  Stage 1/2  (test-count gate)               ║"
+echo "║  PRE-COMMIT  —  Stage 1/3  (syntax check)                  ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
+find . -name '*.py' \
+    -not -path './.git/*' \
+    -not -path './venv/*' \
+    -not -path './__pycache__/*' \
+    -print0 | xargs -0 -P 4 python3 -m py_compile 2>&1 || {
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║  COMMIT BLOCKED — syntax errors found above.                ║"
+    echo "║  Fix the syntax errors before committing.                   ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    exit 1
+}
+echo "  ✓ syntax OK"
+
+echo ""
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║  PRE-COMMIT  —  Stage 2/3  (test-count gate)               ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 ./scripts/check-test-count.sh --quiet
 echo "  ✓ test counts consistent"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  PRE-COMMIT  —  Stage 2/2  (Python test suite)             ║"
+echo "║  PRE-COMMIT  —  Stage 3/3  (Python test suite)             ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 python3 -m unittest \
     test_occlusion \
@@ -67,4 +86,4 @@ EOF
 
 chmod +x "$HOOK"
 echo "✓ Installed $HOOK"
-echo "  Pre-commit will now run: test-count gate → full test suite (457 tests)"
+echo "  Pre-commit will now run: syntax check → test-count gate → full test suite (457 tests)"
