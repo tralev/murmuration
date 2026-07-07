@@ -128,6 +128,28 @@ from main_3d import main     # 3D guard passes
 | `ENABLE_3D` | `True` | `main_3d.py` (import guard) | `import main_3d` raises `ImportError` — 3D modules never loaded |
 | `ENABLE_CSV_LOGGING` | `True` | `alg2.py` (file open), `simulation.py` (row writes) | No CSV file created; no rows written |
 
+### Complete flag declarations
+
+For reference, here is the full content of [`features.py`](features.py):
+
+```python
+# ── Visual features  (affect boid.py and alg2.py) ────────────────────
+
+ENABLE_TRAILS        = False   # position-history trail behind each boid
+ENABLE_FOCAL_DEBUG   = False   # focal bird debug overlay (F key)
+ENABLE_GRID_OVERLAY  = False   # spatial grid overlay (G key)
+
+# ── Simulation mode  (affects which entry point modules are loaded) ──
+
+ENABLE_3D            = True    # 3D simulation (main_3d.py, renderer_3d.py,
+                               #   spatial_3d.py, boid_3d.py)
+                               #   Requires: moderngl, PyGLM, numpy
+
+# ── Data output  (affects alg2.py, alg2.m, alg2.sce) ─────────────────
+
+ENABLE_CSV_LOGGING   = True    # write metrics to CSV every N frames
+```
+
 ### Pattern for wiring a new flag
 
 1. **Define the flag** in `features.py` with a clear docstring.
