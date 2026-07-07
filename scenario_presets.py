@@ -1,4 +1,8 @@
 """
+╔══════════════════════════════════════════════════════════════════════╗
+║  SECTION 5a — SCENARIO PRESETS                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
 Scenario presets for the murmuration simulation.
 
 Each preset is a dict of parameter overrides applied when the user
@@ -6,6 +10,15 @@ presses a number key (1-5, 6-0) or a letter key (s, l, i, v, k, q).
 Press 3 (Pearce Default) to restore the canonical paper parameters.
 
 Students can add their own presets — just append to the PRESETS dict.
+
+The same 16 presets are available via the same number/letter keys in
+alg2.m (GNU Octave) and alg2.sce (Scilab) for cross-language comparison.
+
+3D presets (keys a–h, excluding 'g' which is reserved for grid toggle)
+are separately listed in PRESETS_3D and are
+specifically tuned for the larger 3D simulation volume (1000×700×400)
+with altitude cohesion in PROJECTION mode and full 3D steering in
+SPATIAL mode.
 """
 
 from flock_core import (
@@ -82,10 +95,9 @@ PRESETS = {
     },
 
     # ═══════════════════════════════════════════════════════════════
-    #  Companion presets (keys 6-0) — inspired by the TypeScript/Three.js
-    #  murmuration project with 11 richly-tuned scenarios.
-    #  Note: companion project flock sizes (3,000-16,000) are scaled
-    #  down to Python's ~200-bird performance ceiling.
+    #  Companion presets (keys 6-0) — 11 additional scenarios
+    #  tuned for smaller flock sizes (~200 birds vs 3,000–16,000
+    #  in larger-scale implementations).
     # ═══════════════════════════════════════════════════════════════
 
     # ── Preset 6: Quiet Roost ─────────────────────────────────────
@@ -150,7 +162,6 @@ PRESETS = {
 
     # ═══════════════════════════════════════════════════════════════
     #  Additional companion presets (letter keys s, l, i, v, k, q).
-    #  Inspired by the 11-preset TypeScript/Three.js companion project.
     # ═══════════════════════════════════════════════════════════════
 
     # ── Preset s: Swarm Pilot ─────────────────────────────────────
@@ -248,4 +259,141 @@ def apply_preset(config, preset_key) -> str:
     config.mode  = preset["mode"]
 
     print(f"[PRESET {preset_key}] {preset['description']}")
+    return preset["label"]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  3D-SPECIFIC SCENARIO PRESETS  (keys a–h)
+# ═══════════════════════════════════════════════════════════════════════
+#
+#  Tuned for the larger 3D volume (1000 × 700 × 400).
+#  In PROJECTION mode, altitude cohesion pulls birds toward the mean Z
+#  of visible neighbours, creating natural vertical layering.
+#  In SPATIAL mode, all three steering forces operate in full 3D.
+
+PRESETS_3D = {
+    # ── Preset a: 3D Pearce Default ───────────────────────────
+    #  Canonical bird-flock parameters adapted for 3D volume.
+    #  Slightly higher φp and σ to maintain cohesion at lower
+    #  effective density (same N in a larger volume).
+    'a': {
+        "label":      "PRESET a — 3D Pearce Default  (marginal opacity)",
+        "phi_p":      0.04,
+        "phi_a":      0.80,
+        "sigma":      6,
+        "mode":       MODE_PROJECTION,
+        "description": "Paper parameters adapted for 3D. Marginal opacity.",
+    },
+
+    # ── Preset b: Ball of Birds ──────────────────────────────
+    #  Very strong projection creates a dense spherical cluster.
+    #  Altitude cohesion keeps birds at a narrow Z-band.
+    'b': {
+        "label":      "PRESET b — Ball of Birds  (dense sphere)",
+        "phi_p":      0.18,
+        "phi_a":      0.70,
+        "sigma":      7,
+        "mode":       MODE_PROJECTION,
+        "description": "Strong projection → dense 3D sphere. Narrow altitude band.",
+    },
+
+    # ── Preset c: Storm Cloud ────────────────────────────────
+    #  Low alignment, high noise. Birds disperse through the
+    #  full 3D volume like a storm cloud — little cohesion.
+    'c': {
+        "label":      "PRESET c — Storm Cloud  (dispersed 3D)",
+        "phi_p":      0.06,
+        "phi_a":      0.45,
+        "sigma":      3,
+        "mode":       MODE_PROJECTION,
+        "description": "Low alignment, high noise. Birds fill the 3D volume.",
+    },
+
+    # ── Preset d: 3D Stream ──────────────────────────────────
+    #  SPATIAL mode with strong separation produces a directional
+    #  stream — birds maintain distance while moving together.
+    'd': {
+        "label":      "PRESET d — 3D Stream  (directional school)",
+        "phi_p":      0.25,
+        "phi_a":      0.55,
+        "sigma":      8,
+        "mode":       MODE_SPATIAL,
+        "description": "Strong 3D separation. Directional stream formation.",
+    },
+
+    # ── Preset e: Vertical Column ────────────────────────────
+    #  Altitude cohesion dominates → birds form pancake-like
+    #  layers at similar altitudes, creating a vertical column.
+    'e': {
+        "label":      "PRESET e — Vertical Column  (layered pancake)",
+        "phi_p":      0.10,
+        "phi_a":      0.75,
+        "sigma":      6,
+        "mode":       MODE_PROJECTION,
+        "description": "Altitude cohesion → vertical layering. Column shape.",
+    },
+
+    # ── Preset f: 3D Acro ────────────────────────────────────
+    #  Very light projection, few neighbours. Birds execute
+    #  rapid 3D turns — like a flock evading a predator.
+    'f': {
+        "label":      "PRESET f — 3D Acro  (rapid 3D turns)",
+        "phi_p":      0.02,
+        "phi_a":      0.85,
+        "sigma":      3,
+        "mode":       MODE_PROJECTION,
+        "description": "Light projection, few neighbours. Acrobatic 3D flight.",
+    },
+
+    # ── Preset w: Spiral Vortex ──────────────────────────────
+    #  Many neighbours + high alignment in SPATIAL mode →
+    #  birds synchronise into a rotating 3D vortex.
+    'w': {
+        "label":      "PRESET w — Spiral Vortex  (rotating 3D)",
+        "phi_p":      0.08,
+        "phi_a":      0.82,
+        "sigma":      10,
+        "mode":       MODE_SPATIAL,
+        "description": "Many neighbours, high alignment. 3D spiral vortex.",
+    },
+
+    # ── Preset h: 3D Void ────────────────────────────────────
+    #  Very strong separation in SPATIAL mode → birds push
+    #  apart in all 3 dimensions, creating cavity voids.
+    'h': {
+        "label":      "PRESET h — 3D Void  (cavity voids)",
+        "phi_p":      0.35,
+        "phi_a":      0.58,
+        "sigma":      9,
+        "mode":       MODE_SPATIAL,
+        "description": "Maximum 3D separation. Hollow cavity formations.",
+    },
+}
+
+
+def apply_preset_3d(config, preset_key) -> str:
+    """
+    Apply a 3D-specific scenario preset to the given Config object.
+
+    These presets are tuned for the larger 3D simulation volume
+    (1000×700×400) and account for altitude cohesion in PROJECTION
+    mode and full 3D steering in SPATIAL mode.
+
+    Args:
+        config: Config object to mutate in place.
+        preset_key: str — one of 'a' through 'h'.
+
+    Returns the preset label for display,
+    or empty string if the key is not a valid 3D preset.
+    """
+    preset = PRESETS_3D.get(preset_key)
+    if preset is None:
+        return ""
+
+    config.phi_p = preset["phi_p"]
+    config.phi_a = preset["phi_a"]
+    config.sigma = preset["sigma"]
+    config.mode  = preset["mode"]
+
+    print(f"[3D PRESET {preset_key}] {preset['description']}")
     return preset["label"]

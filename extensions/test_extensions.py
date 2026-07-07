@@ -10,6 +10,10 @@ Covers:
   - PredatorBoid                — predator flight response
   - Inheritance chain           — MRO correctness
 """
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  SECTION T2 — EXTENSION UNIT TESTS  (blind, steric, predator, 3D)   ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
 
 import math
 import random
@@ -57,9 +61,9 @@ from flock_core import (
 TWO_PI = 2 * math.pi
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  _interval_in_blind_region
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  _interval_in_blind_region                                           ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestIntervalInBlindRegion(unittest.TestCase):
     """Tests for _interval_in_blind_region(start, end, blind_start, blind_end)."""
@@ -145,9 +149,9 @@ class TestIntervalInBlindRegion(unittest.TestCase):
         self.assertFalse(_interval_in_blind_region(2.0, 4.0, 1.0, 1.5))
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  DirectVelocityBoid
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  DirectVelocityBoid                                                  ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestDirectVelocityBoid(unittest.TestCase):
     """Tests for DirectVelocityBoid — mode stashing, direct velocity setting."""
@@ -243,9 +247,9 @@ class TestDirectVelocityBoid(unittest.TestCase):
         self.assertAlmostEqual(self.boid.velocity.length(), V0 * 0.3, places=1)
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  StericBoid
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  StericBoid                                                          ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestStericBoid(unittest.TestCase):
     """Tests for StericBoid — steric repulsion between nearby boids."""
@@ -305,9 +309,9 @@ class TestStericBoid(unittest.TestCase):
                            "Distant boids should not be pulled together by steric")
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  BlindAnglesBoid
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  BlindAnglesBoid                                                     ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestBlindAnglesBoid(unittest.TestCase):
     """Tests for BlindAnglesBoid — blind-angle filtering in occlusion."""
@@ -376,9 +380,9 @@ class TestBlindAnglesBoid(unittest.TestCase):
         self.assertEqual(merged, [])
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  Predator
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Predator                                                            ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestPredator(unittest.TestCase):
     """Tests for Predator — init, update, speed clamp, toroidal wrap."""
@@ -494,9 +498,9 @@ class TestPredator(unittest.TestCase):
         self.assertGreaterEqual(predator.position.x, 0)
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  PredatorBoid
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  PredatorBoid                                                        ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestPredatorBoid(unittest.TestCase):
     """Tests for PredatorBoid — predator flight response."""
@@ -580,9 +584,9 @@ class TestPredatorBoid(unittest.TestCase):
         self.assertEqual(self.boid.velocity, old_vel)
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  Inheritance chain
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Inheritance chain                                                   ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestInheritanceChain(unittest.TestCase):
     """Verify that the extension class hierarchy is correct."""
@@ -631,9 +635,9 @@ class TestInheritanceChain(unittest.TestCase):
             self.assertIn(cls_name, mro)
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  Integration: end-to-end blind angle occlusion workflow
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Integration: end-to-end blind angle occlusion workflow              ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestBlindOcclusionWorkflow(unittest.TestCase):
     """
@@ -682,9 +686,9 @@ class TestBlindOcclusionWorkflow(unittest.TestCase):
 
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  Anisotropic bodies — Priority 2d
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Anisotropic bodies — Priority 2d                                    ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestAnisotropicBoid(unittest.TestCase):
     """Tests for AnisotropicBoid — elliptical birds."""
@@ -759,9 +763,9 @@ class TestAnisotropicBoid(unittest.TestCase):
         self.assertAlmostEqual(theta, 0.0)
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  3D extension — Priority 2c
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  3D extension — Priority 2c                                          ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestFibonacciSphere(unittest.TestCase):
     """Tests for fibonacci_sphere()."""
@@ -895,9 +899,9 @@ class TestBoid3D(unittest.TestCase):
         self.assertIsInstance(boid, Boid)
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  Spatial optimization — Priority 3b
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Spatial optimization — Priority 3b                                  ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestSpatialChunker(unittest.TestCase):
     """Tests for SpatialChunker."""
@@ -1006,9 +1010,9 @@ class TestOptimizedBoid(unittest.TestCase):
         self.assertAlmostEqual(theta, 0.0)
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  Convex hull (Graham scan) — Priority 1c
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Convex hull (Graham scan) — Priority 1c                             ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestConvexHullArea(unittest.TestCase):
     """Tests for convex_hull_area()."""
@@ -1065,9 +1069,9 @@ class TestConvexHullArea(unittest.TestCase):
         self.assertAlmostEqual(area, 1000.0 * 700.0)
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  Correlation time tracker — Priority 1c
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Correlation time tracker — Priority 1c                              ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestCorrelationTimeTracker(unittest.TestCase):
     """Tests for CorrelationTimeTracker."""
@@ -1150,9 +1154,9 @@ class TestCorrelationTimeTracker(unittest.TestCase):
         self.assertLessEqual(self.tracker.buffer_size, BUFFER_SIZE)
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  External opacity from multiple viewpoints (Priority 1b)
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  External opacity from multiple viewpoints (Priority 1b)             ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestMultiViewpointOpacity(unittest.TestCase):
     """Tests for external_opacity_multi_viewpoint()."""
@@ -1367,9 +1371,9 @@ class TestFlockMetricsExtended(unittest.TestCase):
         self.assertAlmostEqual(self.metrics.dispersion, 0.0, places=1)
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  Test discovery sanity check
-# ══════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Test discovery sanity check                                         ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count to catch accidental regressions in discovery."""

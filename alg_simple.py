@@ -1,4 +1,8 @@
 """
+╔══════════════════════════════════════════════════════════════════════╗
+║  SECTION 0 — MINIMAL BOIDS  (student starting point)                 ║
+╚══════════════════════════════════════════════════════════════════════╝
+
 alg_simple.py — Minimal flocking simulation for students.
 
 Read this FIRST before diving into the full module structure
@@ -10,6 +14,9 @@ This is the simplest possible boids simulation:
   - ~70 lines — one file, one class, one loop
 
 Run:  pip install pygame && python alg_simple.py
+
+See alg2.m (GNU Octave) and alg2.sce (Scilab) for the full simulation
+with occlusion-aware projection, external opacity, and 16 presets.
 """
 
 import pygame

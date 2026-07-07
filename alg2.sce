@@ -136,7 +136,7 @@ end
 //  Pre-register custom colours once to avoid colormap pollution.
 // ──────────────────────────────────────────────────────────────────────
 
-f = figure("Figure_name", "Murmuration  [m:mode b:boundary p:pause r:reset h:help]", ...
+f = figure("Figure_name", "Murmuration  [1-0/sl:presets m:mode b:boundary p:pause r:reset h:help]", ...
            "Position", [100, 100, WIDTH, HEIGHT], ...
            "Background", [20, 22, 30] / 255);
 f.event_handler = "key_handler";
@@ -172,7 +172,9 @@ HELP_GOLD_IDX = addcolor([200, 200, 160] / 255);
 //  Both variants are handled for cross-platform compatibility.
 //
 //  Key map:
+//    1-5,6-9,0,s,l,i,v,k,q  — scenario presets (φp, φa, σ, mode)
 //    m/M  (109/77)   — toggle MODE
+//    b/B  (98/66)    — toggle TOROIDAL / MARGIN boundary
 //    p/P  (112/80)   — toggle pause
 //    ↑↓   (38/40, 65362/65364) — φp ± 0.01
 //    ←→   (37/39, 65361/65363) — φa ± 0.01
@@ -247,6 +249,59 @@ function key_handler(win_id, x, y, ibut)
         elseif k == 104 | k == 72 then
             show_help = ~show_help;
             if show_help then disp("Help ON"); else disp("Help OFF"); end
+
+        // ── Scenario presets  (1-5, 6-0, s, l, i, v, k, q) ─────
+        //  ASCII: 1=49,2=50,3=51,4=52,5=53,6=54,7=55,8=56,9=57,0=48
+        //         s=115,S=83, l=108,L=76, i=105,I=73
+        //         v=118,V=86, k=107,K=75, q=113,Q=81
+        elseif k == 49 then
+            PHI_P = 0.00; PHI_A = 0.95; SIGMA = 8; MODE = 0;
+            disp("PRESET 1 — Pure Alignment");
+        elseif k == 50 then
+            PHI_P = 0.10; PHI_A = 0.20; SIGMA = 2; MODE = 0;
+            disp("PRESET 2 — Gas / Exploration");
+        elseif k == 51 then
+            PHI_P = 0.03; PHI_A = 0.80; SIGMA = 4; MODE = 0;
+            disp("PRESET 3 — Pearce Default");
+        elseif k == 52 then
+            PHI_P = 0.15; PHI_A = 0.70; SIGMA = 6; MODE = 0;
+            disp("PRESET 4 — Dense Ball");
+        elseif k == 53 then
+            PHI_P = 0.30; PHI_A = 0.50; SIGMA = 4; MODE = 1;
+            disp("PRESET 5 — Classic Boids (SPATIAL)");
+        elseif k == 54 then
+            PHI_P = 0.08; PHI_A = 0.82; SIGMA = 8; MODE = 0;
+            disp("PRESET 6 — Quiet Roost");
+        elseif k == 55 then
+            PHI_P = 0.04; PHI_A = 0.88; SIGMA = 5; MODE = 0;
+            disp("PRESET 7 — Comfort Flight");
+        elseif k == 56 then
+            PHI_P = 0.02; PHI_A = 0.85; SIGMA = 3; MODE = 0;
+            disp("PRESET 8 — Acro Swarm");
+        elseif k == 57 then
+            PHI_P = 0.30; PHI_A = 0.55; SIGMA = 8; MODE = 1;
+            disp("PRESET 9 — Predator Ripple (SPATIAL)");
+        elseif k == 48 then
+            PHI_P = 0.20; PHI_A = 0.72; SIGMA = 10; MODE = 1;
+            disp("PRESET 0 — Storm Turn (SPATIAL)");
+        elseif k == 115 | k == 83 then
+            PHI_P = 0.05; PHI_A = 0.85; SIGMA = 6; MODE = 0;
+            disp("PRESET s — Swarm Pilot");
+        elseif k == 108 | k == 76 then
+            PHI_P = 0.12; PHI_A = 0.65; SIGMA = 7; MODE = 0;
+            disp("PRESET l — Lava Lamp");
+        elseif k == 105 | k == 73 then
+            PHI_P = 0.02; PHI_A = 0.40; SIGMA = 2; MODE = 0;
+            disp("PRESET i — Ink Cloud");
+        elseif k == 118 | k == 86 then
+            PHI_P = 0.35; PHI_A = 0.60; SIGMA = 9; MODE = 1;
+            disp("PRESET v — Vacuole (SPATIAL)");
+        elseif k == 107 | k == 75 then
+            PHI_P = 0.02; PHI_A = 0.92; SIGMA = 6; MODE = 0;
+            disp("PRESET k — Silk Sheet");
+        elseif k == 113 | k == 81 then
+            PHI_P = 0.20; PHI_A = 0.55; SIGMA = 10; MODE = 1;
+            disp("PRESET q — Quest 2 Dense (SPATIAL)");
         end
     end
 endfunction
@@ -519,6 +574,7 @@ function _draw_help_overlay()
     lines = [..
         "CONTROLS";..
         "───────────────────────────────────";..
+        "1-5,6-0,s,l,i,v,k,q  scenario presets";..
         "m        toggle  PROJECTION / SPATIAL";..
         "b        toggle  TOROIDAL / MARGIN boundary";..
         "p        pause / resume";..
@@ -585,7 +641,7 @@ side_len  = BOID_SIZE * 1.5;
 side_ang  = 2.3;
 
 disp("Running — close the figure window to stop.");
-disp("  Keys:  m:mode  p:pause  arrows:φ  []:σ  +/-:boids  r:reset  h:help");
+disp("  Keys:  1-0/sl:presets  m:mode  p:pause  arrows:φ  []:σ  +/-:boids  r:reset  h:help");
 
 // ═══════════════════════════════════════════════════════════════════
 //  MAIN FRAME LOOP
@@ -859,7 +915,11 @@ while running
         // ───────────────────────────────────────────────────────────
         vel = vel + acc;
 
-            // keepWithinBounds: nudge velocity toward center near edges
+        // ── Boundary nudge (margin mode — before speed clamp) ───
+        //  Nudging before the clamp means speed is re-normalized
+        //  afterward, eliminating the one-frame overshoot and
+        //  reducing wall-jitter from the speed floor.
+        if MARGIN_BOUNDARY then
             near_left  = find(pos(:,1) < BOUNDARY_MARGIN);
             near_right = find(pos(:,1) > WIDTH - BOUNDARY_MARGIN);
             near_top   = find(pos(:,2) < BOUNDARY_MARGIN);
@@ -868,6 +928,7 @@ while running
             vel(near_right, 1) = vel(near_right, 1) - BOUNDARY_TURN_FACTOR;
             vel(near_top,   2) = vel(near_top,   2) + BOUNDARY_TURN_FACTOR;
             vel(near_btm,   2) = vel(near_btm,   2) - BOUNDARY_TURN_FACTOR;
+        end
 
         spd = sqrt(sum(vel.^2, 2));
 

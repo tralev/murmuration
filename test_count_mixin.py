@@ -1,4 +1,8 @@
 """
+╔══════════════════════════════════════════════════════════════════════╗
+║  TestCountMixin — shared discovery gate                              ║
+╚══════════════════════════════════════════════════════════════════════╝
+
 Shared mixin for TestDiscovery sanity checks.
 
 Usage:

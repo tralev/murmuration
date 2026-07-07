@@ -134,7 +134,7 @@ end
 % ──────────────────────────────────────────────────────────────────────
 
 f = figure('Name', ...
-    'Murmuration  [m:mode b:boundary p:pause arrows:phi []:sigma +/-:boids r:reset h:help]', ...
+    'Murmuration  [1-0/sl:presets m:mode b:boundary p:pause arrows:phi []:sigma +/-:boids r:reset h:help]', ...
     'NumberTitle', 'off', ...
     'Position', [100, 100, WIDTH, HEIGHT], ...
     'Color', [0.08 0.09 0.12]);
@@ -173,6 +173,7 @@ hTextPause  = text(WIDTH/2-100, HEIGHT-30, '', ...
 help_str = sprintf([ ...
     'CONTROLS\n', ...
     '───────────────────────────────\n', ...
+    '1-5,6-0,s,l,i,v,k,q  scenario presets\n', ...
     'm        toggle  PROJECTION / SPATIAL\n', ...
     'b        toggle  TOROIDAL / MARGIN boundary\n', ...
     'p        pause / resume\n', ...
@@ -205,6 +206,8 @@ hHelp = text(WIDTH-345, HEIGHT-10, help_str, ...
 %  main loop to avoid race conditions during rendering.
 %
 %  Key map (event.Key strings):
+%    1-5,6-9,0,s,l,i,v,k,q — scenario presets (φp, φa, σ, mode)
+%    b/B      — toggle TOROIDAL / MARGIN boundary
 %    m/M      — toggle MODE (PROJECTION ↔ SPATIAL)
 %    p/P      — toggle pause
 %    up/down  — φp ± 0.01
@@ -222,6 +225,56 @@ function key_handler(src, event)
     global MARGIN_BOUNDARY
 
     switch event.Key
+        % ── Scenario presets  (1-5, 6-0, s, l, i, v, k, q) ────────
+        case {'1'}
+            PHI_P = 0.00; PHI_A = 0.95; SIGMA = 8; MODE = 0;
+            disp('PRESET 1 — Pure Alignment');
+        case {'2'}
+            PHI_P = 0.10; PHI_A = 0.20; SIGMA = 2; MODE = 0;
+            disp('PRESET 2 — Gas / Exploration');
+        case {'3'}
+            PHI_P = 0.03; PHI_A = 0.80; SIGMA = 4; MODE = 0;
+            disp('PRESET 3 — Pearce Default');
+        case {'4'}
+            PHI_P = 0.15; PHI_A = 0.70; SIGMA = 6; MODE = 0;
+            disp('PRESET 4 — Dense Ball');
+        case {'5'}
+            PHI_P = 0.30; PHI_A = 0.50; SIGMA = 4; MODE = 1;
+            disp('PRESET 5 — Classic Boids (SPATIAL)');
+        case {'6'}
+            PHI_P = 0.08; PHI_A = 0.82; SIGMA = 8; MODE = 0;
+            disp('PRESET 6 — Quiet Roost');
+        case {'7'}
+            PHI_P = 0.04; PHI_A = 0.88; SIGMA = 5; MODE = 0;
+            disp('PRESET 7 — Comfort Flight');
+        case {'8'}
+            PHI_P = 0.02; PHI_A = 0.85; SIGMA = 3; MODE = 0;
+            disp('PRESET 8 — Acro Swarm');
+        case {'9'}
+            PHI_P = 0.30; PHI_A = 0.55; SIGMA = 8; MODE = 1;
+            disp('PRESET 9 — Predator Ripple (SPATIAL)');
+        case {'0'}
+            PHI_P = 0.20; PHI_A = 0.72; SIGMA = 10; MODE = 1;
+            disp('PRESET 0 — Storm Turn (SPATIAL)');
+        case {'s', 'S'}
+            PHI_P = 0.05; PHI_A = 0.85; SIGMA = 6; MODE = 0;
+            disp('PRESET s — Swarm Pilot');
+        case {'l', 'L'}
+            PHI_P = 0.12; PHI_A = 0.65; SIGMA = 7; MODE = 0;
+            disp('PRESET l — Lava Lamp');
+        case {'i', 'I'}
+            PHI_P = 0.02; PHI_A = 0.40; SIGMA = 2; MODE = 0;
+            disp('PRESET i — Ink Cloud');
+        case {'v', 'V'}
+            PHI_P = 0.35; PHI_A = 0.60; SIGMA = 9; MODE = 1;
+            disp('PRESET v — Vacuole (SPATIAL)');
+        case {'k', 'K'}
+            PHI_P = 0.02; PHI_A = 0.92; SIGMA = 6; MODE = 0;
+            disp('PRESET k — Silk Sheet');
+        case {'q', 'Q'}
+            PHI_P = 0.20; PHI_A = 0.55; SIGMA = 10; MODE = 1;
+            disp('PRESET q — Quest 2 Dense (SPATIAL)');
+
         % ── Mode toggle ────────────────────────────────────────────
         case {'m', 'M'}
             MODE = 1 - MODE;                % 0 ↔ 1
@@ -566,7 +619,7 @@ mode_names = {'PROJECTION  (Pearce et al. 2014)', ...
               'SPATIAL     (topological Reynolds)'};
 
 disp('Running — close the figure window to stop.');
-disp('  Keys:  m:mode  p:pause  arrows:phi  []:sigma  +/-:boids  r:reset  h:help');
+disp('  Keys:  1-0/sl:presets  m:mode  p:pause  arrows:phi  []:sigma  +/-:boids  r:reset  h:help');
 
 % ═══════════════════════════════════════════════════════════════════
 %  MAIN FRAME LOOP

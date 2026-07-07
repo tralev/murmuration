@@ -18,16 +18,19 @@ import math
 import random
 import pygame
 
+import features
+
 from occlusion_geom import (
     _normalise_interval,
-    _interval_covered,
-    _merge_interval,
     _merge_all,
 )
+
+import projection_model
+import spatial_model
 from flock_core import (
-    WIDTH, HEIGHT, V0, BOID_SIZE, MAX_FORCE, VISUAL_RANGE,
+    WIDTH, HEIGHT, V0, BOID_SIZE,
     MODE_PROJECTION, MODE_SPATIAL,
-    DRAW_TRAIL, TRAIL_LENGTH,
+    TRAIL_LENGTH,
     MARGIN_BOUNDARY, BOUNDARY_MARGIN, BOUNDARY_TURN_FACTOR,
     Config, SpatialGrid,
 )
@@ -133,7 +136,7 @@ class Boid:
             elif self.position.y < 0:      self.position.y = HEIGHT
 
         # ── Trail history ──────────────────────────────────────
-        if DRAW_TRAIL:
+        if features.ENABLE_TRAILS:
             self.history.append(pygame.Vector2(self.position))
             if len(self.history) > TRAIL_LENGTH:
                 self.history.pop(0)
@@ -177,6 +180,7 @@ class Boid:
     def _flock_projection(self, boids: list, config: Config):
         """
         Hybrid projection model update for one bird.
+        Delegates to projection_model.flock_projection().
 
         Steps:
           1. Compute δ̂, visible neighbours, and Θ via angular occlusion.
@@ -185,68 +189,12 @@ class Boid:
           4. Desired direction: v = φp·δ̂ + φa·⟨v̂⟩ + φn·η̂
           5. Reynolds steering toward desired direction.
         """
-        # ── Step 1: projection direction & visible neighbours ──────
-        #  O(N log N) — compute angular intervals to all other birds,
-        #  merge them closest-first, and determine δ̂ from domain boundaries.
-        delta, visible, theta, merged = self._compute_projection_and_visibility(boids)
-        self._last_theta = theta
-        self._debug_delta = delta
-        self._debug_merged = merged
-
-        # ── Step 2: alignment with σ nearest visible neighbours ────
-        #  ⟨v̂_j⟩_visible — mean velocity direction of σ closest visible birds.
-        align = pygame.Vector2(0, 0)
-        if visible:
-            nearest = visible[:config.sigma]
-            for nb, _ in nearest:
-                align += nb.velocity
-            align /= len(nearest)
-
-        # ── Step 3: noise — random unit vector η̂ ──────────────────
-        na = random.uniform(0, 2 * math.pi)
-        noise = pygame.Vector2(math.cos(na), math.sin(na))
-
-        # 🎓 TEACHING MOMENT:  Eq. 3 from Pearce et al. (2014)
-        #  v_desired = φp·δ̂ + φa·⟨v̂⟩ + φn·η̂
-        #  This *replaces* the classic separation + cohesion forces.
-        #  The projection term δ̂ alone is enough to keep the flock
-        #  together — no explicit attraction/repulsion needed.
-        desired = delta * config.phi_p
-        if align.length() > 0.001:
-            desired += align.normalize() * config.phi_a
-        else:
-            if self.velocity.length() > 0.001:
-                desired += self.velocity.normalize() * config.phi_a
-        desired += noise * config.phi_n
-
-        if desired.length() < 0.001:
-            desired = pygame.Vector2(random.uniform(-1, 1), random.uniform(-1, 1))
-
-        # Normalise to constant speed V₀ for smooth animation
-        desired.normalize_ip()
-        desired *= V0
-
-        # ── Step 5: Reynolds-style steering ────────────────────────
-        #  steer = v_desired − v_current, clamped to MAX_FORCE
-        steer = desired - self.velocity
-        if steer.length() > MAX_FORCE:
-            steer.scale_to_length(MAX_FORCE)
-        self.apply_force(steer)
+        projection_model.flock_projection(self, boids, config)
 
     def _compute_projection_and_visibility(self, boids: list):
         """
         Core of the hybrid projection model — angular-interval occlusion.
-
-        For each other bird j, compute the angular interval [θⱼ − αⱼ, θⱼ + αⱼ]
-        it subtends, where  αⱼ = arcsin(min(b / dⱼ, 1)).
-
-        Process birds closest-first (distance-sorted).  A bird is *visible*
-        iff any part of its interval is NOT already covered by previously
-        merged (closer) intervals.  Visible intervals are then merged into
-        the occluded set.
-
-        δ̂ is computed from the *boundaries* of the merged occluded intervals:
-          δ̂ = Σ_{boundaries} (cos θ, sin θ)   (normalised)
+        Delegates to projection_model.compute_projection_and_visibility().
 
         Returns
         -------
@@ -255,69 +203,7 @@ class Boid:
         theta   : float  — internal opacity Θ_i ∈ [0, 1]
         merged  : list[(float, float)] — merged intervals (for debug view)
         """
-        # ── Build angular intervals for all other birds ────────────
-        entries = []  # (boid, distance, centre_angle, half_width)
-        for other in boids:
-            if other is self:
-                continue
-            diff = other.position - self.position
-            dist = diff.length()
-            if dist < 0.001:
-                continue
-            centre = math.atan2(diff.y, diff.x)
-            if centre < 0:
-                centre += 2 * math.pi
-            half = math.asin(min(BOID_SIZE / dist, 1.0))
-            entries.append((other, dist, centre, half))
-
-        if not entries:
-            return pygame.Vector2(0, 0), [], 0.0, []
-
-        # 🎓 WHY CLOSEST-FIRST?  A bird closer to you blocks your
-        # view of birds behind it.  If we processed birds in random
-        # order, a distant bird might be marked "visible" and then a
-        # closer bird (processed later) would incorrectly extend the
-        # occluded set over it.  Sorting by distance gives correct
-        # occlusion: near birds cast shadows over far birds.
-        entries.sort(key=lambda x: x[1])
-
-        # ── Incremental occlusion merge ────────────────────────────
-        merged = []              # [(start, end), …]  merged occluded intervals
-        visible_neighbours = []  # [(boid, distance), …]
-
-        for other, dist, centre, half in entries:
-            start = centre - half
-            end   = centre + half
-            segments = _normalise_interval(start, end)
-
-            # Visibility test: is ANY segment partially uncovered?
-            is_visible = any(
-                not _interval_covered(s, e, merged) for s, e in segments
-            )
-            if is_visible:
-                visible_neighbours.append((other, dist))
-                for s, e in segments:
-                    _merge_interval(s, e, merged)
-
-        # ── δ̂ from domain boundaries ─────────────────────────────
-        delta = pygame.Vector2(0, 0)
-        for s, e in merged:
-            delta += pygame.Vector2(math.cos(s), math.sin(s))
-            delta += pygame.Vector2(math.cos(e), math.sin(e))
-
-        if (len(merged) == 1 and
-                merged[0][0] < 1e-9 and
-                merged[0][1] > 2 * math.pi - 1e-9):
-            delta = pygame.Vector2(0, 0)
-
-        if delta.length() > 0:
-            delta.normalize_ip()
-
-        # ── Internal opacity Θ_i ──────────────────────────────────
-        occluded = sum(e - s for s, e in merged)
-        theta = min(occluded / (2 * math.pi), 1.0)
-
-        return delta, visible_neighbours, theta, merged
+        return projection_model.compute_projection_and_visibility(self, boids)
 
     # ╔══════════════════════════════════════════════════════════════╗
     # ║  SECTION 6 — SPATIAL MODEL  (MODE 1)                        ║
@@ -341,6 +227,7 @@ class Boid:
     def _flock_spatial(self, boids: list, config: Config, grid: SpatialGrid):
         """
         Topological Reynolds boids update for one bird.
+        Delegates to spatial_model.flock_spatial().
 
         Steps:
           1. Query spatial grid for candidate neighbours.
@@ -348,73 +235,7 @@ class Boid:
           3. Compute separation / alignment / cohesion steering forces.
           4. Add noise, apply weighted forces.
         """
-        # Clear projection debug state — not meaningful in spatial mode
-        self._debug_delta = pygame.Vector2(0, 0)
-        self._debug_merged = []
-
-        candidates = grid.get_nearby(self.position, VISUAL_RANGE)
-
-        neighbours = []
-        for other in candidates:
-            if other is self:
-                continue
-            d = self.position.distance_to(other.position)
-            if d < VISUAL_RANGE:
-                neighbours.append((other, d))
-
-        # 🎓 WHY TOPOLOGICAL?  Starling data shows each bird tracks
-        # ~6-7 neighbours regardless of how far away they are.  If we
-        # used a fixed radius (metric), dense flocks would have hundreds
-        # of neighbours and dilute flocks would have none — neither
-        # matches reality.  Topological interaction is scale-free.
-        neighbours.sort(key=lambda x: x[1])
-        neighbours = neighbours[:config.sigma]
-        n = len(neighbours)
-
-        separation = pygame.Vector2(0, 0)
-        alignment  = pygame.Vector2(0, 0)
-        cohesion   = pygame.Vector2(0, 0)
-
-        if n > 0:
-            for other, d in neighbours:
-                alignment += other.velocity
-                cohesion  += other.position
-
-                if d < VISUAL_RANGE * 0.3:
-                    diff = self.position - other.position
-                    if d > 0.001:
-                        diff /= d
-                    separation += diff
-
-            alignment /= n
-            cohesion  /= n
-
-            if alignment.length() > 0.001:
-                alignment.scale_to_length(V0)
-            alignment -= self.velocity
-            if alignment.length() > MAX_FORCE:
-                alignment.scale_to_length(MAX_FORCE)
-
-            cohesion -= self.position
-            if cohesion.length() > 0.001:
-                cohesion.scale_to_length(V0)
-            cohesion -= self.velocity
-            if cohesion.length() > MAX_FORCE:
-                cohesion.scale_to_length(MAX_FORCE)
-
-            if separation.length() > 0.001:
-                separation.scale_to_length(V0)
-            separation -= self.velocity
-            if separation.length() > MAX_FORCE:
-                separation.scale_to_length(MAX_FORCE)
-
-        na = random.uniform(0, 2 * math.pi)
-        noise = pygame.Vector2(math.cos(na), math.sin(na)) * MAX_FORCE * 0.8
-
-        self.apply_force(separation * config.phi_p * 2.0)
-        self.apply_force(alignment  * config.phi_a * 1.2)
-        self.apply_force(cohesion   * config.phi_n * 1.5)
-        self.apply_force(noise)
+        spatial_model.flock_spatial(self, boids, config, grid)
 
     # ── Opacity (for metrics sampling in spatial mode) ─────────────
 
@@ -469,7 +290,7 @@ class Boid:
         ) * BOID_SIZE * 1.5
 
         # ── Trail (position-history polyline, drawn behind the bird) ──
-        if DRAW_TRAIL and len(self.history) > 1:
+        if features.ENABLE_TRAILS and len(self.history) > 1:
             pts = [(p.x, p.y) for p in self.history]
             pygame.draw.aalines(screen, (85, 140, 244), False, pts, 1)
 

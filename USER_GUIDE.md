@@ -14,6 +14,8 @@ python alg_simple.py
 
 `alg_simple.py` is ~75 lines, one file, zero external imports (besides Pygame). It implements classic Reynolds boids — separation, alignment, cohesion — and you can read the entire thing in 5 minutes. Run it, watch the flock, then tweak the numbers at the top (`N`, `V0`, `R`, `F`) to see what changes.
 
+Steps 1–6 cover the 2D codebase; steps 7–10 cover the GPU-accelerated 3D extension.
+
 **Suggested learning path:**
 
 | Step | File | What you learn |
@@ -23,9 +25,15 @@ python alg_simple.py
 | 3 | `flock_core.py` | Constants, Config, and the spatial hash grid |
 | 4 | `boid.py` | The full Boid class — both projection and spatial modes |
 | 5 | `metrics.py` | Scientific metrics, external opacity, help overlay |
-| 6 | `alg2.py` | The main loop — ties everything together |
+| 6 | `alg2.py` | The 2D main loop — ties everything together |
+| 7 | `spatial_3d.py` | **3D** spatial grid with 27-cell queries + 3D flocking modes |
+| 8 | `boid_3d.py` | **3D** bird agent — numpy Vec3 physics, Euler integration |
+| 9 | `renderer_3d.py` | **3D** ModernGL GPU instanced rendering, GLSL shaders, orbit camera |
+| 10 | `main_3d.py` | **3D** main loop — Pygame window + ModernGL rendering |
 
 After that, read [`README.md`](README.md) for the scientific background and the implementation audit.
+
+The [3D Simulation](#3d-simulation) section below covers the GPU-accelerated 3D version built with ModernGL.
 
 ---
 
@@ -42,6 +50,15 @@ After that, read [`README.md`](README.md) for the scientific background and the 
 - [Troubleshooting](#troubleshooting)
 - [FAQ](#faq)
   - [How do I use Docker?](#how-do-i-use-docker)
+- [3D Simulation](#3d-simulation)
+  - [3D Requirements](#3d-requirements)
+  - [3D Installation](#3d-installation)
+  - [Running the 3D Simulation](#running-the-3d-simulation)
+  - [3D Controls Reference](#3d-controls-reference)
+  - [3D Preset Scenarios](#3d-preset-scenarios)
+  - [3D Tuning Guide](#3d-tuning-guide)
+  - [3D Troubleshooting](#3d-troubleshooting)
+  - [3D FAQ](#3d-faq)
 
 ---
 
@@ -647,3 +664,337 @@ rebuild with `docker compose build` (or `./run-docker.sh` which auto-builds).
 **Viewing logs:**  
 The `run-docker.sh` script uses `docker run` (not `docker compose up`), so
 logs stream directly to your terminal. Press `Ctrl+C` to stop.
+
+---
+
+## 3D Simulation
+
+The 3D simulation extends the flocking algorithms into a full 3D volume
+(1000 × 700 × 400) with GPU-accelerated rendering via ModernGL. Birds
+steer in all three dimensions; the camera can orbit freely around the flock.
+
+![3D murmuration demo](murmuration_3d.gif)
+
+For the step-by-step build guide, see the [3D Simulation Build Guide](README.md#3d-simulation-build-guide)
+in the README. For the underlying science, see [README.md](README.md).
+
+### 3D Requirements
+
+| Component | Minimum | Notes |
+|-----------|---------|-------|
+| **Python** | 3.7+ | 3.9+ recommended |
+| **Pygame** | 2.0+ | Window and event handling only |
+| **ModernGL** | 5.0+ | GPU rendering backend; 5.12+ recommended for macOS Metal support |
+| **PyGLM** | 2.0+ | Matrix math — `lookAt`, `perspective`, `vec3` |
+| **NumPy** | 1.20+ | Vector math and GPU buffer packing |
+| **Pillow** | 9.0+ | Optional — only needed for `capture_3d.py` GIF generation |
+| **GPU** | OpenGL 3.3 capable | Integrated GPU is fine; on macOS, Metal-backed via ModernGL |
+| **RAM** | ~200 MB | Grows with instance count (6 floats × N birds) |
+
+### 3D Installation
+
+```bash
+pip install pygame moderngl PyGLM numpy
+```
+
+Optional (for GIF capture):
+
+```bash
+pip install Pillow
+```
+
+Verify:
+
+```bash
+python3 -c "import moderngl; print('ModernGL', moderngl.__version__)"
+python3 -c "import glm; print('PyGLM', glm.__version__)"
+```
+
+### Running the 3D Simulation
+
+```bash
+python main_3d.py
+```
+
+A 1200 × 800 window opens showing 150 birds in a 3D volume with a
+perspective camera. The window title bar shows the current mode,
+bird count, parameter values, and FPS.
+
+**Startup output:**
+
+```
+Murmuration 3D — 150 birds
+Mode: PROJECTION
+Press M to toggle mode | Space to pause | ESC to quit
+Mouse drag to orbit | Scroll to zoom
+Presets: a=Default b=Ball c=Cloud d=Stream e=Column f=Acro w=Vortex h=Void
+```
+
+**Quick configuration:** edit the constants near the top of `main_3d.py`:
+
+```python
+NUM_BOIDS      = 150      # flock size
+FPS            = 60       # target frame rate
+WINDOW_WIDTH   = 1200     # window dimensions
+WINDOW_HEIGHT  = 800
+DEPTH          = 400      # Z-axis extent (defined in spatial_3d.py)
+```
+
+**Capturing a GIF:**
+
+```bash
+pip install Pillow
+python capture_3d.py
+# → murmuration_3d.gif  (80 frames, 4 seconds)
+```
+
+### 3D Controls Reference
+
+#### Simulation controls
+
+| Key | Action |
+|-----|--------|
+| `SPACE` | Pause / resume |
+| `R` | Reset flock — randomise positions and velocities in 3D |
+| `M` | Toggle **PROJECTION** ↔ **SPATIAL** mode |
+| `ESC` | Quit |
+
+#### Camera controls
+
+| Mouse | Action |
+|-------|--------|
+| **Click + drag** | Orbit camera (azimuth + elevation) |
+| **Scroll up** | Zoom in |
+| **Scroll down** | Zoom out |
+
+The camera orbits around the centre of the volume (500, 350, 200) by default.
+Drag left/right to rotate horizontally, up/down to change elevation.
+Elevation is clamped to ±89° to prevent gimbal lock.
+
+#### Parameter tuning
+
+| Key | Parameter | Range | Step |
+|-----|-----------|-------|------|
+| `↑` / `↓` | φp | 0.0 – 1.0 | ±0.01 |
+| `←` / `→` | φa | 0.0 – 1.0 | ±0.01 |
+| `[` / `]` | σ | 1 – 20 | ±1 |
+
+#### Flock size
+
+| Key | Action |
+|-----|--------|
+| `+` / `=` | Add 10 birds |
+| `-` | Remove 10 birds (leaves at least 1) |
+
+#### Display toggles
+
+| Key | Action |
+|-----|--------|
+| `G` | Toggle reference grid overlay (XY plane at z=0) |
+
+### 3D Preset Scenarios
+
+8 presets tuned specifically for the larger 3D volume. Press any letter key
+to apply the preset instantly.
+
+#### 🔵 PROJECTION mode presets (3D altitude cohesion)
+
+| Key | Preset | φp | φa | σ | Visual character |
+|-----|--------|----|----|---|------------------|
+| `a` | 3D Pearce Default | 0.04 | 0.80 | 6 | Marginal opacity adapted for 3D volume |
+| `b` | Ball of Birds | 0.18 | 0.70 | 7 | Dense 3D sphere, narrow altitude band |
+| `c` | Storm Cloud | 0.06 | 0.45 | 3 | Dispersed through full 3D volume |
+| `e` | Vertical Column | 0.10 | 0.75 | 6 | Altitude cohesion → layered pancake shape |
+| `f` | 3D Acro | 0.02 | 0.85 | 3 | Rapid 3D turns, light cohesion |
+
+#### 🟠 SPATIAL mode presets (full 3D steering)
+
+| Key | Preset | φp | φa | σ | Visual character |
+|-----|--------|----|----|---|------------------|
+| `d` | 3D Stream | 0.25 | 0.55 | 8 | Directional 3D school formation |
+| `w` | Spiral Vortex | 0.08 | 0.82 | 10 | Rotating 3D vortex, many neighbours |
+| `h` | 3D Void | 0.35 | 0.58 | 9 | Maximum 3D separation, cavity voids |
+
+#### Quick 3D tour (60 seconds)
+
+1. Start with `a` (3D Pearce Default) — watch from the default camera angle.
+2. Press `w` (Spiral Vortex) — the flock switches to SPATIAL mode, forms a rotating vortex.
+3. Drag the mouse to orbit around the vortex — see it from all angles.
+4. Press `b` (Ball of Birds) — the flock collapses into a dense 3D sphere.
+5. Scroll to zoom in close. Press `c` (Storm Cloud) — birds disperse.
+6. Press `a` to return to the default.
+
+### 3D Tuning Guide
+
+#### Understanding 3D flocking modes
+
+**PROJECTION mode (3D):**
+- XY-plane occlusion: same angular-interval algorithm as 2D, projected onto the horizontal plane
+- Altitude cohesion: birds are nudged toward the mean Z of their visible neighbours
+  - Formula: `altitude_cohesion = (mean_z_visible − self.z) × 0.01`
+  - Weighted by φn (noise weight), so higher φn = stronger altitude pull
+- Effect: birds naturally form layers at similar altitudes — like a flock of starlings flying at roughly the same height
+
+**SPATIAL mode (3D):**
+- All three steering forces (separation, alignment, cohesion) operate in full 3D
+- 3×3×3 = 27-cell spatial grid queries for neighbour lookups
+- Toroidal wrap in all three dimensions (X, Y, Z)
+- Effect: looser, more exploratory 3D formations — birds can be above, below, or beside each other freely
+
+#### Getting a dense 3D flock
+
+| Parameter | Value | Why |
+|-----------|-------|-----|
+| φp | 0.04 – 0.12 | Moderate projection keeps XY-plane cohesion without over-compacting |
+| φa | 0.75 – 0.85 | High alignment for smooth, coordinated 3D motion |
+| σ | 5 – 7 | More neighbours maintain connectivity in the larger 3D volume |
+
+#### Getting an exploratory 3D flock
+
+| Parameter | Value | Why |
+|-----------|-------|-----|
+| φp | 0.02 – 0.05 | Light projection lets birds spread through the volume |
+| φa | 0.40 – 0.55 | Lower alignment = more individual variation in 3D |
+| σ | 2 – 4 | Fewer neighbours = weaker social coupling |
+
+#### Performance scaling in 3D
+
+Rough estimates on a modern integrated GPU (Apple M1 / Intel Iris). Your
+mileage will vary by hardware.
+
+| Birds | PROJECTION FPS | SPATIAL FPS | Bottleneck |
+|-------|---------------|-------------|------------|
+| 150 | ~55–60 | ~60 | None |
+| 500 | ~40–50 | ~55–60 | Per-bird occlusion sort (O(K log K)) |
+| 2000 | ~15–25 | ~45–55 | CPU flocking dominates; GPU rendering still fast |
+| 5000 | ~5–10 | ~30–40 | PROJECTION: `MAX_VISIBILITY_RANGE` caps candidates but sort cost grows |
+
+**Tips for large flocks:**
+- Use SPATIAL mode — it scales O(N) vs PROJECTION's O(N × K log K)
+- Reduce `MAX_VISIBILITY_RANGE` in `spatial_3d.py` (default: 200) to limit occlusion candidates
+- Set `FPS = 0` in `main_3d.py` for unthrottled benchmarking
+- GPU instanced rendering handles 5000+ birds in a single draw call; CPU flocking is the bottleneck
+
+### 3D Troubleshooting
+
+#### "No module named 'moderngl'"
+
+```bash
+pip install moderngl
+```
+
+#### "No module named 'glm'"
+
+```bash
+pip install PyGLM
+```
+Note: the package is `PyGLM` but the import is `import glm`.
+
+#### "Failed creating OpenGL context at version requested"
+
+Your GPU or driver doesn't support OpenGL 3.3. On macOS, this usually means
+ModernGL's Metal backend isn't working. Try:
+
+```bash
+pip install --upgrade moderngl
+```
+
+ModernGL 5.12+ includes improved Metal support for macOS.
+
+#### Black window, nothing renders
+
+This can happen if ModernGL's standalone context fails silently. Check the
+terminal output for errors. Common causes:
+- Pygame window created without `OPENGL` flag — verify `DOUBLEBUF | OPENGL`
+- ModernGL version too old — upgrade to 5.12+
+- On Linux, missing GPU drivers — install Mesa drivers
+- **macOS**: some users need to grant accessibility permissions in
+  System Settings → Privacy & Security → Accessibility for the Terminal
+  or Python to access GPU-accelerated graphics
+
+#### Simulation runs at very low FPS
+
+- Reduce `NUM_BOIDS` in `main_3d.py`
+- Switch to SPATIAL mode (press `M`) — it scales much better than PROJECTION
+- Close other GPU-intensive applications
+- On macOS with integrated GPU, expect ~30 FPS at 2000 birds in SPATIAL mode
+
+#### Camera spins uncontrollably
+
+The orbit camera uses relative mouse motion. If the mouse cursor leaves the
+window and re-enters, Pygame may report a large delta. This is normal — just
+click and drag more gently. The camera clamps elevation to ±89° to prevent
+flipping.
+
+#### "pygame.error: video system not initialized"
+
+Same as the 2D simulation — you need a graphical session. On headless Linux
+servers, use `xvfb-run`:
+
+```bash
+xvfb-run -a python main_3d.py
+```
+
+But note: ModernGL may not work through `xvfb` depending on your GPU drivers.
+Use `capture_3d.py` for headless operation instead.
+
+#### Can't see the grid
+
+Press `G` to toggle the reference grid on/off. The grid is drawn on the XY
+plane at z=0. If your camera is looking from below (negative Z), the grid
+may be clipped by the near plane — orbit the camera to a higher elevation.
+
+### 3D FAQ
+
+#### What's different between 2D and 3D simulation?
+
+| Aspect | 2D (`alg2.py`) | 3D (`main_3d.py`) |
+|--------|---------------|---------------------|
+| Dimensions | X, Y only | X, Y, Z (400 depth) |
+| Rendering | Pygame CPU drawing | ModernGL GPU instanced |
+| Camera | Fixed orthographic | Free orbit perspective |
+| Bird mesh | 2D triangles | 3D tetrahedrons with Blinn-Phong lighting |
+| Bird count | ~150 optimal, ~300 max | ~2000 optimal, ~5000 max |
+| Spatial grid | 2D toroidal (4–9 cells) | 3D toroidal (27 cells) |
+| Projection model | Full 2D occlusion | XY-plane occlusion + Z altitude cohesion |
+| Presets | 16 (keys 1–0, s,l,i,v,k,q) | 8 (keys a–f, h, w) |
+
+#### Why ModernGL instead of PyOpenGL?
+
+On macOS, Apple deprecated OpenGL in favour of Metal. PyOpenGL can only
+create legacy OpenGL 2.1 contexts, which lack the GLSL 3.30 shaders,
+Vertex Array Objects, and instanced rendering required for GPU-side 3D
+rendering. ModernGL wraps Metal and exposes a modern GL 3.3+ API, making
+instanced rendering work on macOS without code changes.
+
+#### Can I run the 3D simulation without a GPU?
+
+No — ModernGL requires a GPU with OpenGL 3.3 support. Integrated GPUs
+(Intel, Apple M-series) work fine. Software rendering (LLVMpipe) is
+unusably slow for real-time 3D.
+
+#### Does the 3D simulation share code with the 2D version?
+
+Yes — both use `flock_core.py` (Config, constants) and `occlusion_geom.py`
+(angular interval math) without modification. The 3D simulation adds four
+new files (`spatial_3d.py`, `boid_3d.py`, `renderer_3d.py`, `main_3d.py`)
+that sit alongside the existing 2D code. The 2D code is completely untouched.
+
+#### How many birds can the 3D simulation handle?
+
+- **PROJECTION mode**: ~2000 birds at 20+ FPS (bottleneck: per-bird occlusion sort)
+- **SPATIAL mode**: ~5000 birds at 30+ FPS (bottleneck: CPU flocking, not GPU rendering)
+- GPU instanced rendering draws all birds in one call regardless of count
+
+#### Can I capture screenshots or video?
+
+Yes — use `capture_3d.py` for headless GIF generation:
+
+```bash
+python capture_3d.py
+# → murmuration_3d.gif
+```
+
+For video, use a screen recorder (OBS, QuickTime) while the simulation runs.
+You can also modify `capture_3d.py` to save individual PNG frames and assemble
+them with ffmpeg.

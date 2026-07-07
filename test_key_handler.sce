@@ -86,6 +86,56 @@ function key_handler(win_id, x, y, ibut)
         elseif k == 104 | k == 72 then
             show_help = ~show_help;
             if show_help then disp("Help ON"); else disp("Help OFF"); end
+
+        // ── Scenario presets  (1-5, 6-0, s, l, i, v, k, q) ──────
+        elseif k == 49 then
+            PHI_P = 0.00; PHI_A = 0.95; SIGMA = 8; MODE = 0;
+            disp("PRESET 1 — Pure Alignment");
+        elseif k == 50 then
+            PHI_P = 0.10; PHI_A = 0.20; SIGMA = 2; MODE = 0;
+            disp("PRESET 2 — Gas / Exploration");
+        elseif k == 51 then
+            PHI_P = 0.03; PHI_A = 0.80; SIGMA = 4; MODE = 0;
+            disp("PRESET 3 — Pearce Default");
+        elseif k == 52 then
+            PHI_P = 0.15; PHI_A = 0.70; SIGMA = 6; MODE = 0;
+            disp("PRESET 4 — Dense Ball");
+        elseif k == 53 then
+            PHI_P = 0.30; PHI_A = 0.50; SIGMA = 4; MODE = 1;
+            disp("PRESET 5 — Classic Boids (SPATIAL)");
+        elseif k == 54 then
+            PHI_P = 0.08; PHI_A = 0.82; SIGMA = 8; MODE = 0;
+            disp("PRESET 6 — Quiet Roost");
+        elseif k == 55 then
+            PHI_P = 0.04; PHI_A = 0.88; SIGMA = 5; MODE = 0;
+            disp("PRESET 7 — Comfort Flight");
+        elseif k == 56 then
+            PHI_P = 0.02; PHI_A = 0.85; SIGMA = 3; MODE = 0;
+            disp("PRESET 8 — Acro Swarm");
+        elseif k == 57 then
+            PHI_P = 0.30; PHI_A = 0.55; SIGMA = 8; MODE = 1;
+            disp("PRESET 9 — Predator Ripple (SPATIAL)");
+        elseif k == 48 then
+            PHI_P = 0.20; PHI_A = 0.72; SIGMA = 10; MODE = 1;
+            disp("PRESET 0 — Storm Turn (SPATIAL)");
+        elseif k == 115 | k == 83 then
+            PHI_P = 0.05; PHI_A = 0.85; SIGMA = 6; MODE = 0;
+            disp("PRESET s — Swarm Pilot");
+        elseif k == 108 | k == 76 then
+            PHI_P = 0.12; PHI_A = 0.65; SIGMA = 7; MODE = 0;
+            disp("PRESET l — Lava Lamp");
+        elseif k == 105 | k == 73 then
+            PHI_P = 0.02; PHI_A = 0.40; SIGMA = 2; MODE = 0;
+            disp("PRESET i — Ink Cloud");
+        elseif k == 118 | k == 86 then
+            PHI_P = 0.35; PHI_A = 0.60; SIGMA = 9; MODE = 1;
+            disp("PRESET v — Vacuole (SPATIAL)");
+        elseif k == 107 | k == 75 then
+            PHI_P = 0.02; PHI_A = 0.92; SIGMA = 6; MODE = 0;
+            disp("PRESET k — Silk Sheet");
+        elseif k == 113 | k == 81 then
+            PHI_P = 0.20; PHI_A = 0.55; SIGMA = 10; MODE = 1;
+            disp("PRESET q — Quest 2 Dense (SPATIAL)");
         end
     end
 endfunction
@@ -224,8 +274,8 @@ mprintf("T20_PENDADD_UNCHANGED=%d\n", pending_add == add_before);
 mprintf("T20_PENDRMV_UNCHANGED=%d\n", pending_remove == rmv_before);
 mprintf("T20_RESET_UNCHANGED=%d\n", pending_reset == reset_before);
 
-// ── T21: Unrecognized key 'q' (113) — all globals unchanged ──────
-key_handler(0, 0, 0, -113);
+// ── T21: Unrecognized key 'z' (122) — all globals unchanged ──────
+key_handler(0, 0, 0, -122);
 
 mprintf("T21_MARGIN_UNCHANGED=%d\n", MARGIN_BOUNDARY == margin_before);
 mprintf("T21_MODE_UNCHANGED=%d\n", MODE == mode_before);
@@ -329,5 +379,51 @@ mprintf("T31_SIGMA_UNCHANGED=%d\n", SIGMA == sigma_before31);
 mprintf("T31_PENDADD_UNCHANGED=%d\n", pending_add == add_before31);
 mprintf("T31_PENDRMV_UNCHANGED=%d\n", pending_remove == rmv_before31);
 mprintf("T31_RESET_UNCHANGED=%d\n", pending_reset == reset_before31);
+
+// ═══════════════════════════════════════════════════════════════════
+//  PRESET KEY TESTS
+// ═══════════════════════════════════════════════════════════════════
+
+// ── T32: Press '3' (51) — Pearce Default ─────────────────────────
+key_handler(0, 0, 0, -51);
+mprintf("T32_PHIP=%.2f\n", PHI_P);
+mprintf("T32_PHIA=%.2f\n", PHI_A);
+mprintf("T32_SIGMA=%d\n", SIGMA);
+mprintf("T32_MODE=%d\n", MODE);
+
+// ── T33: Press '5' (53) — Classic Boids (SPATIAL) ────────────────
+key_handler(0, 0, 0, -53);
+mprintf("T33_PHIP=%.2f\n", PHI_P);
+mprintf("T33_PHIA=%.2f\n", PHI_A);
+mprintf("T33_SIGMA=%d\n", SIGMA);
+mprintf("T33_MODE=%d\n", MODE);
+
+// ── T34: Press 's' (115) — Swarm Pilot (letter key) ──────────────
+key_handler(0, 0, 0, -115);
+mprintf("T34_PHIP=%.2f\n", PHI_P);
+mprintf("T34_PHIA=%.2f\n", PHI_A);
+mprintf("T34_SIGMA=%d\n", SIGMA);
+mprintf("T34_MODE=%d\n", MODE);
+
+// ── T35: Press '0' (48) — Storm Turn (SPATIAL, zero key) ─────────
+key_handler(0, 0, 0, -48);
+mprintf("T35_PHIP=%.2f\n", PHI_P);
+mprintf("T35_PHIA=%.2f\n", PHI_A);
+mprintf("T35_SIGMA=%d\n", SIGMA);
+mprintf("T35_MODE=%d\n", MODE);
+
+// ── T36: Press '1' (49) — Pure Alignment ─────────────────────────
+key_handler(0, 0, 0, -49);
+mprintf("T36_PHIP=%.2f\n", PHI_P);
+mprintf("T36_PHIA=%.2f\n", PHI_A);
+mprintf("T36_SIGMA=%d\n", SIGMA);
+mprintf("T36_MODE=%d\n", MODE);
+
+// ── T37: Press 'S' (83, uppercase) — same preset as 's' ──────────
+key_handler(0, 0, 0, -83);
+mprintf("T37_PHIP=%.2f\n", PHI_P);
+mprintf("T37_PHIA=%.2f\n", PHI_A);
+mprintf("T37_SIGMA=%d\n", SIGMA);
+mprintf("T37_MODE=%d\n", MODE);
 
 quit();

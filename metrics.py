@@ -2,10 +2,9 @@
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  SECTION 7 — EXTERNAL OPACITY  (Θ')                                 ║
 ║  SECTION 8 — METRICS COMPUTATION                                    ║
-║  SECTION 10 — HELP OVERLAY                                          ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Scientific metrics, external opacity computation, and help overlay.
+ Scientific metrics and external opacity computation.
  Imported by alg2.py for the main simulation loop.
 
  Dependencies:  occlusion_geom (interval merging)
@@ -24,46 +23,7 @@ from flock_core import (
     MODE_PROJECTION, MODE_NAMES,
     Config,
 )
-
-
-# ╔══════════════════════════════════════════════════════════════════════╗
-# ║  SECTION 7 — EXTERNAL OPACITY  (Θ')                                  ║
-# ╚══════════════════════════════════════════════════════════════════════╝
-#  Θ' — fraction of the sky obscured from a distant external observer.
-#  The observer is placed at (−2000, HEIGHT/2), far to the left of the
-#  flock.  Angular intervals subtended by each bird are merged to find
-#  the total occluded angular width.
-#
-#  Complexity: O(N log N) where N = |flock|.
-# ──────────────────────────────────────────────────────────────────────
-
-def _external_opacity(flock: list) -> float:
-    """
-    Compute Θ' — external opacity from a distant left-side observer.
-
-    For each bird, compute the angular interval it subtends from the
-    viewpoint at (−2000, HEIGHT/2).  Sort all intervals by start angle,
-    merge overlaps, and sum the merged widths divided by 2π.
-    """
-    if not flock:
-        return 0.0
-
-    viewpoint = pygame.Vector2(-2000, HEIGHT / 2)
-    intervals = []
-    for b in flock:
-        diff = b.position - viewpoint
-        dist = diff.length()
-        if dist < 0.001:
-            continue
-        centre = math.atan2(diff.y, diff.x)
-        if centre < 0:
-            centre += 2 * math.pi
-        half = math.asin(min(BOID_SIZE / dist, 1.0))
-        intervals.extend(_normalise_interval(centre - half, centre + half))
-
-    merged = _merge_all(intervals)
-    occluded = sum(e - s for s, e in merged)
-    return min(occluded / (2 * math.pi), 1.0)
+from external_opacity import compute as _external_opacity
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
@@ -225,44 +185,3 @@ class FlockMetrics:
             screen.blit(surf, (10, y))
             y += 20
 
-
-# ╔══════════════════════════════════════════════════════════════════════╗
-# ║  SECTION 10 — HELP OVERLAY                                          ║
-# ╚══════════════════════════════════════════════════════════════════════╝
-#  Semi-transparent panel in the top-right corner showing all keyboard
-#  controls.  Toggled by pressing 'h'.
-# ──────────────────────────────────────────────────────────────────────
-
-_HELP_LINES = [
-    "CONTROLS",
-    "─────────────────────────────────────────",
-    "M         toggle PROJECTION / SPATIAL mode",
-    "B         toggle TOROIDAL / MARGIN boundary",
-    "1–0       number-key presets (10 scenarios)",
-    "s,l,i,v,k,q  letter-key presets (6 scenarios)",
-    "  (press same key again to toggle off)",
-    "↑ / ↓     φp  ±0.01",
-    "← / →     φa  ±0.01   (φn = 1 − φp − φa)",
-    "[ / ]     σ   ±1      (neighbour count)",
-    "+ / -     add / remove 10 birds",
-    "F         toggle focal bird debug view",
-    "G         toggle grid overlay (SPATIAL)",
-    "H         hide this help",
-    "SPACE     pause / resume",
-    "R         reset flock",
-    "ESC       quit",
-]
-
-
-def _draw_help(screen: pygame.Surface, font: pygame.font.Font):
-    """
-    Render the help overlay as a semi-transparent panel in the top-right.
-    """
-    x, y = WIDTH - 370, 10
-    bg = pygame.Surface((360, len(_HELP_LINES) * 18 + 12), pygame.SRCALPHA)
-    bg.fill((10, 12, 18, 200))
-    screen.blit(bg, (x - 4, y - 4))
-    for line in _HELP_LINES:
-        surf = font.render(line, True, (200, 200, 160))
-        screen.blit(surf, (x, y))
-        y += 18

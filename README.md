@@ -18,11 +18,28 @@ A Python simulation of starling murmurations implementing **two distinct flockin
   - [MODE 1 — Topological Reynolds Boids](#mode-1--topological-reynolds-boids)
 - [Scientific Metrics](#scientific-metrics)
 - [References](#references)
+- [Step-by-Step Build Guide](#step-by-step-build-guide)
+  - [Iteration 1 — Single Boid](#iteration-1--single-boid)
+  - [Iteration 2 — Classic Reynolds Boids](#iteration-2--classic-reynolds-boids)
+  - [Iteration 3 — Spatial Hash Grid](#iteration-3--spatial-hash-grid)
+  - [Iteration 4 — Angular Occlusion Geometry](#iteration-4--angular-occlusion-geometry)
+  - [Iteration 5 — Projection Model](#iteration-5--projection-model)
+  - [Iteration 6 — Dual-Mode Flocking](#iteration-6--dual-mode-flocking)
+  - [Iteration 7 — Scientific Metrics](#iteration-7--scientific-metrics)
+  - [Iteration 8 — Boundary Modes](#iteration-8--boundary-modes)
+  - [Iteration 9 — Modular Architecture](#iteration-9--modular-architecture)
+- [3D Simulation Build Guide](#3d-simulation-build-guide)
+  - [Iteration 10 — 3D Spatial Grid](#iteration-10--3d-spatial-grid)
+  - [Iteration 11 — 3D Boid Agent](#iteration-11--3d-boid-agent)
+  - [Iteration 12 — GPU Instanced Rendering](#iteration-12--gpu-instanced-rendering)
+  - [Iteration 13 — 3D Main Loop](#iteration-13--3d-main-loop)
 - [File Structure](#file-structure)
 
 ---
 
 ## Quick Start
+
+### 2D (Pygame)
 
 ```bash
 pip install pygame
@@ -30,6 +47,15 @@ python alg2.py
 ```
 
 Press **`M`** to toggle between modes, **`H`** for a help overlay.
+
+### 3D (ModernGL)
+
+```bash
+pip install pygame moderngl PyGLM numpy
+python main_3d.py
+```
+
+Mouse drag to orbit camera, scroll to zoom, **`M`** to toggle mode.
 
 ---
 
@@ -47,6 +73,22 @@ Press **`M`** to toggle between modes, **`H`** for a help overlay.
 | `SPACE` | Pause / resume |
 | `R` | Reset flock |
 | `ESC` | Quit |
+
+### 3D Controls
+
+| Key / Mouse | Action |
+|-------------|--------|
+| `M` | Toggle **PROJECTION** ↔ **SPATIAL** mode |
+| `↑` / `↓` | φp ±0.01 |
+| `←` / `→` | φa ±0.01 |
+| `[` / `]` | σ ±1 |
+| `+` / `-` | Add / remove 10 birds |
+| `G` | Toggle grid overlay |
+| `SPACE` | Pause / resume |
+| `R` | Reset flock |
+| `ESC` | Quit |
+| **Mouse drag** | Orbit camera |
+| **Scroll** | Zoom in/out |
 
 ---
 
@@ -409,6 +451,866 @@ The paper predicts that flocks self-organise to a state of **marginal opacity** 
 
 ---
 
+## Step-by-Step Build Guide
+
+This guide walks you from a single moving dot to the full modular simulation in 9 iterations.
+Each iteration introduces one new concept and has a corresponding example file in the `examples/` directory.
+Iterations 1–6 are complete, runnable Pygame simulations; iterations 7–9 are reference modules meant to be
+imported into a running simulation (see the full codebase in the project root for the integrated version).
+
+Run iterations 1–6 with:
+
+```bash
+pip install pygame
+python examples/iteration{1-9}_{name}.py
+```
+
+### Iteration 1 — Single Boid
+
+**File:** `examples/iteration1_single_boid.py`
+
+**What we build:** A single bird moving across the screen with toroidal boundary wrap.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **Euler integration** | `velocity += acceleration`, `position += velocity` — the simplest numerical integration method |
+| **Speed clamping** | `if speed > V0: scale_to_length(V0)` — prevents infinite acceleration; `if speed < V0 * 0.3` — prevents freezing |
+| **Toroidal wrap** | `if x > WIDTH: x = 0` — re-enter from opposite edge, creating an infinite periodic universe |
+| **Pygame basics** | `init()` → `set_mode()` → event loop → `display.flip()` → `clock.tick(FPS)` |
+| **Triangle rendering** | Draw a triangle pointing in the direction of velocity using `atan2` |
+
+**Key code pattern — the game loop:**
+
+```python
+running = True
+while running:
+    # 1. Handle input
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    # 2. Update physics
+    position += velocity
+    # ... toroidal wrap ...
+
+    # 3. Render
+    screen.fill((20, 22, 30))
+    draw_boid(screen, position, velocity)
+    pygame.display.flip()
+    clock.tick(FPS)
+```
+
+This 1-2-3 pattern (input → update → render) is the same structure used throughout the entire project. Everything else is just *more stuff inside step 2*.
+
+> **What's next?** Continue to [Iteration 2 — Classic Reynolds Boids](#iteration-2--classic-reynolds-boids)
+> (`examples/iteration2_reynolds_boids.py`) to learn how three simple steering rules —
+> separation, alignment, and cohesion — create lifelike flock movement from multiple birds.
+
+---
+
+### Iteration 2 — Classic Reynolds Boids
+
+**File:** `examples/iteration2_reynolds_boids.py`
+
+**What we build:** Multiple birds with three classic steering forces — separation, alignment, and cohesion.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **Boid class** | Each bird has `position`, `velocity`, `acceleration` — local state per agent |
+| **Separation** | Steer *away* from neighbours that are too close (`d < VISUAL_RANGE * 0.3`). 1/r falloff: push stronger when closer |
+| **Alignment** | Steer toward the *average heading* of all neighbours |
+| **Cohesion** | Steer toward the *average position* of all neighbours |
+| **Reynolds steering** | `steer = desired - current` then `clamp(steer, MAX_FORCE)`. Simulates inertia — birds can't change direction instantly |
+| **O(N²) neighbour search** | Check *every* other bird every frame. Simple but expensive — ~6400 distance checks for 80 birds |
+| **apply_force()** | Accumulate all steering forces into `acceleration`, reset to zero after applying |
+
+**Key code pattern — the three rules:**
+
+```python
+def flock(self, boids):
+    sep = vec2(0, 0); aln = vec2(0, 0); coh = vec2(0, 0)
+    count = 0
+    for other in boids:            # O(N²) — check every bird
+        if other is self: continue
+        d = distance(self, other)
+        if d < VISUAL_RANGE:
+            count += 1
+            aln += other.velocity   # sum headings
+            coh += other.position   # sum positions
+            if d < VISUAL_RANGE * 0.3:       # too close?
+                sep += (self - other) / d     # 1/r push away
+
+    # Reynolds steering: desired − current, clamped
+    aln_steer = clamp(unit(aln/count) * V0 - self.velocity, MAX_FORCE)
+    coh_steer = clamp(unit((coh/count) - self.position) * V0 - self.velocity, MAX_FORCE)
+    sep_steer = clamp(unit(sep) * V0 - self.velocity, MAX_FORCE)
+
+    self.apply_force(sep * 0.3 + aln * 1.2 + coh * 0.05)
+```
+
+This is the classic 1987 Reynolds algorithm. The rest of the project replaces and extends step 2 (the flocking logic) while keeping the same game loop pattern.
+
+> **What's next?** Continue to [Iteration 3 — Spatial Hash Grid](#iteration-3--spatial-hash-grid)
+> (`examples/iteration3_spatial_grid.py`) to see how we replace the O(N²) neighbour search
+> with O(N) queries using a toroidal spatial hash grid.
+
+---
+
+### Iteration 3 — Spatial Hash Grid
+
+**File:** `examples/iteration3_spatial_grid.py`
+
+**What we build:** Replace O(N²) neighbour search with O(1)-per-bird queries using a spatial hash grid.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **Spatial grid** | Divide the screen into `cell_size × cell_size` buckets. Birds in each bucket are stored in a `defaultdict(list)` |
+| **rebuild()** | Clear and repopulate the grid in O(N) every frame |
+| **get_nearby()** | Only check birds in cells overlapping the search radius (typically 4–9 cells), not all N birds |
+| **Toroidal cell indexing** | `cx % cols` — wrap cell coordinates so birds near opposite edges can interact |
+| **O(N) scaling** | With 80 birds and a cell size of 70, each bird checks ~9 cells averaging ~9 birds each — ~81 distance checks vs 6,400 in Iteration 2 |
+
+**Key code pattern — grid query:**
+
+```python
+def get_nearby(self, position, radius):
+    # Which cells does the search circle overlap?
+    cx0 = int((position.x - radius) // cell_size)
+    cx1 = int((position.x + radius) // cell_size)
+    # ... same for y ...
+
+    nearby = []
+    for cx in range(cx0, cx1 + 1):
+        for cy in range(cy0, cy1 + 1):
+            wcx = cx % self.cols    # toroidal wrap!
+            wcy = cy % self.rows
+            nearby.extend(self.cells.get((wcx, wcy), ()))
+    return nearby
+```
+
+**Main loop change — grid rebuild each frame:**
+
+```python
+while running:
+    grid.rebuild(flock)          # ← O(N) — new!
+    for b in flock:
+        b.flock(grid)            # ← O(K) per bird (not O(N))
+```
+
+The grid passes to `flock()` instead of the full list. The `flock()` method calls `grid.get_nearby()` instead of iterating over all boids.
+
+> **What's next?** Continue to [Iteration 4 — Angular Occlusion Geometry](#iteration-4--angular-occlusion-geometry)
+> (`examples/iteration4_occlusion_geom.py`) to build the mathematical foundation for the
+> projection model — four pure functions for angular interval arithmetic on the unit circle.
+
+---
+
+### Iteration 4 — Angular Occlusion Geometry
+
+**File:** `examples/iteration4_occlusion_geom.py`
+
+**What we build:** Four pure math functions for working with angular intervals on the unit circle [0, 2π). This is the mathematical foundation of the projection model.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **_normalise_interval** | Split intervals that cross the 0/2π boundary into two segments in [0, 2π) |
+| **_interval_covered** | Check if an interval is completely covered by a set of merged intervals — advances a cursor in O(K) |
+| **_merge_interval** | Binary search for insertion point (O(log K)), then merge with at most 2 adjacent intervals |
+| **_merge_all** | Sort-and-merge a list of intervals — combine all overlapping intervals into non-overlapping ones |
+| **Pure functions** | No Pygame dependency, no side effects — fully unit-testable |
+
+**Key code pattern — interval merging with binary search:**
+
+```python
+def _merge_interval(start, end, merged):
+    # Binary search for insertion point
+    lo, hi = 0, len(merged)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if merged[mid][0] < start:
+            lo = mid + 1
+        else:
+            hi = mid
+
+    merged.insert(lo, [start, end])
+
+    # Merge left neighbour
+    if lo > 0 and merged[lo-1][1] >= merged[lo][0] - EPS:
+        merged[lo-1][1] = max(merged[lo-1][1], merged[lo][1])
+        merged.pop(lo)
+        lo -= 1
+
+    # Merge right neighbours (chain)
+    while lo < len(merged)-1 and merged[lo][1] >= merged[lo+1][0] - EPS:
+        merged[lo][1] = max(merged[lo][1], merged[lo+1][1])
+        merged.pop(lo+1)
+```
+
+**Why these functions matter:** The projection model (Iteration 5) treats each bird as a dark silhouette against the sky, subtending an angular interval in the observer's field of view. Near birds block far birds — this is occlusion. The four functions above are the mathematical machinery for computing which birds are visible and what the flock looks like from any viewpoint.
+
+> **What's next?** Continue to [Iteration 5 — Projection Model](#iteration-5--projection-model)
+> (`examples/iteration5_projection_model.py`) to replace classic Reynolds rules with the
+> hybrid projection model from Pearce, Miller, Rowlands & Turner (2014) PNAS — where birds
+> don't track positions directly but perceive the flock as dark silhouettes against the sky.
+
+---
+
+### Iteration 5 — Projection Model
+
+**File:** `examples/iteration5_projection_model.py`
+
+**What we build:** Replace classic Reynolds rules with the hybrid projection model from Pearce et al. (2014) PNAS. The core idea: birds don't track positions directly — they perceive the flock as a pattern of dark silhouettes against the sky.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **Angular occlusion** | Each bird j subtends an interval `[θ − α, θ + α]` where `θ = atan2(yj−yi, xj−xi)`, `α = arcsin(BOID_SIZE / distance)` |
+| **Closest-first processing** | Sort entries by distance, process nearest first. Near birds occlude far ones |
+| **δ̂ (delta)** | Sum of unit vectors to all domain boundaries (edges between light and dark). Normalised. *Replaces both separation and cohesion* |
+| **Θ (theta)** | Internal opacity = total occluded angle / 2π. Emergent property — flocks self-organise to marginal opacity |
+| **Visibility-aware alignment** | Only σ nearest *visible* neighbours (not all neighbours) contribute to alignment |
+| **Velocity equation (Eq. 3)** | `v_desired = φp·δ̂ + φa·⟨v̂⟩_visible + φn·η̂`, where `φp + φa + φn = 1` |
+
+**Key code pattern — computing δ̂ and visible neighbours:**
+
+```python
+def compute_projection(boid, boids):
+    entries = []                      # (other, dist, centre_angle, half_width)
+    for other in boids:
+        if other is boid: continue
+        diff = other.position - boid.position
+        dist = diff.length()
+        centre = atan2(diff.y, diff.x)                   # direction to bird
+        half = asin(min(BOID_SIZE / dist, 1.0))           # angular radius
+        entries.append((other, dist, centre, half))
+
+    entries.sort(key=lambda x: x[1])  # ← closest first!
+
+    merged = []                        # merged angular intervals [start, end]
+    visible = []                       # visible neighbour list
+
+    for other, dist, centre, half in entries:
+        start, end = centre - half, centre + half
+        # A bird is visible if ANY part of its interval is not already covered
+        if not _interval_covered(start, end, merged):
+            visible.append((other, dist))
+            _merge_interval(start, end, merged)
+
+    # δ̂ = sum of unit vectors to all merged interval boundaries
+    delta = vec2(0, 0)
+    for s, e in merged:
+        delta += vec2(cos(s), sin(s))    # start of interval
+        delta += vec2(cos(e), sin(e))    # end of interval
+    if delta.length() > 0:
+        delta.normalize_ip()
+
+    # Θ = total occluded / 2π
+    theta = sum(e - s for s, e in merged) / (2π)
+
+    return delta, visible, theta, merged
+```
+
+**🎓 Why does δ̂ produce cohesion?** When a bird is on the *edge* of the flock, most of its field of view is clear sky with birds only on one side. The merged intervals are concentrated in a narrow angular range, so δ̂ points *toward* the flock's centre — pulling the edge bird back in. When a bird is in the *centre*, it's fully surrounded; merged intervals cover all 2π and δ̂ = 0.
+
+**🎓 Why closest-first?** A bird 50m away subtends a larger angular width than a bird 200m away. If we processed far birds first, a near bird's interval would be incorrectly marked as "covered" by an interval from a far bird that it should actually occlude. Distance-sorting gives correct partial occlusion.
+
+> **What's next?** Continue to [Iteration 6 — Dual-Mode Flocking](#iteration-6--dual-mode-flocking)
+> (`examples/iteration6_dual_mode.py`) to combine both models into a single simulation
+> that switches at runtime — press `M` to toggle between PROJECTION and SPATIAL modes.
+
+---
+
+### Iteration 6 — Dual-Mode Flocking
+
+**File:** `examples/iteration6_dual_mode.py`
+
+**What we build:** Combine the projection model (Iteration 5) and spatial Reynolds model (Iteration 3) into a single simulation switchable at runtime with the `M` key.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **Config class** | Mutable parameters (`mode`, `phi_p`, `phi_a`, `sigma`) shared across the simulation. `phi_n` is an auto-computed `@property` |
+| **Mode dispatch** | `boid.flock()` checks `config.mode` and delegates to `_flock_projection()` or `_flock_spatial()` |
+| **Keyboard input** | `pygame.KEYDOWN` events handle mode toggle (`M`), quit (`ESC`) |
+| **Runtime mode switching** | Birds recompute via different algorithms on the very next frame — no reinitialisation needed |
+| **SpatialGrid used only in spatial mode** | Projection mode uses O(N²) pairwise for occlusion — the grid can't help because occlusion needs ALL birds sorted by distance |
+
+**Key code pattern — Config with auto-computed φn:**
+
+```python
+class Config:
+    def __init__(self):
+        self.mode = 0       # 0 = PROJECTION, 1 = SPATIAL
+        self.phi_p = 0.03   # projection / separation weight
+        self.phi_a = 0.80   # alignment weight
+        self.sigma = 4      # topological neighbour count
+
+    @property
+    def phi_n(self):
+        return max(0.0, 1.0 - self.phi_p - self.phi_a)
+```
+
+This guarantees `φp + φa + φn = 1` always holds — the user adjusts φp and φa, and φn is automatically computed so the weights sum to 1.
+
+**Key code pattern — mode dispatch:**
+
+```python
+def flock(self, boids, config, grid):
+    if config.mode == 0:
+        self._flock_projection(boids, config)
+    else:
+        self._flock_spatial(boids, config, grid)
+```
+
+The two modes produce visually distinct behaviours. PROJECTION mode creates tight, organic starling-like flocks. SPATIAL mode creates looser, school-like formations. Press `M` to see the difference instantly.
+
+> **What's next?** Continue to [Iteration 7 — Scientific Metrics](#iteration-7--scientific-metrics)
+> (`examples/iteration7_metrics.py`) to add real-time tracking of Θ (internal opacity),
+> Θ′ (external opacity), and α (order parameter) — the three metrics from the paper.
+
+---
+
+### Iteration 7 — Scientific Metrics
+
+**File:** `examples/iteration7_metrics.py`
+
+**What we build:** Real-time tracking of three scientific metrics from the Pearce et al. paper.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **Θ (internal opacity)** | Average fraction of each bird's 2π field of view occluded. Exact in PROJECTION mode (from cached intervals); sampled from 5 birds in SPATIAL mode |
+| **Θ′ (external opacity)** | Fraction of sky obscured from a distant observer (`−2000, HEIGHT/2`). Same angular-interval algorithm applied from a fixed viewpoint |
+| **α (order parameter)** | `|Σvᵢ| / (N · V₀)` — 0 = completely chaotic, 1 = perfectly aligned |
+| **EMA smoothing** | `new = old × 0.9 + raw × 0.1` — exponential moving average prevents numbers from jittering every frame |
+| **Metrics overlay** | Render Θ, Θ′, α, mode, and parameter values on the screen in real time |
+
+**Key code pattern — EMA smoothing:**
+
+```python
+def update(self, flock):
+    raw_theta = sum(b._last_theta for b in flock) / len(flock)
+    self.theta = self.theta * 0.9 + raw_theta * 0.1  # EMA
+
+    raw_alpha = sum(b.velocity for b in flock).length() / (len(flock) * V0)
+    self.alpha = self.alpha * 0.9 + raw_alpha * 0.1
+```
+
+**Key code pattern — order parameter α:**
+
+```python
+total_velocity = sum(b.velocity for b in flock)  # vector sum
+speed = total_velocity.length()
+alpha = speed / (len(flock) * V0)
+```
+
+When all birds fly in the same direction, the vector sum is `N × V₀` and `α = 1`. When they fly in random directions, the vector sum cancels to ~0 and `α ≈ 0`.
+
+**Expected values from the paper:** Marginal opacity predicts Θ ≈ 0.25–0.60 at steady state — neither fully transparent nor fully opaque. This is an *emergent property* of the projection model; no opacity target is hard-coded.
+
+> **What's next?** Continue to [Iteration 8 — Boundary Modes](#iteration-8--boundary-modes)
+> (`examples/iteration8_boundary_modes.py`) to add two boundary strategies — toroidal wrap
+> vs. margin keep-within-bounds — and learn why nudge ordering matters for smooth walls.
+
+---
+
+### Iteration 8 — Boundary Modes
+
+**File:** `examples/iteration8_boundary_modes.py`
+
+**What we build:** Two boundary strategies, switchable at runtime with the `B` key.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **Toroidal wrap** (default) | `x > WIDTH → x = 0`. Creates an infinite periodic universe. Birds near opposite edges interact normally |
+| **Margin keep-within-bounds** | Birds within 200px of an edge get nudged toward the centre. Position is hard-clamped to `[0, WIDTH]` |
+| **Nudge before clamp** | The margin nudge runs *before* the speed clamp so the nudge is absorbed same-frame. This prevents wall-jitter |
+| **Hard clamp** | Margin mode also clamps position to `[0, WIDTH] × [0, HEIGHT]` |
+
+**Key code pattern — nudge ordering (the subtle bug):**
+
+```python
+# ❌ WRONG: nudge AFTER clamp → speed exceeds V₀ → wall jitter
+speed = clamp(velocity, V0)     # speed = V₀
+velocity.x += 1                 # speed = V₀ + 1 → exceeds V₀!
+
+# ✅ CORRECT: nudge BEFORE clamp → clamp absorbs it same-frame
+if near_wall:
+    velocity.x += 1             # speed = V₀ + 1
+speed = clamp(velocity, V0)     # speed = V₀ (clamp absorbs nudge)
+```
+
+**Key code pattern — the updated update():**
+
+```python
+def update(self):
+    self.velocity += self.acceleration
+
+    # 1. Margin nudge (BEFORE speed clamp)
+    if MARGIN_BOUNDARY:
+        if self.position.x < 200:   self.velocity.x += 1
+        if self.position.x > WIDTH-200: self.velocity.x -= 1
+        # ... same for y ...
+
+    # 2. Speed clamp (absorbs the nudge same-frame)
+    speed = self.velocity.length()
+    if speed > V0: self.velocity.scale_to_length(V0)
+
+    # 3. Position update
+    self.position += self.velocity
+
+    # 4. Boundary handling
+    if MARGIN_BOUNDARY:
+        self.position.x = max(0, min(WIDTH, self.position.x))
+    else:
+        if self.position.x > WIDTH: self.position.x = 0
+        # ... wrap for y ...
+```
+
+> **What's next?** Continue to [Iteration 9 — Modular Architecture](#iteration-9--modular-architecture)
+> (`examples/iteration9_modular.py`) to learn how to split the monolithic simulation into
+> focused, independently-testable modules with clean dependencies and no circular imports.
+
+---
+
+### Iteration 9 — Modular Architecture
+
+**File:** `examples/iteration9_modular.py` (documentation only — the final runnable codebase is the project root)
+
+**What we build:** Split the monolithic simulation (everything in one file) into focused modules with clean dependencies.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **Single Responsibility** | Each file does one thing: `occlusion_geom.py` = math, `flock_core.py` = constants + config, `boid.py` = agent behaviour (both `_flock_projection` and `_flock_spatial` live here), `metrics.py` = scientific tracking |
+| **No circular imports** | Dependency DAG: `occlusion_geom → flock_core → boid → metrics → scenario_presets → simulation → input_handler → alg2` |
+| **Thin orchestrator** | `main()` is pure wiring — three phases: input → update → render, each delegated to a module |
+| **Feature flags** | `features.py` enables/disables feature sets at import time (no runtime overhead for disabled features) |
+| **Domain-split tests** | Each module has its own test file: `test_occlusion.py`, `test_boundary.py`, `test_presets.py`, `test_projection_model.py`, `test_spatial_model.py`, `test_input_handler.py`, `test_cross_language.py` |
+
+**Actual module dependency graph:**
+
+```
+occlusion_geom.py          (pure math — no dependencies)
+       ↓
+flock_core.py              (constants, Config, SpatialGrid)
+       ↓
+boid.py                    (Boid agent — both flocking modes)
+       ↓
+metrics.py                 (scientific metrics + help overlay)
+       ↓
+scenario_presets.py         (educational presets)
+       ↓
+input_handler.py            (keyboard + mouse event processing)
+       ↓
+simulation.py               (per-frame update: boid counts, grid, flocking, logging)
+       ↓
+alg2.py                    (main loop — ties everything together)
+```
+
+**Final main loop — the 3-phase orchestrator:**
+
+```python
+def main():
+    # ── Setup ──
+    config, flock, grid, metrics, clock = setup()
+
+    while running:
+        # 1. INPUT — keyboard + mouse
+        (running, paused, ...) = input_handler.handle_events(
+            config, flock, running, paused, ...)
+
+        # 2. UPDATE — flocking + physics + metrics
+        if not paused:
+            (flock, grid, metrics, ...) = simulation.update_frame(
+                config, flock, metrics, grid, frame, clock, ...)
+
+        # 3. RENDER — drawing + badges + help
+        screen.fill(BG_COLOR)
+        for boid in flock: boid.draw(screen, config)
+        metrics.draw(screen, font, config)
+        pygame.display.flip()
+
+    # ── Shutdown ──
+    pygame.quit()
+```
+
+Each phase delegates to a dedicated module. The orchestrator knows *what* happens, each module knows *how*.
+
+> **Where to go from here:**
+> - Run the full simulation: `python alg2.py` (press `H` for controls)
+> - Browse the [Code Tour](#code-tour--module-structure) for a file-by-file reference
+> - Explore the [3D Simulation Build Guide](#3d-simulation-build-guide) to extend the simulation into 3D with GPU rendering
+> - Study the [Paper-to-Code Audit](#paper-to-code-implementation-audit) to see how the research maps to code
+
+---
+
+## 3D Simulation Build Guide
+
+This guide extends the 2D simulation into full 3D with GPU-accelerated rendering.
+Each iteration introduces one new concept across 4 new files. The 3D simulation
+reuses the core 2D logic (`occlusion_geom.py`, `flock_core.py`) and adds spatial,
+agent, renderer, and orchestrator layers.
+
+Run the 3D simulation with:
+
+```bash
+pip install pygame moderngl PyGLM numpy
+python main_3d.py
+```
+
+![3D murmuration demo](murmuration_3d.gif)
+
+*150 birds, auto-orbiting camera. First half: PROJECTION mode (Pearce et al. model). Second half: SPATIAL mode (topological Reynolds boids). Captured headlessly via ModernGL FBO.*
+
+### Iteration 10 — 3D Spatial Grid
+
+**File:** `spatial_3d.py`
+
+**What we build:** A 3D spatial hash grid for O(1)-per-query neighbour lookups, plus both 3D flocking mode functions.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **3D cell indexing** | Grid divides the volume (WIDTH × HEIGHT × DEPTH) into `cell_size³` buckets. Tuples `(cx, cy, cz)` key into a `defaultdict(list)` |
+| **27-cell queries** | `get_nearby()` queries 3×3×3 = 27 adjacent cells instead of the 2D grid's 4–9 |
+| **Toroidal wrap in 3D** | `cx % cols`, `cy % rows`, `cz % slices` — wrap all three axes so birds interact across opposite faces |
+| **PROJECTION mode 3D** | XY-plane occlusion (reuses `occlusion_geom.py`) + Z-axis altitude cohesion. `MAX_VISIBILITY_RANGE` caps occlusion distance for performance |
+| **SPATIAL mode 3D** | Full 3D separation/alignment/cohesion — all vectors are `np.ndarray(3,)` instead of `pygame.Vector2` |
+| **Duck-typing** | Spatial functions accept any object with `.pos`, `.vel`, `.apply_force()` — no import of `Boid3D` (avoids circular imports) |
+
+**Key code pattern — 3D grid query:**
+
+```python
+def get_nearby(self, pos, radius):
+    """Return boids in 27 cells overlapping the AABB of radius."""
+    cx0 = int((pos[0] - radius) // self.cell_size)
+    cx1 = int((pos[0] + radius) // self.cell_size)
+    # ... same for y (cy0, cy1) and z (cz0, cz1) ...
+
+    nearby = []
+    for cx in range(cx0, cx1 + 1):
+        wcx = cx % self.cols       # toroidal wrap X
+        for cy in range(cy0, cy1 + 1):
+            wcy = cy % self.rows   # toroidal wrap Y
+            for cz in range(cz0, cz1 + 1):
+                wcz = cz % self.slices  # toroidal wrap Z
+                nearby.extend(self.cells.get((wcx, wcy, wcz), ()))
+    return nearby
+```
+
+**Key code pattern — 3D PROJECTION with altitude cohesion:**
+
+```python
+def flock_projection_3d(boid, all_boids, config, grid):
+    # 1. Spatial grid filtering (only birds within MAX_VISIBILITY_RANGE)
+    candidates = grid.get_nearby(boid.pos, MAX_VISIBILITY_RANGE)
+
+    # 2. Build angular intervals on the XY plane (same as 2D)
+    entries = []  # (other, dist_xy, centre_angle, half_width)
+    for other in candidates:
+        dx = other.pos[0] - boid.pos[0]
+        dy = other.pos[1] - boid.pos[1]
+        dist_xy = math.sqrt(dx*dx + dy*dy)
+        centre = math.atan2(dy, dx)
+        half = math.asin(min(BOID_SIZE / dist_xy, 1.0))
+        entries.append((other, dist_xy, centre, half))
+
+    entries.sort(key=lambda x: x[1])  # closest first
+
+    # 3. Occlusion merge (reuses occlusion_geom.py functions)
+    merged = []
+    visible = []
+    for other, dist_xy, centre, half in entries:
+        segments = _normalise_interval(centre - half, centre + half)
+        if any(not _interval_covered(s, e, merged) for s, e in segments):
+            visible.append((other, dist_xy))
+            for s, e in segments:
+                _merge_interval(s, e, merged)
+
+    # 4. δ̂_xy from domain boundaries (numpy vector, Z=0)
+    delta_xy = np.zeros(3, dtype=np.float32)
+    for s, e in merged:
+        delta_xy[0] += math.cos(s) + math.cos(e)
+        delta_xy[1] += math.sin(s) + math.sin(e)
+
+    # 5. Altitude cohesion: nudge toward mean Z of visible neighbours
+    altitude_cohesion = 0.0
+    if visible:
+        mean_z = sum(nb.pos[2] for nb, _ in visible[:sigma]) / sigma
+        altitude_cohesion = (mean_z - boid.pos[2]) * 0.01
+
+    # 6. 3D noise (uniform distribution on unit sphere)
+    theta = random.uniform(0, 2 * math.pi)
+    phi = random.uniform(0, math.pi)
+    noise = np.array([cos(θ)·sin(φ), sin(θ)·sin(φ), cos(φ)])
+
+    # 7. Desired direction (Eq. 3 from Pearce, 3D extended)
+    desired = delta_xy * config.phi_p
+    desired[2] += altitude_cohesion * config.phi_n
+    desired += noise * config.phi_n
+```
+
+**🎓 Why XY-plane projection?** The Pearce et al. paper's projection model was originally 2D. Extending to full 3D occlusion (spherical caps on a unit sphere) is computationally expensive. The 3D extension uses XY-plane projection with altitude cohesion as a pragmatic approximation — birds perceive each other's horizontal positions via angular occlusion (same as 2D) and are gently nudged toward the same altitude. This produces natural-looking 3D flocking at scale.
+
+**🎓 Why MAX_VISIBILITY_RANGE?** In 2D, every bird checks every other bird (O(N²)). In 3D with 5000 birds, the spatial grid limits candidates, but the occlusion merge still sorts and processes potentially hundreds of birds per observer. `MAX_VISIBILITY_RANGE` (200) caps this cost — beyond that distance, the angular width of a bird is negligible (< 0.5°), so occlusion from distant birds has almost no effect on δ̂.
+
+> **What's next?** Continue to [Iteration 11 — 3D Boid Agent](#iteration-11--3d-boid-agent)
+> (`boid_3d.py`) to see the 3D bird agent with numpy vector physics, Euler integration,
+> and toroidal wrap in all three dimensions.
+
+---
+
+### Iteration 11 — 3D Boid Agent
+
+**File:** `boid_3d.py`
+
+**What we build:** The `Boid3D` class — a single bird agent using numpy arrays for position, velocity, and acceleration in 3D.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **Numpy Vec3 physics** | `pos`, `vel`, `acc` are `np.ndarray(3, dtype=np.float32)` — efficient for both CPU math and direct GPU buffer upload |
+| **Spherical initialisation** | Random initial direction on the unit sphere: `θ ∈ [0, 2π)`, `φ ∈ [0, π]`, `v = cos(θ)·sin(φ), sin(θ)·sin(φ), cos(φ)` |
+| **Euler integration in 3D** | Same as 2D but in all 3 axes: `vel += acc`, speed clamp, `pos += vel` |
+| **Toroidal wrap 3D** | `pos[0] > WIDTH → pos[0] = 0`, same for Y/HEIGHT and Z/DEPTH. Negative overflow wraps to the max value |
+| **Margin boundary 3D** | Added Z-axis nudge: birds within `BOUNDARY_MARGIN_Z` of the top/bottom get nudged inward |
+| **Mode dispatch** | `flock()` checks `config.mode` and delegates to `flock_projection_3d()` or `flock_spatial_3d()` from `spatial_3d.py` |
+| **__slots__** | Uses `__slots__` for memory efficiency — no `__dict__` per instance when spawning thousands of birds |
+
+**Key code pattern — 3D update with wrap:**
+
+```python
+def update(self):
+    self.vel += self.acc
+
+    # Speed clamp: keep in [0.3·V₀, V₀]
+    speed = np.linalg.norm(self.vel)
+    if speed > V0:
+        self.vel = (self.vel / speed) * V0
+    elif speed < V0 * 0.3:
+        if speed > 0.001:
+            self.vel = (self.vel / speed) * V0 * 0.3
+        else:
+            # Frozen bird — random restart
+            self.vel = random_on_sphere() * V0 * 0.3
+
+    self.pos += self.vel
+    self.acc = np.zeros(3, dtype=np.float32)  # reset each frame
+
+    # Toroidal wrap in all 3 dimensions
+    if self.pos[0] > WIDTH:  self.pos[0] = 0.0
+    elif self.pos[0] < 0:    self.pos[0] = float(WIDTH)
+    if self.pos[1] > HEIGHT: self.pos[1] = 0.0
+    elif self.pos[1] < 0:    self.pos[1] = float(HEIGHT)
+    if self.pos[2] > DEPTH:  self.pos[2] = 0.0
+    elif self.pos[2] < 0:    self.pos[2] = float(DEPTH)
+```
+
+**🎓 Why numpy over pygame.Vector2?** The 2D simulation uses `pygame.Vector2` for convenience (built-in `.length()`, `.normalize()`, `.distance_to()`). The 3D simulation uses numpy arrays because: (1) Pygame has no `Vector3`, (2) numpy arrays can be packed directly into GPU vertex buffers without conversion, (3) `np.linalg.norm()` provides vector magnitude, and (4) numpy broadcasting makes batch operations efficient.
+
+**🎓 Why __slots__?** When creating 5000+ `Boid3D` instances, each with a `__dict__`, memory overhead adds up (≈56 bytes per `__dict__` × 5000 = 280KB just for empty dicts). `__slots__` eliminates this overhead and speeds up attribute access by using fixed-offset storage instead of hash lookups.
+
+> **What's next?** Continue to [Iteration 12 — GPU Instanced Rendering](#iteration-12--gpu-instanced-rendering)
+> (`renderer_3d.py`) to see how ModernGL renders thousands of birds in a single draw call
+> with GPU-side rotation and Blinn-Phong lighting.
+
+---
+
+### Iteration 12 — GPU Instanced Rendering
+
+**File:** `renderer_3d.py`
+
+**What we build:** A ModernGL renderer that draws all birds in a single instanced draw call. Each bird's velocity → rotation matrix is computed on the GPU in the vertex shader.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **ModernGL** | Modern OpenGL wrapper that works on macOS (Metal backend). `create_context(standalone=True, require=330)` creates a GL 3.3 context |
+| **Instanced rendering** | One tetrahedron mesh, one draw call, N instances. `vao.render(instances=N)` |
+| **GPU-side LookAt** | Velocity vector → rotation matrix computed in the vertex shader via `lookAtRotation(velocity)`. CPU only sends position + velocity per bird |
+| **Per-instance attributes** | ModernGL VAO format `'3f 3f/i'` — the `/i` suffix sets `divisor=1`, making those attributes per-instance instead of per-vertex |
+| **Blinn-Phong lighting** | Ambient + diffuse + specular in fragment shader. Speed tints the bird color (faster = warmer tone) |
+| **OrbitCamera** | Spherical coordinates: azimuth, elevation, distance. Mouse drag rotates, scroll zooms. `glm.lookAt()` + `glm.perspective()` |
+| **Pre-allocated GPU buffer** | Instance VBO starts at 5000 birds. Grows by 1000 if needed — `glBufferSubData` for partial updates |
+| **Reference grid** | Lines on the XY plane at z=0, drawn as a separate VAO with `moderngl.LINES` |
+
+**Key code pattern — GPU-side LookAt rotation (vertex shader):**
+
+```glsl
+mat3 lookAtRotation(vec3 forward) {
+    vec3 f = normalize(forward);
+    if (length(f) < 0.001)
+        return mat3(1.0);
+
+    // Choose an up vector, avoiding parallel alignment with forward
+    vec3 arbitraryUp = vec3(0.0, 1.0, 0.0);
+    if (abs(dot(f, arbitraryUp)) > 0.999)
+        arbitraryUp = vec3(1.0, 0.0, 0.0);
+
+    vec3 r = normalize(cross(arbitraryUp, f));  // right axis
+    vec3 u = cross(f, r);                        // up axis
+    return mat3(r, u, f);                        // columns: right, up, forward
+}
+
+void main() {
+    mat3 rot = lookAtRotation(in_InstanceVel);
+    vec3 worldPos = rot * (in_Position * u_Scale) + in_InstancePos;
+    gl_Position = u_Projection * u_View * vec4(worldPos, 1.0);
+}
+```
+
+**Key code pattern — VAO with per-instance attributes:**
+
+```python
+# Per-vertex: 3 floats position + 3 floats normal  → '3f 3f'
+# Per-instance: 3 floats pos + 3 floats vel       → '3f 3f/i'
+self.bird_vao = self.ctx.vertex_array(
+    self.bird_prog,
+    [
+        (self.mesh_vbo,     '3f 3f',   'in_Position', 'in_Normal'),
+        (self.instance_vbo, '3f 3f/i', 'in_InstancePos', 'in_InstanceVel'),
+    ],
+    index_buffer=self.index_ibo,
+)
+```
+
+**Key code pattern — instance data packing:**
+
+```python
+def update_instances(self, boids):
+    for i, b in enumerate(boids):
+        self.instance_data[i, 0] = b.pos[0]   # x
+        self.instance_data[i, 1] = b.pos[1]   # y
+        self.instance_data[i, 2] = b.pos[2]   # z
+        self.instance_data[i, 3] = b.vel[0]   # vx
+        self.instance_data[i, 4] = b.vel[1]   # vy
+        self.instance_data[i, 5] = b.vel[2]   # vz
+
+    self.instance_vbo.write(self.instance_data[:len(boids)])
+    return len(boids)
+```
+
+The entire flock renders as one draw call: `self.bird_vao.render(instances=count)`.
+
+**🎓 Why ModernGL instead of raw PyOpenGL?** On macOS, Apple deprecated OpenGL in favor of Metal. PyOpenGL can only create legacy OpenGL 2.1 contexts on modern macOS, which lack Vertex Array Objects (VAOs), instanced rendering (`glDrawElementsInstanced`), and GLSL 3.30 shaders — all required for GPU-side instanced rendering. ModernGL wraps Metal (via its own backend) and exposes a modern GL 3.3+ API, making instanced rendering work on macOS without any code changes.
+
+**🎓 Why GPU-side rotation?** Without instanced rendering, each bird would require a separate draw call — 5000 birds = 5000 draw calls = terrible performance. With instancing, all 5000 birds are drawn in a single call, but the CPU would need to compute 5000 rotation matrices per frame. Moving the LookAt rotation to the vertex shader means the GPU does this work in parallel across thousands of cores — the CPU only sends 6 floats per bird (position + velocity) instead of 16 floats (4×4 rotation matrix).
+
+> **What's next?** Continue to [Iteration 13 — 3D Main Loop](#iteration-13--3d-main-loop)
+> (`main_3d.py`) to see how Pygame and ModernGL integrate into a complete 3-phase
+> simulation loop with orbit camera controls.
+
+---
+
+### Iteration 13 — 3D Main Loop
+
+**File:** `main_3d.py`
+
+**What we build:** The entry point that ties together the 3D spatial grid, boid agents, and ModernGL renderer into a complete interactive simulation.
+
+**New concepts:**
+
+| Concept | How it works |
+|---------|-------------|
+| **Pygame + ModernGL** | Pygame creates the window with `DOUBLEBUF | OPENGL` flags. ModernGL's `create_context(standalone=True)` takes over for rendering. `pygame.display.flip()` still swaps buffers |
+| **Orbit camera input** | `MOUSEBUTTONDOWN` (button 1) starts drag. `MOUSEMOTION` with `buttons[0]` rotates azimuth/elevation. `MOUSEBUTTONUP` ends drag. Scroll wheel (buttons 4/5) zooms |
+| **3-phase main loop** | Same pattern as 2D: 1. INPUT (handle_input), 2. UPDATE (grid rebuild → flock → physics), 3. RENDER (begin_frame → draw_birds → draw_grid → end_frame → flip) |
+| **Boid count management** | `pending_add`/`pending_remove` accumulators let the user add/remove birds via +/- keys. Changes applied at the top of the update phase |
+| **FPS window title** | `pygame.display.set_caption()` updates every frame with mode, bird count, φp/φa/σ, FPS, and pause status |
+| **Config reuse** | Same `Config` class from `flock_core.py` — `phi_n` is auto-computed, `phi_p` + `phi_a` + `phi_n` = 1 |
+
+**Key code pattern — the 3-phase main loop:**
+
+```python
+def main():
+    pygame.init()
+    create_window()        # Pygame OPENGL|DOUBLEBUF window
+    setup_opengl()         # ModernGL handles rest
+
+    config = Config()
+    grid = SpatialGrid3D()
+    renderer = Renderer3D(WINDOW_WIDTH, WINDOW_HEIGHT)
+    flock = [Boid3D() for _ in range(config.num_boids)]
+
+    while running:
+        # 1. INPUT — keyboard + mouse (returns updated state)
+        (running, paused, ...) = handle_input(
+            config, flock, running, paused, renderer.camera, ...)
+
+        # 2. UPDATE — flocking + physics
+        if not paused:
+            grid.rebuild(flock)
+            for boid in flock:
+                boid.flock(flock, config, grid)   # steering forces
+            for boid in flock:
+                boid.update()                      # Euler integration
+
+        # 3. RENDER — ModernGL instanced drawing
+        renderer.begin_frame()
+        renderer.draw_birds(flock)                 # single draw call
+        if show_grid:
+            renderer.draw_grid()
+        renderer.end_frame()
+
+        pygame.display.flip()                      # swap buffers
+
+    pygame.quit()
+```
+
+**Key code pattern — orbit camera via mouse:**
+
+```python
+def handle_input(..., camera, ...):
+    for event in pygame.event.get():
+        if event.type == MOUSEBUTTONDOWN:
+            if event.button == 1:
+                dragging = True; prev_mouse = pygame.mouse.get_pos()
+            elif event.button == 4:   camera.zoom(1.0)    # scroll up
+            elif event.button == 5:   camera.zoom(-1.0)   # scroll down
+
+        elif event.type == MOUSEMOTION:
+            if event.buttons[0]:     # left button held
+                dx = x - prev_mouse[0]
+                dy = y - prev_mouse[1]
+                camera.rotate(dx * 0.005, -dy * 0.005)
+
+        elif event.type == KEYDOWN:
+            if key == K_m:      config.mode = 1 - config.mode
+            elif key == K_g:    show_grid = not show_grid
+            elif key == K_r:    pending_reset = True
+            # ... etc ...
+```
+
+**🎓 Why standalone ModernGL context?** On macOS, Pygame creates a legacy OpenGL 2.1 context when `OPENGL` flags are set. ModernGL's `create_context(standalone=True, require=330)` creates its own GL 3.3 context (backed by Metal) that bypasses Pygame's context entirely. ModernGL handles all rendering; Pygame only manages the window and input events. `pygame.display.flip()` still works because it swaps whatever buffer is currently bound.
+
+**🎓 3D vs 2D code reuse:** The 3D simulation reuses `flock_core.py` (Config, constants, VISUAL_RANGE, MARGIN_BOUNDARY) and `occlusion_geom.py` (all four angular-interval functions) without modification. The only new code is the spatial grid (extended to 3D), the boid agent (numpy instead of pygame.Vector2), the renderer (ModernGL instead of pygame.draw), and the orchestrator (camera controls, ModernGL integration).
+
+> **Where to go from here:**
+> - Run the 3D simulation: `python main_3d.py` (mouse drag to orbit, M to toggle mode)
+> - Browse the [Code Tour](#code-tour--module-structure) for a file-by-file reference of all 3D files
+> - Study the [3D unit tests](test_3d.py) — 39 tests covering wrap physics, spatial grid, and flocking modes
+> - Read the [Paper-to-Code Audit](#paper-to-code-implementation-audit) to understand the Pearce et al. model
+
+---
+
 ## Code Tour — Module Structure
 
 The codebase is split into focused modules so students can read them one at a time.
@@ -435,16 +1337,26 @@ The codebase is split into focused modules so students can read them one at a ti
 |------|-------|-------------|---------------|
 | `alg2.py` | ~265 | all modules above + `pygame`, `sys` | `main()` — the simulation loop. Handles input (keyboard + mouse), orchestrates the update/render cycle, CSV logging, focal bird debug view, and shutdown. This is where presets, pause, reset, and boid count changes are applied. |
 
+### 3D Simulation modules
+
+| File | Lines | Imports from | What's inside |
+|------|-------|-------------|---------------|
+| `spatial_3d.py` | ~250 | `occlusion_geom`, `flock_core`, `numpy` | `SpatialGrid3D` (toroidal hash grid with 3×3×3 cell queries), `flock_projection_3d()` (XY-plane occlusion + altitude cohesion), `flock_spatial_3d()` (full 3D sep/align/cohesion). Duck-typed — no circular dependency on `boid_3d.py`. |
+| `boid_3d.py` | ~125 | `flock_core`, `spatial_3d`, `numpy` | `Boid3D` class — numpy Vec3 physics, Euler integration, toroidal wrap in X/Y/Z, margin boundary nudge, mode dispatch. Uses `__slots__` for memory efficiency at 5000+ instances. |
+| `renderer_3d.py` | ~280 | `numpy`, `moderngl`, `glm` | `Renderer3D` — ModernGL instanced rendering with GLSL 3.30 shaders. GPU-side LookAt rotation from velocity vector. Blinn-Phong lighting with speed-based tint. `OrbitCamera` with azimuth/elevation/distance controls. Pre-allocated VBO for 5000+ birds. `_build_grid_verts()` for XY-plane reference grid. |
+| `main_3d.py` | ~220 | all 3D modules above + `pygame` | `main()` — 3-phase orchestrator: input (keyboard + mouse orbit), update (grid rebuild → flock → physics), render (ModernGL instanced draw). Same Config class reused from `flock_core.py`. |
+
 ### Supporting files
 
 | File | Purpose |
 |------|---------|
 | `alg.py` | Original classic Reynolds boids — metric neighbourhood, Russian comments. Kept for historical comparison. |
 | `test_alg2.py` | 47 unit tests for `occlusion_geom.py`. No Pygame needed. |
+| `test_3d.py` | 39 unit tests for 3D physics and spatial grid (`Boid3D.update()` wrap/speed/clamp, `SpatialGrid3D` query/rebuild, `flock_spatial_3d`, `flock_projection_3d`). Uses MockBoid duck-typing. |
 | `README.md` | This file — scientific background, paper audit, implementation roadmap. |
 | `USER_GUIDE.md` | Practical guide — installation, controls, tuning, FAQ. |
 
-### Module structure
+### Module structure (2D)
 
 ```
 occlusion_geom.py          (pure math — no dependencies)
@@ -460,7 +1372,23 @@ scenario_presets.py         (educational presets)
 alg2.py                    (main loop — ties everything together)
 ```
 
-No circular imports. Each module can be read and understood independently.
+### Module structure (3D)
+
+```
+occlusion_geom.py          (pure math — reused without changes)
+       ↓
+flock_core.py              (constants, Config — reused without changes)
+       ↓
+spatial_3d.py              (3D grid + both flocking modes)
+       ↓
+boid_3d.py                 (3D agent — numpy Vec3 physics)
+       ↓
+renderer_3d.py             (ModernGL GPU instanced rendering)
+       ↓
+main_3d.py                 (3D main loop — Pygame + ModernGL)
+```
+
+No circular imports. The 3D stack sits entirely separate from the 2D stack, sharing only the pure-math `occlusion_geom.py` and constants/config `flock_core.py`.
 
 ### `alg.py` vs `alg2.py` (historical comparison)
 
@@ -770,78 +1698,58 @@ In 2D PyGame, a simpler zoom/pan scheme could be added using the scroll wheel an
 
 #### 4c. Docker interactive Scilab / Octave test toggles
 
-**Currently**: The `docker-compose.yml` has a `shell` service that opens a bash prompt, but the Docker image only includes Python + Pygame — no Scilab or Octave. Scilab/Octave tests run non-interactively via `subprocess` in `test_alg2.py` (`_run_scilab_script_docker`), and would require the image to be extended with Scilab and Octave packages.
+**Implemented**: The Docker image includes both Scilab CLI and GNU Octave. Interactive sessions are available via `run-docker.sh` shortcuts or direct `docker compose` commands:
 
-**Planned**: 
-
-1. Extend the Docker image to include Scilab CLI and GNU Octave:
-```dockerfile
-RUN apt-get install -y --no-install-recommends octave scilab-cli
+```bash
+./run-docker.sh scilab        # Scilab CLI in Docker
+./run-docker.sh octave        # GNU Octave REPL in Docker
+docker compose run scilab      # equivalent direct command
+docker compose run octave      # equivalent direct command
 ```
 
-2. Add dedicated docker-compose services for interactive testing:
+The `docker-compose.yml` services are defined as:
 
 ```yaml
-  # docker compose run scilab-interactive
-  scilab-interactive:
-    build: .
-    image: murmuration:latest
-    command: scilab-cli
-    stdin_open: true
-    tty: true
-
-  # docker compose run octave-interactive
-  octave-interactive:
+  octave:
     build: .
     image: murmuration:latest
     command: octave --no-gui
+    stdin_open: true
+    tty: true
+
+  scilab:
+    build: .
+    image: murmuration:latest
+    command: scilab-cli
     stdin_open: true
     tty: true
 ```
 
 This allows developers to manually test boundary toggles (`MARGIN_BOUNDARY`, `MODE`, key handlers) in the exact Docker environment used by CI, without spawning subprocesses from Python.
 
+**Dockerfile** includes the packages:
+```dockerfile
+RUN apt-get install -y --no-install-recommends octave scilab-cli
+```
+
 #### 4d. Full validation pipeline
 
-**Currently**: Tests are run piecemeal and Scilab/Octave tests cannot run in Docker until the image is extended (see 4c):
+**Implemented**: `scripts/validate-all.sh` is a single command that runs the full 5-stage pipeline across all languages and environments. Also available as `./run-docker.sh validate-all`.
 
 ```bash
-./run.sh tests               # Python unit tests (native)
-./run-docker.sh tests         # Python unit tests (Docker)
-python3 -m unittest test_alg2.TestDiscovery extensions.test_extensions.TestDiscovery  # count gate
+./run-docker.sh validate-all          # Docker wrapper
+bash scripts/validate-all.sh          # direct invocation
 ```
 
-Octave and Scilab tests require Octave installed locally or Docker available. There is no single command that runs the full validation suite.
+The 5-stage pipeline:
 
-**Planned**: After extending the Docker image with Scilab/Octave, a `scripts/validate-all.sh` that runs:
+1. **Test count gate** — `scripts/check-test-count.sh` verifies no test methods were accidentally renamed or deleted
+2. **Python tests (native)** — `python3 -m unittest test_alg2 extensions.test_extensions`
+3. **Python tests (Docker)** — `docker compose run tests` verifies identical results in container
+4. **GNU Octave tests** — runs `test_toroidal_wrap.m`, `test_key_handler.m`, `test_boundary_toggle.m` (native or Docker fallback)
+5. **Scilab tests (Docker)** — runs `test_toroidal_wrap.sce`, `test_key_handler.sce`, `test_boundary_toggle.sce` via `docker compose run scilab`
 
-```bash
-#!/usr/bin/env bash
-# Full validation pipeline — all languages, all environments.
-
-set -euo pipefail
-
-echo "=== 1/5 Test count gate ==="
-./scripts/check-test-count.sh
-
-echo "=== 2/5 Python tests (native) ==="
-python3 -m unittest test_alg2 extensions.test_extensions -v
-
-echo "=== 3/5 Python tests (Docker) ==="
-docker compose run --rm tests
-
-echo "=== 4/5 GNU Octave tests ==="
-octave --no-gui --silent test_toroidal_wrap.m
-octave --no-gui --silent test_key_handler.m
-octave --no-gui --silent test_boundary_toggle.m
-
-echo "=== 5/5 Scilab tests (Docker) ==="
-docker compose run --rm -T shell scilab-cli -nb -f test_toroidal_wrap.sce
-docker compose run --rm -T shell scilab-cli -nb -f test_key_handler.sce
-docker compose run --rm -T shell scilab-cli -nb -f test_boundary_toggle.sce
-
-echo "All validations passed."
-```
+Stages requiring missing tools (Docker, Octave) are **skipped with a warning** rather than failing — the pipeline degrades gracefully. Output uses colored `PASS`/`SKIP`/`FAIL` markers for readability.
 
 ### Priority 5 — Ecological & Behavioral Extensions
 
@@ -903,7 +1811,11 @@ Quick-reference list of features present in the companion TypeScript/Three.js pr
 ### Visualization
 
 - [ ] **3D WebGL/WebGPU rendering** — headless 3D extension exists; needs Three.js or similar browser-based frontend
-- [ ] **Scene rotation / camera orbit** — PyGame view is fixed 2D; no pan, zoom, or auto-rotate
+- [ ] **Scene rotation / camera orbit** — PyGame view is fixed 2D orthographic; no camera controls. See Priority 4b for planned orbit controls (rotateSpeed 0.62, panSpeed 0.45, zoomSpeed 0.8, autoRotate 0.45 rad/s, R to reset)
+  - [ ] **2D zoom/pan** — scroll-wheel zoom and middle-mouse-drag pan in PyGame (simpler than full 3D orbit)
+  - [ ] **3D orbit controls** — OrbitControls with damping for the Three.js/WebGL frontend
+  - [ ] **Auto-rotate mode** — optional automatic scene rotation at 0.45 rad/s for unattended demos
+  - [ ] **Camera reset** — R key to snap camera back to default position
 - [ ] **Visual themes** — ink/paper/panel color schemes (light, dark, graphite, inverse) from companion `themes.ts`
 - [ ] **Velocity trails in 3D** — 5-segment geometric trail lines with wave offset (companion `TrailLines.ts`)
 - [ ] **Frame accumulation trails** — semi-transparent overlay ghosting (companion `accumulation.ts`): fadeOpacity formula, autoClear management
@@ -911,9 +1823,21 @@ Quick-reference list of features present in the companion TypeScript/Three.js pr
 
 ### Testing & Validation
 
-- [ ] **Docker interactive Scilab test toggle** — `docker compose run scilab-interactive` (requires Scilab in Docker image)
-- [ ] **Docker interactive GNU Octave test toggle** — `docker compose run octave-interactive` (requires Octave in Docker image)
-- [ ] **Full validation pipeline** — single `scripts/validate-all.sh` running Python + Octave + Scilab tests (requires extended Docker image)
+- [x] **Docker interactive Scilab test toggle** — `./run-docker.sh scilab` (Scilab CLI in Docker, image includes `scilab-cli`)
+- [x] **Docker interactive GNU Octave test toggle** — `./run-docker.sh octave` opens an Octave REPL in the Docker environment; image includes `octave --no-gui`. See Priority 4c for the docker-compose service definition.
+  - [x] **Octave REPL** — interactive `octave --no-gui` session inside Docker (`docker compose run octave`)
+  - [x] **Run .m tests manually** — `test_toroidal_wrap`, `test_key_handler`, `test_boundary_toggle` in the Octave environment
+  - [x] **Boundary toggle testing** — set `MARGIN_BOUNDARY`, `MODE`, and key handler variables interactively
+  - [x] **Cross-language validation** — compare Octave output against Python and Scilab outputs for the same test scripts
+- [x] **Full validation pipeline** — `./run-docker.sh validate-all` or `scripts/validate-all.sh` runs all languages and environments in one command. See Priority 4d for the pipeline design.
+  - [x] **validate-all.sh script** — single `bash scripts/validate-all.sh` entry point with colored PASS/SKIP/FAIL output
+  - [x] **Bash syntax validation** — `bash -n scripts/validate-all.sh` passes (`run-docker.sh` also validated)
+  - [x] **Stage 1 — Test count gate** — `scripts/check-test-count.sh` verifies no test methods were accidentally renamed or deleted
+  - [x] **Stage 2 — Python tests (native)** — `python3 -m unittest test_alg2 extensions.test_extensions`
+  - [x] **Stage 3 — Python tests (Docker)** — `docker compose run tests` verifies identical results in container
+  - [x] **Stage 4 — GNU Octave tests** — runs `test_toroidal_wrap.m`, `test_key_handler.m`, `test_boundary_toggle.m` (native or Docker fallback)
+  - [x] **Stage 5 — Scilab tests (Docker)** — runs `test_toroidal_wrap.sce`, `test_key_handler.sce`, `test_boundary_toggle.sce` via `docker compose run scilab`
+  - [x] **Graceful degradation** — stages requiring missing tools (Docker, Octave) are skipped with a warning rather than failing
 - [ ] **Soak testing** — long-running stability tests for memory leaks and performance degradation
 
 ### Simulation Features
