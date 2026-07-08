@@ -24,10 +24,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ── Python dependencies ─────────────────────────────────────────────
 RUN pip install --no-cache-dir \
-    pygame>=2.0,<3.0 \
-    numpy>=1.21 \
-    moderngl>=5.6 \
-    PyGLM>=2.5
+    "pygame>=2.0,<3.0" \
+    "numpy>=1.21" \
+    "moderngl>=5.6" \
+    "PyGLM>=2.5"
 
 # ── Copy 3D project files ───────────────────────────────────────────
 WORKDIR /app
