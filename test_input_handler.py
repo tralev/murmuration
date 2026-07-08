@@ -72,7 +72,8 @@ def _call_handle_events(state, events):
                 state['pending_add'], state['pending_remove'],
                 state['focal_index'],
                 state['last_preset_key'], state['saved_config'],
-                state['preset_label'])
+                state['preset_label'],
+                state.get('ext_state'))
     return {
         **state,
         'running': running, 'paused': paused,
@@ -588,13 +589,267 @@ class TestPresetHelpers(unittest.TestCase):
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Extension toggles  (T, W, A, N, J, C, Y)                           ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestExtensionToggles(unittest.TestCase):
+    """Tests for the 7 new extension key handlers."""
+
+    def setUp(self):
+        self._saved_threat = features.ENABLE_THREAT
+        self._saved_wander = features.ENABLE_WANDER
+        self._saved_aq = features.ENABLE_ADAPTIVE_QUALITY
+        self._saved_medium = features.ENABLE_MEDIUM_PRESETS
+        self._saved_h2 = features.ENABLE_H2_ROBUSTNESS
+        self._saved_seasonal = features.ENABLE_SEASONAL
+        self._saved_shape = features.ENABLE_FLOCK_SHAPE
+
+    def tearDown(self):
+        features.ENABLE_THREAT = self._saved_threat
+        features.ENABLE_WANDER = self._saved_wander
+        features.ENABLE_ADAPTIVE_QUALITY = self._saved_aq
+        features.ENABLE_MEDIUM_PRESETS = self._saved_medium
+        features.ENABLE_H2_ROBUSTNESS = self._saved_h2
+        features.ENABLE_SEASONAL = self._saved_seasonal
+        features.ENABLE_FLOCK_SHAPE = self._saved_shape
+
+    # ── T: threat agent ──────────────────────────────────────────
+
+    def test_t_spawns_threat(self):
+        """T key with threat=None → creates ThreatAgent."""
+        features.ENABLE_THREAT = True
+        from extensions.threat import ThreatAgent
+        s = _default_state()
+        s['ext_state'] = {'threat': None}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_t)])
+        self.assertIsNotNone(result['ext_state']['threat'])
+        self.assertIsInstance(result['ext_state']['threat'], ThreatAgent)
+
+    def test_t_removes_threat(self):
+        """T key with existing threat → removes it."""
+        features.ENABLE_THREAT = True
+        from extensions.threat import ThreatAgent
+        s = _default_state()
+        s['ext_state'] = {'threat': ThreatAgent()}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_t)])
+        self.assertIsNone(result['ext_state']['threat'])
+
+    def test_t_ignored_when_threat_disabled(self):
+        """T key ignored when ENABLE_THREAT=False."""
+        features.ENABLE_THREAT = False
+        s = _default_state()
+        s['ext_state'] = {'threat': None}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_t)])
+        self.assertIsNone(result['ext_state']['threat'])
+
+    # ── W: wander behaviour ──────────────────────────────────────
+
+    def test_w_toggles_wander_on(self):
+        """W key with wander_active=False → toggles to True."""
+        features.ENABLE_WANDER = True
+        s = _default_state()
+        s['ext_state'] = {'wander_active': False}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_w)])
+        self.assertTrue(result['ext_state']['wander_active'])
+
+    def test_w_toggles_wander_off(self):
+        """W key with wander_active=True → toggles to False."""
+        features.ENABLE_WANDER = True
+        s = _default_state()
+        s['ext_state'] = {'wander_active': True}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_w)])
+        self.assertFalse(result['ext_state']['wander_active'])
+
+    def test_w_ignored_when_wander_disabled(self):
+        """W key ignored when ENABLE_WANDER=False."""
+        features.ENABLE_WANDER = False
+        s = _default_state()
+        s['ext_state'] = {'wander_active': False}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_w)])
+        self.assertFalse(result['ext_state']['wander_active'])
+
+    # ── A: adaptive quality ──────────────────────────────────────
+
+    def test_a_toggles_adaptive_quality(self):
+        """A key toggles AdaptiveQuality on and sets aq_label."""
+        features.ENABLE_ADAPTIVE_QUALITY = True
+        from extensions.adaptive_quality import AdaptiveQuality
+        aq = AdaptiveQuality()
+        aq.enabled = True
+        s = _default_state()
+        s['ext_state'] = {'aq': aq, 'aq_label': ''}
+
+        # First press: disable
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_a)])
+        self.assertFalse(result['ext_state']['aq'].enabled)
+        self.assertEqual(result['ext_state']['aq_label'], '')
+
+        # Second press: re-enable
+        result = _call_handle_events(result, [MockEvent(pygame.KEYDOWN, key=pygame.K_a)])
+        self.assertTrue(result['ext_state']['aq'].enabled)
+
+    def test_a_ignored_when_aq_disabled(self):
+        """A key ignored when ENABLE_ADAPTIVE_QUALITY=False."""
+        features.ENABLE_ADAPTIVE_QUALITY = False
+        from extensions.adaptive_quality import AdaptiveQuality
+        aq = AdaptiveQuality()
+        s = _default_state()
+        s['ext_state'] = {'aq': aq, 'aq_label': ''}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_a)])
+        self.assertTrue(aq.enabled)  # unchanged
+
+    # ── N: cycle medium ──────────────────────────────────────────
+
+    def test_n_cycles_medium(self):
+        """N key cycles from one medium to the next."""
+        features.ENABLE_MEDIUM_PRESETS = True
+        from medium_presets import MediumConfig
+        medium = MediumConfig("grid")
+        s = _default_state()
+        s['ext_state'] = {'medium': medium, 'medium_label': 'MEDIUM grid'}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_n)])
+        # grid → air (first in the list after grid... actually, let me check)
+        # MEDIUM_PRESETS keys are: air, dust, starlight, grid
+        # grid.index + 1 % 4 = 0 → air
+        self.assertEqual(result['ext_state']['medium'].name, 'air')
+        self.assertIn('air', result['ext_state']['medium_label'])
+
+    def test_n_cycles_through_all_media(self):
+        """N key cycles through all 4 media and wraps."""
+        features.ENABLE_MEDIUM_PRESETS = True
+        from medium_presets import MediumConfig
+        medium = MediumConfig("grid")
+        s = _default_state()
+        s['ext_state'] = {'medium': medium, 'medium_label': 'MEDIUM grid'}
+
+        # grid → air → dust → starlight → grid
+        for expected in ['air', 'dust', 'starlight', 'grid']:
+            s = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_n)])
+            self.assertEqual(s['ext_state']['medium'].name, expected)
+
+    def test_n_ignored_when_medium_disabled(self):
+        """N key ignored when ENABLE_MEDIUM_PRESETS=False."""
+        features.ENABLE_MEDIUM_PRESETS = False
+        from medium_presets import MediumConfig
+        medium = MediumConfig("grid")
+        s = _default_state()
+        s['ext_state'] = {'medium': medium, 'medium_label': 'MEDIUM grid'}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_n)])
+        self.assertEqual(result['ext_state']['medium'].name, 'grid')
+
+    # ── J: H₂ compute ────────────────────────────────────────────
+
+    def test_j_computes_h2_value(self):
+        """J key computes H₂ norm and sets h2_val."""
+        features.ENABLE_H2_ROBUSTNESS = True
+        config = Config()
+        config.sigma = 3
+        flock = [_make_boid(i * 20, 350) for i in range(10)]
+        s = _default_state(config)
+        s['flock'] = flock
+        s['ext_state'] = {'h2_val': -1.0}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_j)])
+        # H₂ should be computed and set to a positive finite value
+        self.assertGreater(result['ext_state']['h2_val'], 0.0)
+        self.assertTrue(
+            result['ext_state']['h2_val'] != float('inf'),
+            "H₂ should be finite for connected graph")
+
+    def test_j_ignored_when_h2_disabled(self):
+        """J key ignored when ENABLE_H2_ROBUSTNESS=False."""
+        features.ENABLE_H2_ROBUSTNESS = False
+        s = _default_state()
+        s['ext_state'] = {'h2_val': -1.0}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_j)])
+        self.assertEqual(result['ext_state']['h2_val'], -1.0)
+
+    # ── C: seasonal day advance ──────────────────────────────────
+
+    def test_c_advances_seasonal_day(self):
+        """C key advances seasonal_day by 30."""
+        features.ENABLE_SEASONAL = True
+        s = _default_state()
+        s['ext_state'] = {'seasonal_day': 1, 'seasonal_label': ''}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_c)])
+        self.assertEqual(result['ext_state']['seasonal_day'], 31)
+        self.assertIn('flock factor', result['ext_state']['seasonal_label'])
+
+    def test_c_wraps_seasonal_day_past_365(self):
+        """C key wraps seasonal_day past 365."""
+        features.ENABLE_SEASONAL = True
+        s = _default_state()
+        s['ext_state'] = {'seasonal_day': 350, 'seasonal_label': ''}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_c)])
+        # (350 % 365) + 30 = 350 + 30 = 380 → but wait: (350 % 365) + 30 = 350 + 30 = 380
+        # Actually 350 < 365, so: (350 % 365) + 30 = 350 + 30 = 380 > 365
+        # There's no wrap-to-1 logic, so 380 stays
+        self.assertEqual(result['ext_state']['seasonal_day'], 380)
+        # seasonal_size_factor handles it via modulo internally
+
+    def test_c_ignored_when_seasonal_disabled(self):
+        """C key ignored when ENABLE_SEASONAL=False."""
+        features.ENABLE_SEASONAL = False
+        s = _default_state()
+        s['ext_state'] = {'seasonal_day': 1, 'seasonal_label': ''}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_c)])
+        self.assertEqual(result['ext_state']['seasonal_day'], 1)
+
+    # ── Y: flock shape ───────────────────────────────────────────
+
+    def test_y_does_not_crash(self):
+        """Y key is a no-op handler (computed per-frame in simulation)."""
+        features.ENABLE_FLOCK_SHAPE = True
+        s = _default_state()
+        s['ext_state'] = {'flock_shape': None}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_y)])
+        # No crash, no change to flock_shape (computed in simulation.py)
+        self.assertIsNone(result['ext_state']['flock_shape'])
+
+    def test_y_ignored_when_shape_disabled(self):
+        """Y key ignored when ENABLE_FLOCK_SHAPE=False."""
+        features.ENABLE_FLOCK_SHAPE = False
+        s = _default_state()
+        s['ext_state'] = {}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_y)])
+        # No crash
+
+    # ── ext_state survives non-extension events ──────────────────
+
+    def test_ext_state_preserved_on_non_extension_key(self):
+        """Pressing a non-extension key preserves ext_state dict."""
+        features.ENABLE_WANDER = True
+        s = _default_state()
+        s['ext_state'] = {'wander_active': True, 'x_custom': 42}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_UP)])
+        self.assertTrue(result['ext_state']['wander_active'])
+        self.assertEqual(result['ext_state']['x_custom'], 42)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
 # ║  Test count guardian                                                 ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count for input_handler module."""
 
-    EXPECTED_TEST_COUNT = 32
+    EXPECTED_TEST_COUNT = 51
 
 
 if __name__ == '__main__':

@@ -33,12 +33,6 @@ import boid as boid_module
 # preset keys then fall through to the remaining key handlers.
 if features.ENABLE_PRESETS:
     from scenario_presets import apply_preset
-if features.ENABLE_THREAT:
-    from extensions.threat import ThreatAgent
-if features.ENABLE_MEDIUM_PRESETS:
-    from medium_presets import apply_medium, MEDIUM_PRESETS
-if features.ENABLE_SEASONAL:
-    from extensions.seasonal import seasonal_size_factor, flock_size_for_day
 if features.ENABLE_H2_ROBUSTNESS:
     pass  # analysis-only, no key toggle needed
 
@@ -227,6 +221,7 @@ def handle_events(config, flock, running, paused, pending_reset,
 
             # ── Extension toggles  (T, W, A, N, J, S, K) ──────
             elif key == pygame.K_t and features.ENABLE_THREAT:
+                from extensions.threat import ThreatAgent
                 if ext_state.get('threat') is None:
                     ext_state['threat'] = ThreatAgent()
                     print("Threat agent SPAWNED — birds will flee!")
@@ -245,6 +240,7 @@ def handle_events(config, flock, running, paused, pending_reset,
                     print(f"Adaptive quality: {state}")
                     ext_state['aq_label'] = "" if not enabled else f"AQ tier {aq.tier}"
             elif key == pygame.K_n and features.ENABLE_MEDIUM_PRESETS:
+                from medium_presets import apply_medium, MEDIUM_PRESETS
                 medium = ext_state.get('medium')
                 if medium is not None:
                     names = list(MEDIUM_PRESETS)
@@ -254,11 +250,13 @@ def handle_events(config, flock, running, paused, pending_reset,
                     print(label)
             elif key == pygame.K_j and features.ENABLE_H2_ROBUSTNESS:
                 from extensions.h2_robustness import h2_norm, cost_optimal_m
-                h2 = h2_norm(flock, config.sigma)
+                positions = [(b.position.x, b.position.y) for b in flock]
+                h2 = h2_norm(positions, config.sigma)
                 ext_state['h2_val'] = h2
-                best_m, _ = cost_optimal_m(flock)
+                best_m, _ = cost_optimal_m(positions)
                 print(f"H₂={h2:.4f}  cost-optimal m*={best_m}")
             elif key == pygame.K_c and features.ENABLE_SEASONAL:
+                from extensions.seasonal import seasonal_size_factor
                 day = ext_state.get('seasonal_day', 1)
                 day = (day % 365) + 30  # jump 30 days
                 ext_state['seasonal_day'] = day
