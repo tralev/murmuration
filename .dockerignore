@@ -60,3 +60,9 @@ venv/
 
 # Citation metadata (not needed in image)
 CITATION.cff
+
+# Binary / generated assets (not source code)
+*.gif
+
+# Educational iteration examples (not needed for Docker validation)
+examples/
