@@ -15,6 +15,7 @@ LABEL org.opencontainers.image.licenses="GPL-3.0-or-later"
 
 # ── System dependencies for headless OpenGL (ModernGL + mesa) ───────
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     libgl1-mesa-glx \
     libgl1-mesa-dri \
     libegl1-mesa \
