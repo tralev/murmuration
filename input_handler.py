@@ -10,6 +10,11 @@
  Called once per frame by main() in alg2.py.  Mutates mutable state
  (config, flock) directly; returns updated values for immutable types.
 
+ This handler owns only the *fixed* controls (presets, mode, φ/σ, boid
+ count, focal bird, pause/reset). Every *optional* extension's key is
+ handled by `extensions/input_ext.py`, to which any unrecognised key is
+ delegated — so adding an extension never touches this file.
+
  Dependencies:  pygame (for event constants and mouse position)
                 features.py   (ENABLE_FOCAL_DEBUG, ENABLE_GRID_OVERLAY,
                                ENABLE_PRESETS, ENABLE_HELP_OVERLAY,
@@ -17,6 +22,7 @@
                 flock_core    (MARGIN_BOUNDARY, etc.)
                 boid_module   (for MARGIN_BOUNDARY sync)
                 scenario_presets (apply_preset — only when ENABLE_PRESETS)
+                extensions.input_ext (extension key toggles)
 ──────────────────────────────────────────────────────────────────────
 """
 
@@ -28,13 +34,12 @@ from flock_core import (
     MODE_PROJECTION, MODE_SPATIAL,
 )
 import boid as boid_module
+from extensions import input_ext
 
 # scenario_presets.py never loads when presets are disabled; the
 # preset keys then fall through to the remaining key handlers.
 if features.ENABLE_PRESETS:
     from scenario_presets import apply_preset
-if features.ENABLE_H2_ROBUSTNESS:
-    pass  # analysis-only, no key toggle needed
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
@@ -219,100 +224,15 @@ def handle_events(config, flock, running, paused, pending_reset,
                 mode_name = "MARGIN" if flock_core.MARGIN_BOUNDARY else "TOROIDAL"
                 print(f"[BOUNDARY] Switched to {mode_name} wrap")
 
-            # ── Extension toggles  (T, W, A, N, J, S, K) ──────
-            elif key == pygame.K_t and features.ENABLE_THREAT:
-                from extensions.threat import ThreatAgent
-                if ext_state.get('threat') is None:
-                    ext_state['threat'] = ThreatAgent()
-                    print("Threat agent SPAWNED — birds will flee!")
-                else:
-                    ext_state['threat'] = None
-                    print("Threat agent REMOVED")
-            elif key == pygame.K_w and features.ENABLE_WANDER:
-                ext_state['wander_active'] = not ext_state.get('wander_active', False)
-                state = "ON" if ext_state['wander_active'] else "OFF"
-                print(f"Wander behaviour: {state}")
-            elif key == pygame.K_a and features.ENABLE_ADAPTIVE_QUALITY:
-                aq = ext_state.get('aq')
-                if aq is not None:
-                    enabled = aq.toggle()
-                    state = "ON" if enabled else "OFF (full quality)"
-                    print(f"Adaptive quality: {state}")
-                    ext_state['aq_label'] = "" if not enabled else f"AQ tier {aq.tier}"
-            elif key == pygame.K_n and features.ENABLE_MEDIUM_PRESETS:
-                from medium_presets import apply_medium, MEDIUM_PRESETS
-                medium = ext_state.get('medium')
-                if medium is not None:
-                    names = list(MEDIUM_PRESETS)
-                    idx = (names.index(medium.name) + 1) % len(names)
-                    label = apply_medium(medium, names[idx])
-                    ext_state['medium_label'] = label
-                    print(label)
-            elif key == pygame.K_j and features.ENABLE_H2_ROBUSTNESS:
-                from extensions.h2_robustness import h2_norm, cost_optimal_m
-                positions = [(b.position.x, b.position.y) for b in flock]
-                h2 = h2_norm(positions, config.sigma)
-                ext_state['h2_val'] = h2
-                best_m, _ = cost_optimal_m(positions)
-                print(f"H₂={h2:.4f}  cost-optimal m*={best_m}")
-            elif key == pygame.K_c and features.ENABLE_SEASONAL:
-                from extensions.seasonal import seasonal_size_factor
-                day = ext_state.get('seasonal_day', 1)
-                day = (day % 365) + 30  # jump 30 days
-                ext_state['seasonal_day'] = day
-                factor = seasonal_size_factor(day)
-                ext_state['seasonal_label'] = f"Day {day}: flock factor {factor:.2f}"
-                print(ext_state['seasonal_label'])
-            elif key == pygame.K_y and features.ENABLE_FLOCK_SHAPE:
-                pass  # computed in simulation.py each frame
-            elif key == pygame.K_o and features.ENABLE_LEADER:
-                if ext_state.get('leader_active'):
-                    ext_state['leader_active'] = False
-                    ext_state['leader_anchors'] = []
-                    print("Leader system: OFF")
-                else:
-                    from extensions.leader import LeaderAnchor, LeaderConfig
-                    cfg = ext_state.get('leader_cfg', LeaderConfig())
-                    ext_state['leader_active'] = True
-                    ext_state['leader_anchors'] = [
-                        LeaderAnchor(config=cfg) for _ in range(cfg.anchor_count)]
-                    ext_state['leader_time'] = 0.0
-                    print(f"Leader system: ON ({cfg.anchor_count} anchor(s))")
-            elif key == pygame.K_d and features.ENABLE_FLOW_FIELD:
-                from extensions.flow_field import FlowConfig
-                if ext_state.get('flow_active'):
-                    ext_state['flow_active'] = False
-                    print("Flow field DISABLED")
-                else:
-                    ext_state['flow_cfg'] = ext_state.get('flow_cfg', FlowConfig())
-                    ext_state['flow_active'] = True
-                    ext_state['flow_time'] = 0.0
-                    ext_state['flow_gust'] = False
-                    ext_state['flow_gust_time'] = 0.0
-                    print(f"Flow field ENABLED — wind angle {ext_state['flow_cfg'].wind_angle:.2f} rad")
-            elif key == pygame.K_e and features.ENABLE_VACUOLE:
-                from extensions.vacuole import VacuoleAgent, VacuoleConfig
-                if ext_state.get('vacuole') is None:
-                    cfg = ext_state.get('vacuole_cfg', VacuoleConfig())
-                    ext_state['vacuole'] = VacuoleAgent(config=cfg)
-                    ext_state['vacuole_time'] = 0.0
-                    print("Vacuole SPAWNED — birds will be pushed outward!")
-                else:
-                    ext_state['vacuole'] = None
-                    print("Vacuole REMOVED")
-            elif key == pygame.K_p and features.ENABLE_SHELL:
-                from extensions.shell_formation import ShellConfig, assign_shells
-                if ext_state.get('shell_active'):
-                    ext_state['shell_active'] = False
-                    ext_state['shell_assignments'] = []
-                    print("Shell formation: OFF")
-                else:
-                    cfg = ext_state.get('shell_cfg', ShellConfig())
-                    ext_state['shell_active'] = True
-                    ext_state['shell_time'] = 0.0
-                    ext_state['shell_assignments'] = assign_shells(flock, cfg)
-                    n_shells = len(cfg.radii)
-                    print(f"Shell formation: ON ({n_shells} shells, {len(flock)} birds)")
+            # ── Extension key toggles (delegated to the extension hub) ─
+            #  The core handler stays extension-agnostic: any key not
+            #  claimed above is offered to extensions/input_ext.py, which
+            #  owns every optional extension's key. It returns True if an
+            #  enabled extension consumed the key. Disabled extensions
+            #  return False, so the key harmlessly falls through — this is
+            #  what lets any subset of extensions run independently.
+            elif input_ext.handle_ext_key(key, config, flock, ext_state):
+                pass
 
             # ── Simulation control  (space, r, esc) ───────────
             elif key == pygame.K_SPACE:

@@ -51,7 +51,7 @@ from flock_core import (
 from boid_3d import Boid3D
 from spatial_3d import SpatialGrid3D
 from renderer_3d import Renderer3D
-from scenario_presets import apply_preset_3d
+from input_handler_3d import handle_input
 
 
 # ── 3D-specific constants ──────────────────────────────────────────
@@ -74,97 +74,6 @@ def create_window():
 def setup_opengl():
     """ModernGL handles OpenGL state internally — nothing to set up here."""
     pass
-
-
-def handle_input(config, flock, running, paused, camera, pending_remove,
-                 pending_add, pending_reset, show_grid):
-    """
-    Process Pygame events. Returns updated state.
-    """
-    mouse_drag_sensitivity = 0.005
-    dragging = False
-    prev_mouse = None
-
-    for event in pygame.event.get():
-        if event.type == QUIT:
-            running = False
-
-        elif event.type == KEYDOWN:
-            key = event.key
-
-            if key == K_ESCAPE:
-                running = False
-            elif key == K_SPACE:
-                paused = not paused
-                print("PAUSED" if paused else "RESUMED")
-            elif key == K_r:
-                pending_reset = True
-            elif key == K_m:
-                config.mode = 1 - config.mode
-                print(f"MODE: {MODE_NAMES[config.mode]}")
-            elif key == K_g:
-                show_grid = not show_grid
-            elif key == K_v:
-                camera.reset()
-                print("Camera reset to default view")
-            elif key == K_o:
-                on = camera.toggle_auto_rotate()
-                print(f"Auto-rotate {'ON' if on else 'OFF'}")
-            elif key == K_UP:
-                config.phi_p = min(1.0, config.phi_p + 0.01)
-            elif key == K_DOWN:
-                config.phi_p = max(0.0, config.phi_p - 0.01)
-                if config.phi_p + config.phi_a > 1.0:
-                    config.phi_a = 1.0 - config.phi_p
-            elif key == K_RIGHT:
-                config.phi_a = min(1.0, config.phi_a + 0.01)
-                if config.phi_p + config.phi_a > 1.0:
-                    config.phi_p = 1.0 - config.phi_a
-            elif key == K_LEFT:
-                config.phi_a = max(0.0, config.phi_a - 0.01)
-            elif key == K_RIGHTBRACKET:
-                config.sigma = min(20, config.sigma + 1)
-            elif key == K_LEFTBRACKET:
-                config.sigma = max(1, config.sigma - 1)
-            elif key == K_EQUALS or key == K_KP_PLUS:
-                pending_add += 10
-            elif key == K_MINUS:
-                pending_remove += 10
-
-            # ── 3D scenario presets (keys a–h, w) ─────
-            elif (K_a <= key <= K_h and key != K_g) or key == K_w:
-                preset_key = chr(key)
-                label = apply_preset_3d(config, preset_key)
-                if label:
-                    print(label)
-
-        elif event.type == MOUSEBUTTONDOWN:
-            if event.button == 1:
-                dragging = True
-                prev_mouse = pygame.mouse.get_pos()
-            elif event.button == 4:
-                camera.zoom(1.0)
-            elif event.button == 5:
-                camera.zoom(-1.0)
-
-        elif event.type == MOUSEBUTTONUP:
-            if event.button == 1:
-                dragging = False
-
-        elif event.type == MOUSEMOTION:
-            if event.buttons[0]:
-                x, y = event.pos
-                if prev_mouse is not None:
-                    dx = x - prev_mouse[0]
-                    dy = y - prev_mouse[1]
-                    camera.rotate(
-                        dx * mouse_drag_sensitivity,
-                        -dy * mouse_drag_sensitivity,
-                    )
-                prev_mouse = (x, y)
-
-    return (running, paused, pending_remove, pending_add,
-            pending_reset, show_grid)
 
 
 def main():

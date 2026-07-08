@@ -88,7 +88,8 @@ geometry and the constants/config module.
     ┌────────────────────▼─────────────────────┐
     │              main_3d.py                  │
     │  3D entry point — Pygame + ModernGL      │
-    │  (imports scenario_presets for presets)  │
+    │  (input in input_handler_3d.py, which    │
+    │   imports scenario_presets for presets)  │
     └──────────────────────────────────────────┘
 
     ┌──────────────────────────────────────────┐
@@ -376,8 +377,9 @@ for algorithm testing).
 ## Extension Architecture
 
 Extensions are self-contained modules in `extensions/` that add optional
-behaviours to the simulation. Each follows a consistent wiring pattern across
-four files:
+behaviours to the simulation. Each follows a consistent wiring pattern (see
+[Wiring pattern](#wiring-pattern) below) that keeps the core simulation loop
+free of any per-extension code:
 
 ### Module structure
 
@@ -415,15 +417,22 @@ def draw_anchors(screen, anchors, config=None): ...
 
 ### Wiring pattern
 
-Each extension is wired into exactly four files:
+Each extension is wired into a small set of files — importantly, **none of
+the core simulation modules** (`input_handler.py`, `simulation.py`, `alg2.py`
+stay extension-agnostic). Adding an extension touches:
 
 | File | What's added |
 |------|-------------|
 | `features.py` | `ENABLE_<NAME>` flag (default `False` for heavy/unstable, `True` for stable) |
-| `alg2.py` | Flag-gated import, `ext_state` initialisation, render call |
-| `input_handler.py` | Key handler with local imports (avoids stale module-level imports) |
-| `simulation.py` | Per-frame force application between `flock()` and `update()` |
+| `extensions/orchestration.py` | Flag-gated import, `ext_state` init, per-frame force application, and render overlay — the central extension hub |
+| `extensions/input_ext.py` | Key toggle in `handle_ext_key()` (local imports avoid loading disabled extensions) |
 | `help_overlay.py` | One-line help entry showing key + description |
+
+The core input loop (`input_handler.py`) delegates any key it does not own to
+`extensions/input_ext.handle_ext_key()`, and `alg2.py` / `simulation.py` call
+the orchestration hub — so the *core* modules never gain a per-extension
+branch. (The 3D stack has its own fixed-control handler,
+`input_handler_3d.py`, split out of `main_3d.py` for the same reason.)
 
 Example — wiring `leader` into `alg2.py`:
 
