@@ -15,7 +15,6 @@ A **Scilab** implementation of a dual-mode bird flock (murmuration) simulation i
 - [Core Concepts & Implementation](#core-concepts--implementation)
 - [Runtime Controls](#runtime-controls)
 - [CSV Metrics Logging](#csv-metrics-logging)
-- [Limitations vs. the Python Version](#limitations-vs-the-python-version)
 - [References](#references)
 
 ---
