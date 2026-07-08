@@ -31,6 +31,7 @@
 import math
 import random
 import pygame
+from statistics import mean
 
 from occlusion_geom import _normalise_interval, _merge_all
 from flock_core import V0, BOID_SIZE, MODE_PROJECTION
@@ -157,11 +158,11 @@ class FlockMetricsExtended(FlockMetrics):
 
         # ── Θ — internal opacity (unchanged) ──────────────────────
         if config.mode == MODE_PROJECTION:
-            theta = sum(b._last_theta for b in flock) / n
+            theta = mean(b._last_theta for b in flock)
         else:
             sample_n = min(self.SAMPLES, n)
             sampled = random.sample(flock, sample_n)
-            theta = sum(b.compute_internal_opacity(flock) for b in sampled) / sample_n
+            theta = mean(b.compute_internal_opacity(flock) for b in sampled)
         self._theta += (theta - self._theta) * s
 
         # ── α — order parameter (unchanged) ──────────────────────
@@ -198,8 +199,8 @@ class FlockMetricsExtended(FlockMetrics):
         self._avg_accel += (accel_sum / n / MAX_FORCE - self._avg_accel) * s
 
         # ── Flock dispersion: mean distance from centre of mass ───
-        com_x = sum(b.position.x for b in flock) / n
-        com_y = sum(b.position.y for b in flock) / n
+        com_x = mean(b.position.x for b in flock)
+        com_y = mean(b.position.y for b in flock)
         disp_sum = 0.0
         for b in flock:
             dx = b.position.x - com_x
