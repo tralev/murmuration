@@ -29,3 +29,18 @@ octave-core
 # IDE
 .vscode/
 .idea/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Testing artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Generated assets (demos, captures)
+*.gif
+
+# Editor swap files
+*.swp
+*.swo
