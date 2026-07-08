@@ -221,10 +221,6 @@ class TestFlagDefaults(unittest.TestCase):
                          "ENABLE_FOCAL_DEBUG should default to False")
         self.assertFalse(features.ENABLE_GRID_OVERLAY,
                          "ENABLE_GRID_OVERLAY should default to False")
-        self.assertFalse(features.ENABLE_THREAT,
-                         "ENABLE_THREAT should default to False")
-        self.assertFalse(features.ENABLE_WANDER,
-                         "ENABLE_WANDER should default to False")
         self.assertFalse(features.ENABLE_ADAPTIVE_QUALITY,
                          "ENABLE_ADAPTIVE_QUALITY should default to False")
         self.assertFalse(features.ENABLE_MEDIUM_PRESETS,

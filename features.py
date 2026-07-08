@@ -81,9 +81,9 @@ ENABLE_CSV_LOGGING   = True    # write metrics to CSV every N frames
 #  Each extension is gated — disabled modules are never imported and
 #  their keyboard toggles are ignored.
 
-ENABLE_THREAT            = False   # T-key threat agent (approach/egress +
+ENABLE_THREAT            = True    # T-key threat agent (approach/egress +
                                #   escape-wave propagation)
-ENABLE_WANDER            = False   # W-key flock wander behaviour
+ENABLE_WANDER            = True    # W-key flock wander behaviour
 ENABLE_ADAPTIVE_QUALITY   = False   # A-key three-tier FPS degradation
 ENABLE_MEDIUM_PRESETS     = False   # N-key ambient medium presets
                                #   (air/dust/starlight/grid)
