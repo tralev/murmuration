@@ -46,7 +46,8 @@ def _auto_orbit(camera, frame: int, total: int):
     t = frame / total
     camera.azimuth = math.radians(45) + t * math.radians(180)
     camera.elevation = math.radians(25) + math.sin(t * math.pi * 2) * 0.15
-    camera.distance = 1200 + math.sin(t * math.pi * 1.5) * 200
+    # Close enough that 3-unit birds stay visible after the GIF downsize
+    camera.distance = 650 + math.sin(t * math.pi * 1.5) * 100
 
 
 def main():

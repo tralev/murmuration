@@ -3,209 +3,42 @@
 ║  3D RENDERER — ModernGL Instanced Rendering                         ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- GPU-side rendering: instanced cone meshes with per-bird position +
- velocity (LookAt rotation computed in the vertex shader).
- Perspective camera with orbit controls.
+ GPU buffer/VAO plumbing and per-frame draw calls: all birds are drawn
+ in a single instanced call with per-bird position + velocity (LookAt
+ rotation computed in the vertex shader).
+
+ Split for readability:
+   camera_3d.py   — OrbitCamera (view/projection math, no GPU state)
+   shaders_3d.py  — bird mesh + GLSL shader sources
+   this module    — ModernGL context, buffers, uniforms, draw calls
 
  Uses ModernGL (not raw PyOpenGL) for macOS Metal compatibility.
- Dependencies:  numpy, ModernGL, PyGLM
+ Dependencies:  numpy, ModernGL, PyGLM, camera_3d, shaders_3d
 ──────────────────────────────────────────────────────────────────────
 """
-
-import math
 
 import numpy as np
 import moderngl
 import glm
 
-
-# ── Bird mesh: a simple tetrahedron (4 vertices, 4 triangles) ──────
-
-BIRD_VERTS = np.array([
-    [ 0.0,  0.0,  1.0],     # Front tip
-    [-0.5, -0.5, -0.5],     # Back-left
-    [ 0.5, -0.5, -0.5],     # Back-right
-    [ 0.0,  0.5, -0.5],     # Back-top
-], dtype=np.float32)
-
-BIRD_NORMALS = np.array([
-    [0.0, 0.0, 1.0],        # Tip normal
-    [0.0, 0.0, -1.0],       # Back normals
-    [0.0, 0.0, -1.0],
-    [0.0, 0.0, -1.0],
-], dtype=np.float32)
-
-BIRD_INDICES = np.array([
-    0, 1, 2,   # front-bottom
-    0, 2, 3,   # front-right
-    0, 3, 1,   # front-left
-    1, 3, 2,   # back face
-], dtype=np.uint32)
-
-BIRD_SCALE = 3.0
+from camera_3d import OrbitCamera
+from shaders_3d import (
+    BIRD_VERTS, BIRD_NORMALS, BIRD_INDICES, BIRD_SCALE,
+    VERTEX_SHADER, FRAGMENT_SHADER,
+    GRID_VERTEX_SHADER, GRID_FRAGMENT_SHADER,
+)
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  GLSL SHADERS  (GLSL 3.30 — supported by ModernGL on macOS/Metal)
-# ══════════════════════════════════════════════════════════════════════
+def _mat4_bytes(m):
+    """Column-major float32 bytes for a glm.mat4 uniform upload.
 
-VERTEX_SHADER = """
-#version 330
-
-layout(location = 0) in vec3 in_Position;
-layout(location = 1) in vec3 in_Normal;
-layout(location = 2) in vec3 in_InstancePos;
-layout(location = 3) in vec3 in_InstanceVel;
-
-uniform mat4 u_View;
-uniform mat4 u_Projection;
-uniform float u_Scale;
-uniform vec3 u_LightDir;
-uniform vec3 u_CameraPos;
-
-out vec3 v_Normal;
-out vec3 v_WorldPos;
-out vec3 v_LightDir;
-out vec3 v_ViewDir;
-out float v_Speed;
-
-mat3 lookAtRotation(vec3 forward) {
-    vec3 f = normalize(forward);
-    if (length(f) < 0.001)
-        return mat3(1.0);
-
-    vec3 arbitraryUp = vec3(0.0, 1.0, 0.0);
-    if (abs(dot(f, arbitraryUp)) > 0.999)
-        arbitraryUp = vec3(1.0, 0.0, 0.0);
-
-    vec3 r = normalize(cross(arbitraryUp, f));
-    vec3 u = cross(f, r);
-    return mat3(r, u, f);
-}
-
-void main() {
-    float speed = length(in_InstanceVel);
-    v_Speed = clamp(speed / 4.0, 0.0, 1.0);
-
-    mat3 rot = lookAtRotation(in_InstanceVel);
-    vec3 worldPos = rot * (in_Position * u_Scale) + in_InstancePos;
-    vec3 worldNormal = rot * in_Normal;
-
-    v_WorldPos = worldPos;
-    v_Normal = normalize(worldNormal);
-    v_LightDir = normalize(u_LightDir);
-    v_ViewDir = normalize(u_CameraPos - worldPos);
-
-    gl_Position = u_Projection * u_View * vec4(worldPos, 1.0);
-}
-"""
-
-FRAGMENT_SHADER = """
-#version 330
-
-in vec3 v_Normal;
-in vec3 v_WorldPos;
-in vec3 v_LightDir;
-in vec3 v_ViewDir;
-in float v_Speed;
-
-out vec4 fragColor;
-
-uniform vec3 u_AmbientColor;
-uniform vec3 u_DiffuseColor;
-uniform float u_SpecularStrength;
-uniform float u_Shininess;
-
-void main() {
-    vec3 N = normalize(v_Normal);
-    vec3 L = normalize(v_LightDir);
-    vec3 V = normalize(v_ViewDir);
-
-    vec3 ambient = u_AmbientColor;
-    float diff = max(dot(N, L), 0.0);
-    vec3 diffuse = diff * u_DiffuseColor;
-
-    vec3 H = normalize(L + V);
-    float spec = pow(max(dot(N, H), 0.0), u_Shininess);
-    vec3 specular = spec * u_SpecularStrength * u_DiffuseColor;
-
-    vec3 speedTint = mix(
-        vec3(0.85, 0.88, 0.95),
-        vec3(0.95, 0.85, 0.70),
-        v_Speed * 0.3
-    );
-
-    vec3 color = (ambient + diffuse) * speedTint + specular * 0.5;
-    fragColor = vec4(color, 1.0);
-}
-"""
-
-GRID_VERTEX_SHADER = """
-#version 330
-
-layout(location = 0) in vec3 in_Position;
-
-uniform mat4 u_View;
-uniform mat4 u_Projection;
-
-void main() {
-    gl_Position = u_Projection * u_View * vec4(in_Position, 1.0);
-}
-"""
-
-GRID_FRAGMENT_SHADER = """
-#version 330
-
-out vec4 fragColor;
-
-void main() {
-    fragColor = vec4(0.25, 0.28, 0.32, 1.0);
-}
-"""
-
-
-# ══════════════════════════════════════════════════════════════════════
-#  CAMERA
-# ══════════════════════════════════════════════════════════════════════
-
-class OrbitCamera:
-    """Perspective orbit camera. Drag mouse to rotate, scroll to zoom."""
-
-    def __init__(self, target=(500, 350, 200)):
-        self.target = glm.vec3(*target)
-        self.azimuth = math.radians(45)
-        self.elevation = math.radians(30)
-        self.distance = 1200.0
-        self.min_distance = 200.0
-        self.max_distance = 4000.0
-        self.fov = math.radians(50)
-        self.near = 1.0
-        self.far = 10000.0
-
-    def rotate(self, d_azimuth, d_elevation):
-        self.azimuth += d_azimuth
-        self.elevation += d_elevation
-        self.elevation = max(-math.pi / 2 + 0.05,
-                             min(math.pi / 2 - 0.05, self.elevation))
-
-    def zoom(self, delta):
-        self.distance -= delta * 50.0
-        self.distance = max(self.min_distance,
-                            min(self.max_distance, self.distance))
-
-    def position(self):
-        x = (self.target.x +
-             self.distance * math.cos(self.elevation) * math.cos(self.azimuth))
-        y = (self.target.y +
-             self.distance * math.cos(self.elevation) * math.sin(self.azimuth))
-        z = self.target.z + self.distance * math.sin(self.elevation)
-        return glm.vec3(x, y, z)
-
-    def view_matrix(self):
-        return glm.lookAt(self.position(), self.target, glm.vec3(0, 0, 1))
-
-    def projection_matrix(self, aspect):
-        return glm.perspective(self.fov, aspect, self.near, self.far)
+    Built from the GLM API's column semantics (m.to_list() returns the
+    four columns) rather than the raw buffer, because PyGLM builds
+    differ in memory layout: some expose bytes(mat4) row-major, which
+    silently transposes every matrix handed to glUniformMatrix4fv and
+    throws all geometry off-screen.
+    """
+    return np.array(m.to_list(), dtype=np.float32).tobytes()
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -293,15 +126,19 @@ class Renderer3D:
         self.light_dir = glm.normalize(glm.vec3(0.5, 0.7, 1.0))
 
     def _build_grid_verts(self):
-        """Build grid vertices for the XY plane at z=0."""
+        """Build grid vertices for the XY plane at z=0.
+
+        Spans the simulation volume (x 0..1000, y 0..700, matching the
+        camera target at its centre) rather than being centred on the
+        origin, so the grid sits underneath the flock.
+        """
         lines = []
-        grid_size = 1000
+        size_x, size_y = 1000, 700
         step = 100
-        for i in range(-grid_size // 2, grid_size // 2 + 1, step):
-            lines.extend([
-                (i, -grid_size // 2, 0.0), (i, grid_size // 2, 0.0),
-                (-grid_size // 2, i, 0.0), (grid_size // 2, i, 0.0),
-            ])
+        for x in range(0, size_x + 1, step):
+            lines.extend([(x, 0, 0.0), (x, size_y, 0.0)])
+        for y in range(0, size_y + 1, step):
+            lines.extend([(0, y, 0.0), (size_x, y, 0.0)])
         return np.array(lines, dtype=np.float32)
 
     def _grow_instance_buffer(self, needed):
@@ -357,9 +194,9 @@ class Renderer3D:
         count = self.update_instances(boids)
         prog = self.bird_prog
 
-        # Upload uniforms (ModernGL expects bytes via .write())
-        prog['u_View'].write(np.array(self.view, dtype=np.float32).tobytes())
-        prog['u_Projection'].write(np.array(self.projection, dtype=np.float32).tobytes())
+        # Upload uniforms (ModernGL expects column-major bytes via .write())
+        prog['u_View'].write(_mat4_bytes(self.view))
+        prog['u_Projection'].write(_mat4_bytes(self.projection))
         prog['u_Scale'].value = BIRD_SCALE
         prog['u_LightDir'].write(np.array(self.light_dir, dtype=np.float32).tobytes())
         prog['u_CameraPos'].write(np.array(self.camera.position(), dtype=np.float32).tobytes())
@@ -373,8 +210,8 @@ class Renderer3D:
     def draw_grid(self):
         """Draw the reference grid on the XY plane."""
         prog = self.grid_prog
-        prog['u_View'].write(np.array(self.view, dtype=np.float32).tobytes())
-        prog['u_Projection'].write(np.array(self.projection, dtype=np.float32).tobytes())
+        prog['u_View'].write(_mat4_bytes(self.view))
+        prog['u_Projection'].write(_mat4_bytes(self.projection))
 
         self.grid_vao.render(moderngl.LINES)
 
