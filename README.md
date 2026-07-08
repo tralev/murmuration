@@ -1353,6 +1353,9 @@ The codebase is split into focused modules so students can read them one at a ti
 | `alg.py` | Original classic Reynolds boids — metric neighbourhood, Russian comments. Kept for historical comparison. |
 | `test_alg2.py` | 47 unit tests for `occlusion_geom.py`. No Pygame needed. |
 | `test_3d.py` | 39 unit tests for 3D physics and spatial grid (`Boid3D.update()` wrap/speed/clamp, `SpatialGrid3D` query/rebuild, `flock_spatial_3d`, `flock_projection_3d`). Uses MockBoid duck-typing. |
+| `extensions/test_extensions.py` | 159 unit tests for all extension modules (wander, threat, adaptive_quality, H₂ robustness, seasonal, flock_shape, medium_presets, and more). |
+| `extensions/` | 22 extension modules implementing roadmap priorities (direct velocity, steric repulsion, blind angles, 3D, anisotropic bodies, predator, spatial opt, wander, threat, adaptive quality, H₂, seasonal, flock shape, medium presets, and more). See [extensions/README.md](extensions/README.md). |
+| `medium_presets.py` | Ambient atmosphere presets (air, dust, starlight, grid) with turbulence and drift. |
 | `README.md` | This file — scientific background, paper audit, implementation roadmap. |
 | `USER_GUIDE.md` | Practical guide — installation, controls, tuning, FAQ. |
 
@@ -1471,10 +1474,10 @@ Three research papers were cross-referenced against `alg2.py` (July 2026).
 | 1 | **Topological interaction provides robustness** — fixed neighbour count outperforms fixed radius | ✅ | Both MODE 0 and MODE 1 use σ-nearest-neighbour selection, not all-within-range. |
 | 2 | **Optimal neighbour count**: 6–7 neighbours maximises robustness-per-neighbour | ⚠️ | Default is σ = 4 (from Pearce). Adjustable via `[`/`]` keys, but default doesn't match the 6–7 optimum. |
 | 3 | **Independence of σ from N** — optimal count doesn't depend on flock size | ✅ | σ is fixed regardless of `NUM_BOIDS`. |
-| 4 | **Dependence on flock thickness** — anisotropy (thin vs. spherical flocks) changes optimal σ | ❌ | 2D simulation; no shape anisotropy analysis. |
-| 5 | **Consensus dynamics framework** — Laplacian matrix, H₂ robustness metric | ❌ | Not a consensus model; uses boid dynamics instead. Would require a fundamentally different architecture. |
-| 6 | **Incremental cost of sensing** — asymptotic cost of sensing m neighbors is O(m), cost of reacting to noise scales with H₂ norm | ❌ | No cost/benefit analysis of neighbor count. |
-| 7 | **Optimal m* from empirical data** — m* = 6.05 ± 0.25 for longitudinal (thin) flocks vs m* = 9.78 ± 0.32 for transverse (thick) flocks | ❌ | Default σ = 4 (from Pearce), not tuned per flock shape. |
+| 4 | **Dependence on flock thickness** — anisotropy (thin vs. spherical flocks) changes optimal σ | ✅ | Shape analysis via PCA aspect ratio in `extensions/flock_shape.py` with `suggested_m_star()`. |
+| 5 | **Consensus dynamics framework** — Laplacian matrix, H₂ robustness metric | ✅ | Jacobi eigenvalue solver + H₂ norm + η(m) efficiency in `extensions/h2_robustness.py`. |
+| 6 | **Incremental cost of sensing** — asymptotic cost of sensing m neighbors is O(m), cost of reacting to noise scales with H₂ norm | ✅ | `eta_of_m()` per-neighbour efficiency and `cost_optimal_m()` in `extensions/h2_robustness.py`. |
+| 7 | **Optimal m* from empirical data** — m* = 6.05 ± 0.25 for longitudinal (thin) flocks vs m* = 9.78 ± 0.32 for transverse (thick) flocks | ✅ | `suggested_m_star()` interpolates between the two endpoints based on PCA aspect ratio. |
 
 ### Goodenough, Little, Carpenter & Hart (2017) — PLoS ONE 12(1): e0179277
 
@@ -1483,11 +1486,11 @@ Three research papers were cross-referenced against `alg2.py` (July 2026).
 | # | Claim from paper | Status | Implementation note |
 |---|---|---|---|
 | 1 | **Mean murmuration size**: ~30,000 birds (max 750,000) | ❌ | Default `NUM_BOIDS = 150`. Python/Pygame performance caps realistic sizes at ~200–300 before O(N log N) occlusion becomes prohibitive. |
-| 2 | **Predators** at 29.6% of murmurations — linked to larger/longer displays. Species: Harrier (*Circus*), Peregrine (*Falco peregrinus*), Sparrowhawk (*Accipiter nisus*). R² = 0.401 (size), R² = 0.258 (duration). | ❌ | No predator agents. Predator-prey dynamics not modelled. |
+| 2 | **Predators** at 29.6% of murmurations — linked to larger/longer displays. Species: Harrier (*Circus*), Peregrine (*Falco peregrinus*), Sparrowhawk (*Accipiter nisus*). R² = 0.401 (size), R² = 0.258 (duration). | ✅ | Predator agent in `extensions/predator.py`; deterministic predator presence in `extensions/seasonal.py` (~29.6% rate). |
 | 3 | **Anti-predator function** — dilution, detection, confusion effects. Murmurations more likely to end in "en masse" roosting descent than dispersal when predators present. | ❌ | Motivation acknowledged in code comments but not simulated. |
 | 4 | **Critical mass** — ~500 birds needed to initiate murmuration behaviour | ❌ | Simulation starts with full flock; no gradual assembly or threshold behaviour. |
 | 5 | **Mean duration**: 26 minutes (±44 s SEM). Negatively correlated with temperature (weaker than day-length effect). Positively correlated with day length. | ❌ | No time-of-day simulation; no temperature proxy. |
-| 6 | **Seasonal variation**: flock size increases Oct–Feb, peaks mid-winter, decreases to March. No habitat association (urban, rural, wetland — all used). | ❌ | No seasonal parameter variation. |
+| 6 | **Seasonal variation**: flock size increases Oct–Feb, peaks mid-winter, decreases to March. No habitat association (urban, rural, wetland — all used). | ✅ | Raised-cosine day-of-year multiplier in `extensions/seasonal.py` (peak mid-January, MIN_FACTOR=0.25 summer trough). |
 
 ---
 
@@ -1810,10 +1813,10 @@ Gaps still open after the extensions/ priority implementations. ✅ items are al
 
 | Paper | Gap | Status |
 |-------|-----|--------|
-| Young | H₂ robustness metric / consensus dynamics framework | ❌ Not implemented |
+| Young | H₂ robustness metric / consensus dynamics framework | ✅ Implemented (`extensions/h2_robustness.py`) |
 | Goodenough | Realistic flock sizes (30,000+ birds) — performance-limited to ~200 | ❌ Not implemented |
 | Goodenough | Critical mass threshold (~500 birds to initiate murmuration) | ❌ Not implemented |
-| Goodenough | Seasonal flock size variation (increases Oct–Feb per citizen-science data) | ❌ Not implemented |
+| Goodenough | Seasonal flock size variation (increases Oct–Feb per citizen-science data) | ✅ Implemented (`extensions/seasonal.py`) |
 | Goodenough | Roosting / thermoregulation behavior (birds clustering at dusk) | ❌ Not implemented |
 | Young | Default σ = 6–7 (Ballerini optimal) — current default is 4 from Pearce | ⚠️ Adjustable but default differs |
 
@@ -1858,15 +1861,15 @@ Quick-reference list of features present in the companion TypeScript/Three.js pr
 ### Simulation Features
 
 - [x] **16 scenario presets** — 5 original educational presets (keys 1–5) + 11 companion presets (keys 6–0 and s,l,i,v,k,q) ported from TypeScript/Three.js project
-- [ ] **Medium simulation** — air/dust/starlight/grid medium modes with turbulence and wake effects
+- [x] **Medium simulation** — air/dust/starlight/grid medium modes with turbulence and wind drift (`medium_presets.py`)
 - [ ] **Vacuole formation** — autonomous threat that creates empty space in flock
-- [ ] **Wave propagation** — startle wave amplification through the flock
-- [ ] **Threat / predator system** — autonomous predator agent with approach/egress phases (see Priority 7 below)
+- [x] **Wave propagation** — threat-driven escape-wave amplification via neighbour relaxation (`extensions/threat.py`)
+- [x] **Threat / predator system** — autonomous threat agent with approach/egress phases + escape waves (`extensions/threat.py`)
 - [ ] **Attractor / leader system** — leader anchor points with sinusoidal movement attracting nearby birds
 - [ ] **GPGPU / WebGPU compute** — offload flocking physics to GPU for 10,000+ birds
 - [ ] **Split / blackening gains** — threat-driven flock splitting and opacity darkening
 - [ ] **Flow field** — environmental wind/drift field affecting all particles
-- [ ] **Wander behavior** — exploration radius and speed for leaderless wandering
+- [x] **Wander behavior** — deterministic wander centre with radial pulse for leaderless exploration (`extensions/wander.py`)
 - [ ] **Field-based simulation** — O(N) structured-anchor mode for 10,000+ birds without neighbor queries (companion `stepField`)
 - [ ] **Shell formation / piloting** — birds orbiting leader in geometric shells (companion `pilotForce`)
 - [ ] **Inertia smoothing** — blend current velocity with desired using `inertia` parameter (companion default: 0.84)
@@ -1875,7 +1878,7 @@ Quick-reference list of features present in the companion TypeScript/Three.js pr
 - [ ] **Threat state machine** — full approach/egress phase transitions with arc offsets and phase-specific steering (companion `threat.ts`)
 - [ ] **Geometric trail lines** — 5-segment wave-offset trails with dynamic BufferGeometry (companion `TrailLines.ts`)
 - [ ] **Frame accumulation mode** — semi-transparent overlay for motion-blur ghosting (companion `accumulation.ts`)
-- [ ] **Adaptive quality** — three-tier FPS-based degradation with hysteresis recovery (companion `adaptiveQuality.ts`)
+- [x] **Adaptive quality** — three-tier FPS-based degradation with hysteresis recovery (`extensions/adaptive_quality.py`)
 - [ ] **Rich pilot state** — SimulationPilot with roll, mediumPulse, heading, radius (companion `types.ts`)
 
 *(XR/WebXR support, Playwright E2E tests, and browser-based rendering are not applicable without migrating from PyGame to a web frontend.)*
@@ -1883,11 +1886,11 @@ Quick-reference list of features present in the companion TypeScript/Three.js pr
 ### Ecological Realism
 
 - [ ] **Roosting/thermoregulation hypothesis** — birds attracted to roost site, clustering at dusk
-- [ ] **Seasonal flock size variation** — flock size increases Oct–Feb (per Goodenough 2017 citizen-science data)
+- [x] **Seasonal flock size variation** — flock size peaks mid-winter, troughs in summer per Goodenough 2017 citizen-science data (`extensions/seasonal.py`)
 - [ ] **Critical mass threshold** — ~500 birds needed to initiate murmuration (Goodenough)
-- [ ] **H₂ robustness metric** — consensus dynamics framework from Young et al. (2013): Laplacian matrix eigenvalues, per-neighbor efficiency η(m), optimal m* from flock shape
+- [x] **H₂ robustness metric** — consensus dynamics framework from Young et al. (2013): Laplacian matrix eigenvalues, per-neighbor efficiency η(m), optimal m* from flock shape (`extensions/h2_robustness.py`)
 - [ ] **Default σ = 6–7** — Ballerini/Young optimal neighbor count (current default: 4 from Pearce)
-- [ ] **Flock aspect ratio analysis** — thickness/width ratio affecting optimal σ (Young: thinner flocks need fewer neighbors)
+- [x] **Flock aspect ratio analysis** — PCA-based shape analysis, aspect ratio → suggested m* (`extensions/flock_shape.py`)
 - [ ] **Sensing cost/benefit model** — O(m) cost vs O(log m) benefit trade-off from Young et al.
 
 ---
