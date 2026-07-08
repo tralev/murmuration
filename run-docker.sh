@@ -6,6 +6,7 @@
 # Usage:
 #   ./run-docker.sh              — full simulation (builds image, runs headless)
 #   ./run-docker.sh tests        — run unit tests in container
+#   ./run-docker.sh extended     — extended simulation (all modules active)
 #   ./run-docker.sh shell        — open a bash shell in the container
 #   ./run-docker.sh octave       — open GNU Octave interactive CLI in container
 #   ./run-docker.sh scilab       — open Scilab interactive CLI in container
@@ -81,6 +82,24 @@ case "$MODE" in
         $COMPOSE down --rmi local 2>/dev/null || true
         docker rm -f murmuration 2>/dev/null || true
         echo "Done."
+        ;;
+
+    extended)
+        echo "═══════════════════════════════════════════════════════════"
+        echo "  Murmuration EXTENDED — all modules active (Docker)"
+        echo "  Running headless with virtual display..."
+        echo "  CSV metrics → output/murmuration_metrics_extended.csv"
+        echo "  Press Ctrl+C to stop"
+        echo "═══════════════════════════════════════════════════════════"
+        echo ""
+        $COMPOSE build 2>&1 | tail -3
+        echo ""
+        docker run --rm \
+            -v "$PWD/output:/app/output" \
+            -e SDL_VIDEODRIVER=dummy \
+            -e SDL_AUDIODRIVER=dummy \
+            -e PYTHONUNBUFFERED=1 \
+            murmuration:latest python -m extensions.extended_simulation
         ;;
 
     sim|*)
