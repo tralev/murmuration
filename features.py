@@ -90,5 +90,5 @@ ENABLE_MEDIUM_PRESETS     = False   # N-key ambient medium presets
 ENABLE_H2_ROBUSTNESS      = False   # H₂ consensus robustness metric
 ENABLE_SEASONAL           = False   # seasonal flock size variation
 ENABLE_FLOCK_SHAPE        = False   # PCA flock shape analysis
-ENABLE_LEADER             = False   # O-key leader / attractor system
-ENABLE_VACUOLE            = False   # E-key vacuole formation (orbiting cavity)
+ENABLE_LEADER             = True    # O-key leader / attractor system
+ENABLE_VACUOLE            = True    # E-key vacuole formation (orbiting cavity)
