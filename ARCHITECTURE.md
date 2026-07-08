@@ -147,6 +147,16 @@ from main_3d import main     # 3D guard passes
 | `ENABLE_HELP_OVERLAY` | `True` | `alg2.py` (import + render), `input_handler.py` (H key) | `help_overlay.py` never imported; H key does nothing |
 | `ENABLE_3D` | `True` | `main_3d.py` (import guard) | `import main_3d` raises `ImportError` — 3D modules never loaded |
 | `ENABLE_CSV_LOGGING` | `True` | `alg2.py` (file open), `simulation.py` (row writes) | No CSV file created; no rows written |
+| `ENABLE_THREAT` | `True` | `alg2.py` (import + render), `simulation.py` (force), `input_handler.py` (T key) | T key does nothing; `extensions/threat.py` never imported |
+| `ENABLE_WANDER` | `True` | `alg2.py` (import), `simulation.py` (force), `input_handler.py` (W key) | W key does nothing; `extensions/wander.py` never imported (force-only, no render) |
+| `ENABLE_LEADER` | `True` | `alg2.py` (import + render), `simulation.py` (force), `input_handler.py` (O key) | O key does nothing; `extensions/leader.py` never imported |
+| `ENABLE_VACUOLE` | `True` | `alg2.py` (import + render), `simulation.py` (force), `input_handler.py` (E key) | E key does nothing; `extensions/vacuole.py` never imported |
+| `ENABLE_SHELL` | `True` | `alg2.py` (import + render), `simulation.py` (force), `input_handler.py` (P key) | P key does nothing; `extensions/shell_formation.py` never imported |
+| `ENABLE_ADAPTIVE_QUALITY` | `False` | `simulation.py` (frame skip), `input_handler.py` (A key) | A key does nothing; dynamic quality never applied |
+| `ENABLE_H2_ROBUSTNESS` | `False` | `input_handler.py` (J key) | J key does nothing; H₂ norm never computed |
+| `ENABLE_SEASONAL` | `False` | `input_handler.py` (C key) | C key does nothing; seasonal day never advanced |
+| `ENABLE_FLOCK_SHAPE` | `False` | `input_handler.py` (Y key) | Y key does nothing; flock shape never analysed |
+| `ENABLE_MEDIUM_PRESETS` | `False` | `input_handler.py` (N key) | N key does nothing; medium presets never cycled |
 
 ### Complete flag declarations
 
@@ -179,6 +189,22 @@ ENABLE_3D            = True    # 3D simulation (main_3d.py, renderer_3d.py,
 # ── Data output  (affects alg2.py, alg2.m, alg2.sce) ─────────────────
 
 ENABLE_CSV_LOGGING   = True    # write metrics to CSV every N frames
+
+# ── Extensions  (affect alg2.py, simulation.py, input_handler.py) ───
+
+ENABLE_THREAT            = True    # predator agent (T key)
+ENABLE_WANDER            = True    # random-walk perturbation (W key)
+ENABLE_LEADER            = True    # attractor / leader system — sinusoidal
+                                   #   Lissajous orbits (O key)
+ENABLE_VACUOLE           = True    # vacuole cavity — orbiting repulsor that
+                                   #   pushes birds outward (E key)
+ENABLE_SHELL             = True    # shell formation / piloting — birds orbit
+                                   #   leaders in concentric rings (P key)
+ENABLE_ADAPTIVE_QUALITY  = False   # dynamic quality scaling (A key)
+ENABLE_H2_ROBUSTNESS     = False   # H₂ robustness norm (J key)
+ENABLE_SEASONAL          = False   # seasonal / ecological realism (C key)
+ENABLE_FLOCK_SHAPE       = False   # flock shape analysis (Y key)
+ENABLE_MEDIUM_PRESETS    = False   # medium preset cycling (N key)
 ```
 
 A disabled feature's module is **never imported** — running
@@ -342,6 +368,107 @@ for algorithm testing).
 - Add to `README.md` (Step-by-Step Build Guide if it's a new iteration, or Code Tour).
 - Add to `USER_GUIDE.md` (controls, tuning, troubleshooting, FAQ).
 - Add to this file (dependency graph, feature flags, config knobs).
+
+---
+
+## Extension Architecture
+
+Extensions are self-contained modules in `extensions/` that add optional
+behaviours to the simulation. Each follows a consistent wiring pattern across
+four files:
+
+### Module structure
+
+Every extension module exports **pure functions** (for testability) and an
+optional agent class:
+
+```
+extensions/<name>.py
+├── <Name>Config     dataclass — tunable parameters
+├── <name>_force()   pure function — computes steering force per bird
+├── draw_<name>()    renderer — draws the extension's visual overlay
+└── <Name>Agent      (optional) stateful agent class
+```
+
+Example — `extensions/leader.py`:
+
+```python
+@dataclass
+class LeaderConfig:
+    anchor_count: int = 3
+    attractor_radius: float = 120.0
+    attractor_speed: float = 0.5
+    attractor_range: float = 150.0
+    chase_strength: float = 0.08
+
+class LeaderAnchor:
+    def __init__(self, cx=None, cy=None, config=None): ...
+    def update(self, time): ...      # sinusoidal Lissajous orbit
+    def position(self) -> tuple: ...
+
+def attractor_force(bird_pos, anchor_pos, config): ...  # linear falloff
+def leader_force(bird_pos, anchors, config): ...         # sum across anchors
+def draw_anchors(screen, anchors, config=None): ...
+```
+
+### Wiring pattern
+
+Each extension is wired into exactly four files:
+
+| File | What's added |
+|------|-------------|
+| `features.py` | `ENABLE_<NAME>` flag (default `False` for heavy/unstable, `True` for stable) |
+| `alg2.py` | Flag-gated import, `ext_state` initialisation, render call |
+| `input_handler.py` | Key handler with local imports (avoids stale module-level imports) |
+| `simulation.py` | Per-frame force application between `flock()` and `update()` |
+| `help_overlay.py` | One-line help entry showing key + description |
+
+Example — wiring `leader` into `alg2.py`:
+
+```python
+# Flag-gated import (top of file):
+if features.ENABLE_LEADER:
+    from extensions.leader import LeaderAnchor, LeaderConfig, draw_anchors
+
+# ext_state init:
+if features.ENABLE_LEADER:
+    ext_state['leader_active'] = False
+    ext_state['leader_cfg'] = LeaderConfig()
+    ext_state['leader_time'] = 0.0
+    ext_state['leader_anchors'] = []
+
+# Render:
+if ext_state.get('leader_active'):
+    draw_anchors(screen, ext_state.get('leader_anchors', []))
+```
+
+### Key assignment rules
+
+- Keys must **not conflict** with preset keys (1–0, s, l, i, v, k, q in 2D).
+- Handler uses **local imports** inside the key-press branch — never rely on
+  module-level conditional imports (they become stale if the flag changes).
+
+### Current extension modules
+
+| Module | Key | Flag | Default | Description |
+|--------|-----|------|---------|-------------|
+| `threat.py` | `T` | `ENABLE_THREAT` | `True` | Predator agent that chases the flock |
+| `wander.py` | `W` | `ENABLE_WANDER` | `True` | Random-walk perturbation per bird |
+| `leader.py` | `O` | `ENABLE_LEADER` | `True` | Sinusoidal Lissajous anchor orbits — birds are attracted toward anchors |
+| `vacuole.py` | `E` | `ENABLE_VACUOLE` | `True` | Orbiting repulsor that pushes birds radially outward, creating a cavity |
+| `shell_formation.py` | `P` | `ENABLE_SHELL` | `True` | Birds orbit anchor points in concentric geometric shells |
+| `adaptive_quality.py` | `A` | `ENABLE_ADAPTIVE_QUALITY` | `False` | Dynamic frame-skip / quality scaling |
+| `h2_robustness.py` | `J` | `ENABLE_H2_ROBUSTNESS` | `False` | H₂ robustness norm computation |
+| `seasonal.py` | `C` | `ENABLE_SEASONAL` | `False` | Seasonal / ecological realism (day-length, temperature) |
+| `flock_shape.py` | `Y` | `ENABLE_FLOCK_SHAPE` | `False` | Flock shape analysis |
+| `medium_presets.py` | `N` | `ENABLE_MEDIUM_PRESETS` | `False` | Medium preset cycling (grid → air → water → vacuum) |
+
+### Tests
+
+All extension unit tests live in `extensions/test_extensions.py`, organised as
+one `TestCase` class per module (e.g., `TestLeaderAnchor`, `TestVacuoleAgent`,
+`TestShellFormation`). Key-handler tests for extension toggles are in
+`test_input_handler.py` under `TestExtensionToggles`.
 
 ---
 
