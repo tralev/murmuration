@@ -376,6 +376,7 @@ project/
 ├── Dockerfile                 # Python + Octave + Scilab image
 ├── docker-compose.yml         # Services: tests, octave, scilab, shell
 ├── run-docker.sh              # Docker wrapper shortcuts
+├── requirements.txt           # Python package dependencies
 ├── run.sh                     # Native run shortcuts
 │
 ├── README.md                  # Scientific docs + paper audit + roadmap + code tour
@@ -399,8 +400,9 @@ project/
 ├── test_3d.py                 # 3D simulation tests
 ├── test_count_mixin.py        # Shared TestDiscovery base class
 │
+├── .dockerignore              # Excludes examples, GIFs, docs, papers, caches
+├── .gitignore                 # Python artifacts, CSVs, papers, OS/IDE/editor files
 ├── LICENSE                    # GPL-3.0-or-later
-└── .gitignore                 # Python artifacts, CSV output, research papers
 ```
 
 ---
