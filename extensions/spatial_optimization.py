@@ -253,7 +253,7 @@ class SpatialChunker:
                     if abs(dy_b) > HEIGHT / 2:
                         dy_b = dy_b - math.copysign(HEIGHT, dy_b)
 
-                    dist = math.sqrt(dx_b * dx_b + dy_b * dy_b)
+                    dist = math.hypot(dx_b, dy_b)
                     if dist < 0.001:
                         continue  # co-located — degenerate
 
@@ -328,7 +328,7 @@ class SpatialChunker:
             if abs(dy_c) > HEIGHT / 2:
                 dy_c = dy_c - math.copysign(HEIGHT, dy_c)
 
-            dist = math.sqrt(dx_c * dx_c + dy_c * dy_c)
+            dist = math.hypot(dx_c, dy_c)
             if dist < 0.001:
                 continue
 

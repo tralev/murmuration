@@ -204,5 +204,5 @@ class FlockMetricsExtended(FlockMetrics):
         for b in flock:
             dx = b.position.x - com_x
             dy = b.position.y - com_y
-            disp_sum += (dx * dx + dy * dy) ** 0.5
+            disp_sum += math.hypot(dx, dy)
         self._dispersion += (disp_sum / n - self._dispersion) * s

@@ -146,7 +146,7 @@ def compute_opacity(trajectories: dict, frame: int,
             xj, yj = bird_j['x'], bird_j['y']
             dx = xj - xi
             dy = yj - yi
-            dist = math.sqrt(dx * dx + dy * dy)
+            dist = math.hypot(dx, dy)
             if dist < 0.001:
                 continue
 
@@ -186,7 +186,7 @@ def compute_opacity(trajectories: dict, frame: int,
         for bird in birds:
             dx = bird['x'] - vx
             dy = bird['y'] - vy
-            dist = math.sqrt(dx * dx + dy * dy)
+            dist = math.hypot(dx, dy)
             if dist < 0.001:
                 continue
             centre = math.atan2(dy, dx)
