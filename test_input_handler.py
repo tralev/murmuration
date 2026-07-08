@@ -605,6 +605,7 @@ class TestExtensionToggles(unittest.TestCase):
         self._saved_shape = features.ENABLE_FLOCK_SHAPE
         self._saved_vacuole = features.ENABLE_VACUOLE
         self._saved_shell = features.ENABLE_SHELL
+        self._saved_flow = features.ENABLE_FLOW_FIELD
 
     def tearDown(self):
         features.ENABLE_THREAT = self._saved_threat
@@ -616,6 +617,7 @@ class TestExtensionToggles(unittest.TestCase):
         features.ENABLE_FLOCK_SHAPE = self._saved_shape
         features.ENABLE_VACUOLE = self._saved_vacuole
         features.ENABLE_SHELL = self._saved_shell
+        features.ENABLE_FLOW_FIELD = self._saved_flow
 
     # ── T: threat agent ──────────────────────────────────────────
 
@@ -942,6 +944,35 @@ class TestExtensionToggles(unittest.TestCase):
         result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_p)])
         self.assertFalse(result['ext_state']['shell_active'])
 
+    # ── D: flow field ───────────────────────────────────────────
+
+    def test_d_toggles_flow(self):
+        """D key toggles flow_active on."""
+        features.ENABLE_FLOW_FIELD = True
+        s = _default_state()
+        s['ext_state'] = {'flow_active': False}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_d)])
+        self.assertTrue(result['ext_state']['flow_active'])
+
+    def test_d_toggles_flow_off(self):
+        """D key when flow is active turns it off."""
+        features.ENABLE_FLOW_FIELD = True
+        s = _default_state()
+        s['ext_state'] = {'flow_active': True, 'flow_time': 1.0}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_d)])
+        self.assertFalse(result['ext_state']['flow_active'])
+
+    def test_d_ignored_when_flow_disabled(self):
+        """D key does nothing when ENABLE_FLOW_FIELD is False."""
+        features.ENABLE_FLOW_FIELD = False
+        s = _default_state()
+        s['ext_state'] = {'flow_active': False}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_d)])
+        self.assertFalse(result['ext_state']['flow_active'])
+
     # ── ext_state survives non-extension events ──────────────────
 
     def test_ext_state_preserved_on_non_extension_key(self):
@@ -962,7 +993,7 @@ class TestExtensionToggles(unittest.TestCase):
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count for input_handler module."""
 
-    EXPECTED_TEST_COUNT = 60
+    EXPECTED_TEST_COUNT = 63
 
 
 if __name__ == '__main__':

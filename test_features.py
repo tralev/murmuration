@@ -192,6 +192,7 @@ class TestFlagCount(unittest.TestCase):
             'ENABLE_LEADER',
             'ENABLE_VACUOLE',
             'ENABLE_SHELL',
+            'ENABLE_FLOW_FIELD',
         }
         actual = {k for k in dir(features)
                   if k.startswith('ENABLE_') and not k.startswith('_')}

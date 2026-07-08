@@ -80,6 +80,8 @@ if features.ENABLE_VACUOLE:
     from extensions.vacuole import VacuoleAgent, VacuoleConfig, draw_vacuole
 if features.ENABLE_SHELL:
     from extensions.shell_formation import ShellConfig, assign_shells, draw_shells
+if features.ENABLE_FLOW_FIELD:
+    from extensions.flow_field import FlowConfig, draw_flow
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -175,6 +177,12 @@ def main():
         ext_state['shell_cfg'] = ShellConfig()
         ext_state['shell_time'] = 0.0
         ext_state['shell_assignments'] = []
+    if features.ENABLE_FLOW_FIELD:
+        ext_state['flow_active'] = False
+        ext_state['flow_cfg'] = FlowConfig()
+        ext_state['flow_time'] = 0.0
+        ext_state['flow_gust'] = False
+        ext_state['flow_gust_time'] = 0.0
     # ══════════════════════════════════════════════════════════════
     while running:
         dt = clock.tick(FPS)
@@ -255,6 +263,10 @@ def main():
             cx = sum(b.position.x for b in flock) / len(flock)
             cy = sum(b.position.y for b in flock) / len(flock)
             draw_shells(screen, (cx, cy), ext_state.get('shell_cfg'))
+        if features.ENABLE_FLOW_FIELD and ext_state.get('flow_active'):
+            draw_flow(screen, ext_state.get('flow_cfg'),
+                      ext_state.get('flow_time', 0.0),
+                      ext_state.get('flow_gust', False))
 
         frame += 1
         pygame.display.flip()

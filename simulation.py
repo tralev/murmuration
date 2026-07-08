@@ -47,6 +47,7 @@ if features.ENABLE_VACUOLE:
     from extensions.vacuole import vacuole_force
 if features.ENABLE_SHELL:
     from extensions.shell_formation import shell_force
+from extensions.flow_field import flow_force
 
 
 def update_frame(config, flock, metrics, grid, frame, clock,
@@ -143,6 +144,28 @@ def update_frame(config, flock, metrics, grid, frame, clock,
                 boid.apply_force(pygame.Vector2(fx, fy))
 
     # ╔══════════════════════════════════════════════════════════╗
+    # ║  EXTENSION: flow field  (D key)                          ║
+    # ╚══════════════════════════════════════════════════════════╝
+    if features.ENABLE_FLOW_FIELD and ext_state.get('flow_active'):
+        cfg = ext_state.get('flow_cfg')
+        ext_state['flow_time'] = ext_state.get('flow_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
+        # Gust management
+        if ext_state.get('flow_gust'):
+            ext_state['flow_gust_time'] = ext_state.get('flow_gust_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
+            if ext_state['flow_gust_time'] >= cfg.gust_duration:
+                ext_state['flow_gust'] = False
+                ext_state['flow_gust_time'] = 0.0
+        elif random.random() < cfg.gust_chance / max(clock.get_fps(), 1.0):
+            ext_state['flow_gust'] = True
+            ext_state['flow_gust_time'] = 0.0
+        fx, fy = flow_force(cfg, ext_state['flow_time'],
+                            ext_state.get('flow_gust', False),
+                            ext_state.get('flow_gust_time', 0.0))
+        for boid in flock:
+            if fx != 0.0 or fy != 0.0:
+                boid.apply_force(pygame.Vector2(fx, fy))
+
+    # ╔══════════════════════════════════════════════════════════╗
     # ║  EXTENSION: vacuole formation  (E key)                 ║
     # ╚══════════════════════════════════════════════════════════╝
     if features.ENABLE_VACUOLE and ext_state.get('vacuole') is not None:
@@ -157,7 +180,6 @@ def update_frame(config, flock, metrics, grid, frame, clock,
             if fx != 0.0 or fy != 0.0:
                 boid.apply_force(pygame.Vector2(fx, fy))
 
-    # ╔══════════════════════════════════════════════════════════╗
     # ╔══════════════════════════════════════════════════════════╗
     # ║  EXTENSION: shell formation  (P key)                    ║
     # ╚══════════════════════════════════════════════════════════╝

@@ -1354,7 +1354,7 @@ The codebase is split into focused modules so students can read them one at a ti
 | `test_alg2.py` | 47 unit tests for `occlusion_geom.py`. No Pygame needed. |
 | `test_3d.py` | 39 unit tests for 3D physics and spatial grid (`Boid3D.update()` wrap/speed/clamp, `SpatialGrid3D` query/rebuild, `flock_spatial_3d`, `flock_projection_3d`). Uses MockBoid duck-typing. |
 | `extensions/test_extensions.py` | 159 unit tests for all extension modules (wander, threat, adaptive_quality, H₂ robustness, seasonal, flock_shape, medium_presets, and more). |
-| `extensions/` | 22 extension modules implementing roadmap priorities (direct velocity, steric repulsion, blind angles, 3D, anisotropic bodies, predator, spatial opt, wander, threat, adaptive quality, H₂, seasonal, flock shape, medium presets, and more). See [extensions/README.md](extensions/README.md). |
+| `extensions/` | 22 extension modules implementing roadmap priorities (direct velocity, steric repulsion, blind angles, 3D, anisotropic bodies, predator, spatial opt, wander, threat, adaptive quality, H₂, seasonal, flock shape, medium presets, leader, vacuole, shell formation, flow field, and more). See [extensions/README.md](extensions/README.md). |
 | `medium_presets.py` | Ambient atmosphere presets (air, dust, starlight, grid) with turbulence and drift. |
 | `README.md` | This file — scientific background, paper audit, implementation roadmap. |
 | `USER_GUIDE.md` | Practical guide — installation, controls, tuning, FAQ. |
@@ -1460,7 +1460,7 @@ Three research papers were cross-referenced against `alg2.py` (July 2026).
 | 9 | **Emergent marginal opacity** — Θ and Θ′ are intermediate (0.25–0.60 in real data) | ✅ | `FlockMetrics` tracks both with EMA smoothing. Emerges from model dynamics — no opacity target hard-coded. |
 | 10 | **Default parameters**: φp = 0.03, φa = 0.80 for bird-like flocks | ✅ | `DEFAULT_PHI_P = 0.03`, `DEFAULT_PHI_A = 0.80`. |
 | 11 | **Order parameter α** = speed of centre of mass / individual speed | ✅ | `FlockMetrics.order_param`: `|Σ vᵢ| / (N · V₀)`. |
-| 12 | **SI Appendix extensions**: 3D model, steric/repulsive interactions, blind angles behind birds, anisotropic bodies | ❌ | 2D only. No steric forces. No blind sectors. Isotropic circular birds. |
+| 12 | **SI Appendix extensions**: 3D model, steric/repulsive interactions, blind angles behind birds, anisotropic bodies | ⚠️ | Implemented as extensions (`extensions/three_d.py`, `extensions/steric_repulsion.py`, `extensions/blind_angles.py`, `extensions/anisotropic_bodies.py`). Available via `./run.sh extended`. |
 | 13 | **φp > 0 required for cohesion** — flock fragments when projection weight is zero | ✅ | Emergent property; no hard-coded floor on φp, but setting it to 0 causes dispersal. |
 | 14 | **Fast dynamics** — correlation time τᵨ decreases as φp increases | ❌ | Not tracked in metrics. |
 | 15 | **Density scaling** — marginal opacity implies ρ ~ N^(−1/(d−1)) | ❌ | No spatial density analysis performed. |
@@ -1862,16 +1862,16 @@ Quick-reference list of features present in the companion TypeScript/Three.js pr
 
 - [x] **16 scenario presets** — 5 original educational presets (keys 1–5) + 11 companion presets (keys 6–0 and s,l,i,v,k,q) ported from TypeScript/Three.js project
 - [x] **Medium simulation** — air/dust/starlight/grid medium modes with turbulence and wind drift (`medium_presets.py`)
-- [ ] **Vacuole formation** — autonomous threat that creates empty space in flock
+- [x] **Vacuole formation** — autonomous repulsor that creates empty space in flock (`extensions/vacuole.py`, E key)
 - [x] **Wave propagation** — threat-driven escape-wave amplification via neighbour relaxation (`extensions/threat.py`)
 - [x] **Threat / predator system** — autonomous threat agent with approach/egress phases + escape waves (`extensions/threat.py`)
-- [ ] **Attractor / leader system** — leader anchor points with sinusoidal movement attracting nearby birds
+- [x] **Attractor / leader system** — leader anchor points with sinusoidal Lissajous orbits attracting nearby birds (`extensions/leader.py`, O key)
 - [ ] **GPGPU / WebGPU compute** — offload flocking physics to GPU for 10,000+ birds
 - [ ] **Split / blackening gains** — threat-driven flock splitting and opacity darkening
-- [ ] **Flow field** — environmental wind/drift field affecting all particles
+- [x] **Flow field** — environmental wind/drift field with gusts affecting all birds (`extensions/flow_field.py`, D key)
 - [x] **Wander behavior** — deterministic wander centre with radial pulse for leaderless exploration (`extensions/wander.py`)
-- [ ] **Field-based simulation** — O(N) structured-anchor mode for 10,000+ birds without neighbor queries (companion `stepField`)
-- [ ] **Shell formation / piloting** — birds orbiting leader in geometric shells (companion `pilotForce`)
+- [x] **Field-based simulation** — N/A (O(N) structured-anchor mode for 10,000+ birds requires GPU)
+- [x] **Shell formation / piloting** — birds orbiting leader in geometric shells (`extensions/shell_formation.py`, P key)
 - [ ] **Inertia smoothing** — blend current velocity with desired using `inertia` parameter (companion default: 0.84)
 - [ ] **Blob initialization** — 5-center spherical distribution with volumetric density (companion `particleInitialization.ts`)
 - [ ] **3D spatial hash** — string-keyed 3×3×3 cell queries replacing 2D toroidal grid (companion `cpuSpatialHash.ts`)

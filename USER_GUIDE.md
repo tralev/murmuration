@@ -252,6 +252,22 @@ python3 -m unittest extensions.test_extensions -v
 | `+` / `=` | Add 10 birds (capped at 200 pending) |
 | `-` | Remove 10 birds (leaves at least 1) |
 
+### Extension toggles (active by default)
+
+| Key | Extension | Effect |
+|-----|-----------|--------|
+| `T` | Threat agent | Spawn / remove predator that chases the flock |
+| `W` | Wander behaviour | Toggle random-walk perturbation per bird |
+| `O` | Leader / attractor | Toggle sinusoidal Lissajous anchor orbits |
+| `E` | Vacuole cavity | Spawn / remove orbiting repulsor (creates empty space) |
+| `P` | Shell formation | Toggle birds orbiting in concentric geometric shells |
+| `D` | Flow field | Toggle environmental wind with gusts and drift |
+| `A` | Adaptive quality | Toggle dynamic frame-skip (disabled by default) |
+| `N` | Medium presets | Cycle ambient medium (disabled by default) |
+| `J` | H₂ robustness | Compute robustness norm (disabled by default) |
+| `C` | Seasonal | Advance seasonal day (disabled by default) |
+| `Y` | Flock shape | Analyse flock shape (disabled by default) |
+
 Changes take effect on the **next unpaused frame**.
 
 ### Preset scenarios (16 total)

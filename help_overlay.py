@@ -59,6 +59,8 @@ def _build_help_lines():
         lines.append("J         compute H₂ robustness")
     if features.ENABLE_SEASONAL:
         lines.append("C         advance seasonal day (+30)")
+    if features.ENABLE_FLOW_FIELD:
+        lines.append("D         toggle wind / drift field")
     if features.ENABLE_FLOCK_SHAPE:
         lines.append("Y         flock shape analysis")
     if features.ENABLE_LEADER:

@@ -1882,6 +1882,72 @@ class TestVacuoleAgent(unittest.TestCase):
 # ║  ROADMAP 8 — SHELL FORMATION / PILOTING                              ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
+class TestFlowField(unittest.TestCase):
+    """Tests for extensions/flow_field.py — environmental wind/drift."""
+
+    def test_flow_config_defaults(self):
+        from extensions.flow_field import FlowConfig
+        cfg = FlowConfig()
+        self.assertAlmostEqual(cfg.wind_angle, math.pi / 6)
+        self.assertAlmostEqual(cfg.wind_strength, 0.02)
+        self.assertAlmostEqual(cfg.wind_wander, 0.3)
+        self.assertAlmostEqual(cfg.turbulence, 0.005)
+        self.assertAlmostEqual(cfg.gust_chance, 0.15)
+        self.assertAlmostEqual(cfg.gust_strength, 3.0)
+        self.assertAlmostEqual(cfg.gust_duration, 0.5)
+
+    def test_flow_force_returns_tuple(self):
+        from extensions.flow_field import FlowConfig, flow_force
+        cfg = FlowConfig()
+        fx, fy = flow_force(cfg, 0.0, False, 0.0)
+        self.assertIsInstance(fx, float)
+        self.assertIsInstance(fy, float)
+
+    def test_flow_force_nonzero(self):
+        from extensions.flow_field import FlowConfig, flow_force
+        cfg = FlowConfig()
+        fx, fy = flow_force(cfg, 0.0, False, 0.0)
+        # Wind should have a non-zero magnitude at default angle
+        self.assertTrue(fx != 0.0 or fy != 0.0)
+
+    def test_flow_force_direction_consistent(self):
+        from extensions.flow_field import FlowConfig, flow_force
+        cfg = FlowConfig(wind_angle=0.0, wind_wander=0.0, wind_strength=0.1)
+        fx, fy = flow_force(cfg, 0.0, False, 0.0)
+        # wind_angle=0 means wind blows right (positive x);
+        # cos(0)*0.25 = 0.25 offset in angle, so small y-component is expected
+        self.assertGreater(fx, 0)
+        # y component should be small (only from cos(0)*0.25 ≈ 0.25 rad offset)
+        self.assertLess(abs(fy), 0.05)
+
+    def test_flow_gust_amplifies(self):
+        from extensions.flow_field import FlowConfig, flow_force
+        cfg = FlowConfig(wind_angle=0.0, wind_wander=0.0, wind_strength=0.02,
+                         gust_strength=3.0, gust_duration=0.5)
+        normal_fx, _ = flow_force(cfg, 0.0, False, 0.0)
+        gust_fx, _ = flow_force(cfg, 0.0, True, 0.0)
+        # Gust should be stronger than normal
+        self.assertGreater(abs(gust_fx), abs(normal_fx))
+
+    def test_flow_gust_decays(self):
+        from extensions.flow_field import FlowConfig, flow_force
+        cfg = FlowConfig(wind_angle=0.0, wind_wander=0.0, wind_strength=0.02,
+                         gust_strength=3.0, gust_duration=0.5)
+        # At half duration, should still be amplified but less
+        fx_full, _ = flow_force(cfg, 0.0, True, 0.0)
+        fx_half, _ = flow_force(cfg, 0.0, True, 0.25)
+        self.assertGreater(abs(fx_half), abs(fx_full * 0.3))
+
+    def test_flow_wandering_changes_direction(self):
+        from extensions.flow_field import FlowConfig, flow_force
+        cfg = FlowConfig(wind_angle=0.0, wind_wander=1.0, wind_strength=0.1)
+        # At different times, the direction should differ due to wandering
+        _, fy0 = flow_force(cfg, 0.0, False, 0.0)
+        _, fy1 = flow_force(cfg, 1.0, False, 0.0)
+        # The y-component should differ due to sinusoidal wandering
+        self.assertNotAlmostEqual(fy0, fy1, places=3)
+
+
 class TestShellFormation(unittest.TestCase):
     """Shell assignment, orbital force, and config."""
 
@@ -1954,4 +2020,4 @@ class TestShellFormation(unittest.TestCase):
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count to catch accidental regressions in discovery."""
 
-    EXPECTED_TEST_COUNT = 183
+    EXPECTED_TEST_COUNT = 190

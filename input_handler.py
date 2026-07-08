@@ -278,6 +278,18 @@ def handle_events(config, flock, running, paused, pending_reset,
                         LeaderAnchor(config=cfg) for _ in range(cfg.anchor_count)]
                     ext_state['leader_time'] = 0.0
                     print(f"Leader system: ON ({cfg.anchor_count} anchor(s))")
+            elif key == pygame.K_d and features.ENABLE_FLOW_FIELD:
+                from extensions.flow_field import FlowConfig
+                if ext_state.get('flow_active'):
+                    ext_state['flow_active'] = False
+                    print("Flow field DISABLED")
+                else:
+                    ext_state['flow_cfg'] = ext_state.get('flow_cfg', FlowConfig())
+                    ext_state['flow_active'] = True
+                    ext_state['flow_time'] = 0.0
+                    ext_state['flow_gust'] = False
+                    ext_state['flow_gust_time'] = 0.0
+                    print(f"Flow field ENABLED — wind angle {ext_state['flow_cfg'].wind_angle:.2f} rad")
             elif key == pygame.K_e and features.ENABLE_VACUOLE:
                 from extensions.vacuole import VacuoleAgent, VacuoleConfig
                 if ext_state.get('vacuole') is None:
