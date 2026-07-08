@@ -1,0 +1,34 @@
+# docker-compose.yml — Murmuration 3D Bird Flock Simulation
+#
+# Quick start:
+#   1. Install Docker:  https://docs.docker.com/get-docker/
+#   2. Clone the repo:  git clone https://github.com/tralev/murmuration.git
+#   3. Run:             docker compose run murmuration
+#
+# ──────────────────────────────────────────────────────────────────────
+
+services:
+  # ── 3D simulation (headless via xvfb) ──────────────────────────────
+  murmuration:
+    build: .
+    image: murmuration:latest
+    command: xvfb-run python -u main_3d.py
+    stdin_open: true
+    tty: true
+
+  # ── Unit tests — run with:  docker compose run tests ───────────────
+  tests:
+    build: .
+    image: murmuration:latest
+    command: >
+      xvfb-run python -m unittest test_3d -v
+    stdin_open: true
+    tty: true
+
+  # ── Interactive shell — run with:  docker compose run shell ────────
+  shell:
+    build: .
+    image: murmuration:latest
+    command: /bin/bash
+    stdin_open: true
+    tty: true
