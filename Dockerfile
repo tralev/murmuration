@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libegl1-mesa \
     libsdl2-2.0-0 \
     xvfb \
+    xauth \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Python dependencies ─────────────────────────────────────────────
