@@ -360,7 +360,7 @@ for algorithm testing).
 | `test_features.py` | Feature flag gating (`features.py`) | `features`, `flock_core` |
 | `test_3d.py` | 3D physics, grid, flocking (39 tests) | `boid_3d`, `spatial_3d`, `flock_core` |
 | `test_count_mixin.py` | *(helper, contributes no tests)* — shared `TestCountMixin` for the per-module test-count discovery gates | None |
-| `extensions/test_extensions.py` | Extension modules | Various |
+| `extensions/test_extensions.py` | Extension modules (183 tests) — leader, vacuole, shell formation, wander, threat, adaptive quality, H₂, seasonal, flock shape, medium presets, predator, steric, blind angles, 3D, anisotropic, spatial opt, direct velocity, multi-viewpoint, correlation time | Various |
 
 Run all tests:
 
