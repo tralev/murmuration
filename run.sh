@@ -7,6 +7,7 @@
 # Usage:
 #   ./run.sh              — full simulation (alg2.py)
 #   ./run.sh simple       — minimal version for learning (alg_simple.py)
+#   ./run.sh extended     — extended simulation with all modules active
 #   ./run.sh tests        — run unit tests
 #
 # Requirements: Python 3.7+, pip
@@ -66,6 +67,16 @@ case "$MODE" in
         echo "═══════════════════════════════════════════════════════════"
         echo ""
         python3 alg_simple.py
+        ;;
+    extended)
+        echo "═══════════════════════════════════════════════════════════"
+        echo "  Murmuration EXTENDED — all modules active"
+        echo "  Press M to switch modes, P for predator, H for help"
+        echo "  T:threat W:wander A:adaptive N:medium J:H2 C:seasonal Y:shape"
+        echo "  CSV metrics → output/murmuration_metrics_extended.csv"
+        echo "═══════════════════════════════════════════════════════════"
+        echo ""
+        python3 -m extensions.extended_simulation
         ;;
     *)
         echo "═══════════════════════════════════════════════════════════"
