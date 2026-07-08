@@ -34,6 +34,7 @@ WORKDIR /app
 COPY main_3d.py boid_3d.py spatial_3d.py renderer_3d.py ./
 COPY camera_3d.py shaders_3d.py capture_3d.py ./
 COPY input_handler_3d.py occlusion_geom.py flock_core.py features.py ./
+COPY test_3d.py ./
 COPY LICENSE ./
 
 # ── Default command: headless simulation via xvfb ───────────────────
