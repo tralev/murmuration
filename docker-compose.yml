@@ -17,11 +17,11 @@ services:
     tty: true
 
   # ── Unit tests — run with:  docker compose run tests ───────────────
+  #  test_3d.py does pure numpy math — no GPU, no display needed.
   tests:
     build: .
     image: murmuration:latest
-    command: >
-      xvfb-run python -m unittest test_3d -v
+    command: python -m unittest test_3d -v
     stdin_open: true
     tty: true
 
