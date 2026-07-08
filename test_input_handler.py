@@ -820,6 +820,44 @@ class TestExtensionToggles(unittest.TestCase):
         # No crash, no change to flock_shape (computed in simulation.py)
         self.assertIsNone(result['ext_state']['flock_shape'])
 
+    # ── O: leader / attractor system ────────────────────────────
+
+    def test_o_spawns_leader_anchors(self):
+        """O key spawns leader anchors."""
+        features.ENABLE_LEADER = True
+        from extensions.leader import LeaderConfig
+        cfg = LeaderConfig()
+        s = _default_state()
+        s['ext_state'] = {'leader_active': False, 'leader_cfg': cfg,
+                          'leader_time': 0.0, 'leader_anchors': []}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_o)])
+        self.assertTrue(result['ext_state']['leader_active'])
+        self.assertEqual(len(result['ext_state']['leader_anchors']), cfg.anchor_count)
+
+    def test_o_removes_leader_anchors(self):
+        """O key with active leaders removes them."""
+        features.ENABLE_LEADER = True
+        from extensions.leader import LeaderAnchor, LeaderConfig
+        cfg = LeaderConfig()
+        anchors = [LeaderAnchor(config=cfg) for _ in range(cfg.anchor_count)]
+        s = _default_state()
+        s['ext_state'] = {'leader_active': True, 'leader_cfg': cfg,
+                          'leader_time': 0.0, 'leader_anchors': anchors}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_o)])
+        self.assertFalse(result['ext_state']['leader_active'])
+        self.assertEqual(len(result['ext_state']['leader_anchors']), 0)
+
+    def test_o_ignored_when_leader_disabled(self):
+        """O key ignored when ENABLE_LEADER=False."""
+        features.ENABLE_LEADER = False
+        s = _default_state()
+        s['ext_state'] = {'leader_active': False, 'leader_anchors': []}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_o)])
+        self.assertFalse(result['ext_state']['leader_active'])
+
     def test_y_ignored_when_shape_disabled(self):
         """Y key ignored when ENABLE_FLOCK_SHAPE=False."""
         features.ENABLE_FLOCK_SHAPE = False
@@ -849,7 +887,7 @@ class TestExtensionToggles(unittest.TestCase):
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count for input_handler module."""
 
-    EXPECTED_TEST_COUNT = 51
+    EXPECTED_TEST_COUNT = 54
 
 
 if __name__ == '__main__':

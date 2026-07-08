@@ -41,6 +41,8 @@ if features.ENABLE_MEDIUM_PRESETS:
     import random
 if features.ENABLE_FLOCK_SHAPE:
     from extensions.flock_shape import analyze_shape
+if features.ENABLE_LEADER:
+    from extensions.leader import leader_force
 
 
 def update_frame(config, flock, metrics, grid, frame, clock,
@@ -122,6 +124,19 @@ def update_frame(config, flock, metrics, grid, frame, clock,
     # ── Per-bird flocking: compute steering forces ────────────
     for boid in flock:
         boid.flock(flock, config, grid)
+
+    # ╔══════════════════════════════════════════════════════════╗
+    # ║  EXTENSION: leader / attractor  (L key)                 ║
+    # ╚══════════════════════════════════════════════════════════╝
+    if features.ENABLE_LEADER and ext_state.get('leader_active'):
+        cfg = ext_state.get('leader_cfg')
+        ext_state['leader_time'] = ext_state.get('leader_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
+        for anchor in ext_state.get('leader_anchors', []):
+            anchor.update(ext_state['leader_time'])
+        for boid in flock:
+            fx, fy = leader_force(boid.position, ext_state.get('leader_anchors', []), cfg)
+            if fx != 0.0 or fy != 0.0:
+                boid.apply_force(pygame.Vector2(fx, fy))
 
     # ╔══════════════════════════════════════════════════════════╗
     # ║  EXTENSION: wander behaviour  (W key)                   ║

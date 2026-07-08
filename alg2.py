@@ -74,6 +74,8 @@ if features.ENABLE_MEDIUM_PRESETS:
     from medium_presets import MediumConfig, MEDIUM_PRESETS
 if features.ENABLE_FLOCK_SHAPE:
     from extensions.flock_shape import ShapeReport
+if features.ENABLE_LEADER:
+    from extensions.leader import LeaderAnchor, LeaderConfig, draw_anchors
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -155,6 +157,11 @@ def main():
         ext_state['seasonal_label'] = ""
     if features.ENABLE_FLOCK_SHAPE:
         ext_state['flock_shape'] = None
+    if features.ENABLE_LEADER:
+        ext_state['leader_active'] = False
+        ext_state['leader_cfg'] = LeaderConfig()
+        ext_state['leader_time'] = 0.0
+        ext_state['leader_anchors'] = []
 
     # ══════════════════════════════════════════════════════════════
     #  MAIN FRAME LOOP
@@ -229,6 +236,8 @@ def main():
                 f"aspect={sr.aspect_ratio:.1f}  orient={math.degrees(sr.orientation):.0f}°  m*={sr.suggested_m:.1f}",
                 True, (180, 220, 160))
             screen.blit(shape_surf, (10, 64))
+        if features.ENABLE_LEADER and ext_state.get('leader_active'):
+            draw_anchors(screen, ext_state['leader_anchors'], ext_state.get('leader_cfg'))
 
         frame += 1
         pygame.display.flip()

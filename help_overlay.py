@@ -61,6 +61,8 @@ def _build_help_lines():
         lines.append("C         advance seasonal day (+30)")
     if features.ENABLE_FLOCK_SHAPE:
         lines.append("Y         flock shape analysis")
+    if features.ENABLE_LEADER:
+        lines.append("O         toggle leader / attractor system")
     lines.extend([
         "H         hide this help",
         "SPACE     pause / resume",

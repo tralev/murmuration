@@ -1733,10 +1733,90 @@ class TestFlockShape(unittest.TestCase):
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 8 — LEADER / ATTRACTOR SYSTEM                              ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestLeaderAnchor(unittest.TestCase):
+    """Leader anchor sinusoidal motion and attractor force."""
+
+    def test_anchor_starts_at_centre(self):
+        from extensions.leader import LeaderAnchor, LeaderConfig
+        cfg = LeaderConfig()
+        a = LeaderAnchor(cx=500, cy=350, config=cfg)
+        # At construction, px/py = centre; after update(0), sinusoidal offset
+        a.update(0.0)
+        self.assertAlmostEqual(a.px, 500 + cfg.attractor_radius * math.sin(a.phase_x))
+        self.assertAlmostEqual(a.py, 350 + cfg.attractor_radius * math.cos(a.phase_y))
+
+    def test_anchor_moves_over_time(self):
+        from extensions.leader import LeaderAnchor, LeaderConfig
+        a = LeaderAnchor(cx=500, cy=350)
+        p0 = a.position()
+        a.update(1.0)
+        p1 = a.position()
+        self.assertNotEqual(p0, p1, "Anchor should move over time")
+
+    def test_anchor_deterministic_with_same_phase(self):
+        from extensions.leader import LeaderAnchor, LeaderConfig
+        random.seed(42)
+        a1 = LeaderAnchor()
+        random.seed(42)
+        a2 = LeaderAnchor()
+        a1.update(3.0)
+        a2.update(3.0)
+        self.assertEqual(a1.position(), a2.position())
+
+    def test_attractor_force_zero_outside_range(self):
+        from extensions.leader import attractor_force, LeaderConfig
+        cfg = LeaderConfig(attractor_range=100)
+        fx, fy = attractor_force((0, 0), (200, 0), cfg)
+        self.assertEqual((fx, fy), (0.0, 0.0))
+
+    def test_attractor_force_points_toward_anchor(self):
+        from extensions.leader import attractor_force, LeaderConfig
+        cfg = LeaderConfig(attractor_range=200, chase_strength=0.5)
+        fx, fy = attractor_force((0, 0), (50, 0), cfg)
+        self.assertGreater(fx, 0.0)
+        self.assertAlmostEqual(fy, 0.0, places=6)
+
+    def test_attractor_force_linear_falloff(self):
+        from extensions.leader import attractor_force, LeaderConfig
+        cfg = LeaderConfig(attractor_range=200, chase_strength=1.0)
+        # At 50% of range → 50% of chase_strength
+        near = attractor_force((0, 0), (100, 0), cfg)
+        far = attractor_force((0, 0), (180, 0), cfg)
+        self.assertGreater(math.hypot(*near), math.hypot(*far))
+
+    def test_attractor_force_at_zero_distance_not_crash(self):
+        from extensions.leader import attractor_force, LeaderConfig
+        cfg = LeaderConfig(attractor_range=200)
+        fx, fy = attractor_force((50, 50), (50, 50), cfg)
+        # d < 1e-9 → returns 0
+        self.assertEqual((fx, fy), (0.0, 0.0))
+
+    def test_leader_force_sums_multiple_anchors(self):
+        from extensions.leader import LeaderAnchor, LeaderConfig, leader_force
+        cfg = LeaderConfig(attractor_range=200, chase_strength=1.0)
+        a1 = LeaderAnchor(cx=0, cy=0, config=cfg)
+        a1.px, a1.py = 100.0, 0.0
+        a2 = LeaderAnchor(cx=0, cy=0, config=cfg)
+        a2.px, a2.py = 0.0, 100.0
+        fx, fy = leader_force((0, 0), [a1, a2], cfg)
+        # Both pull at 100px → 50% each from (0,0)
+        self.assertGreater(fx, 0.0)
+        self.assertGreater(fy, 0.0)
+
+    def test_empty_anchors_yield_zero_force(self):
+        from extensions.leader import leader_force, LeaderConfig
+        fx, fy = leader_force((100, 100), [])
+        self.assertEqual((fx, fy), (0.0, 0.0))
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
 # ║  Test discovery sanity check                                         ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count to catch accidental regressions in discovery."""
 
-    EXPECTED_TEST_COUNT = 119 + 40
+    EXPECTED_TEST_COUNT = 168

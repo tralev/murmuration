@@ -265,6 +265,19 @@ def handle_events(config, flock, running, paused, pending_reset,
                 print(ext_state['seasonal_label'])
             elif key == pygame.K_y and features.ENABLE_FLOCK_SHAPE:
                 pass  # computed in simulation.py each frame
+            elif key == pygame.K_o and features.ENABLE_LEADER:
+                if ext_state.get('leader_active'):
+                    ext_state['leader_active'] = False
+                    ext_state['leader_anchors'] = []
+                    print("Leader system: OFF")
+                else:
+                    from extensions.leader import LeaderAnchor, LeaderConfig
+                    cfg = ext_state.get('leader_cfg', LeaderConfig())
+                    ext_state['leader_active'] = True
+                    ext_state['leader_anchors'] = [
+                        LeaderAnchor(config=cfg) for _ in range(cfg.anchor_count)]
+                    ext_state['leader_time'] = 0.0
+                    print(f"Leader system: ON ({cfg.anchor_count} anchor(s))")
 
             # ── Simulation control  (space, r, esc) ───────────
             elif key == pygame.K_SPACE:

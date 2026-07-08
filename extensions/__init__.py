@@ -39,6 +39,7 @@ from extensions.seasonal import (
     seasonal_size_factor, flock_size_for_day, is_murmuration_season,
 )
 from extensions.flock_shape import analyze_shape, ShapeReport, suggested_m_star
+from extensions.leader import LeaderAnchor, LeaderConfig, attractor_force, leader_force
 
 __all__ = [
     # Boid inheritance chain
@@ -57,4 +58,5 @@ __all__ = [
     "h2_norm", "knn_laplacian", "eta_of_m", "optimal_m", "cost_optimal_m",
     "seasonal_size_factor", "flock_size_for_day", "is_murmuration_season",
     "analyze_shape", "ShapeReport", "suggested_m_star",
+    "LeaderAnchor", "LeaderConfig", "attractor_force", "leader_force",
 ]

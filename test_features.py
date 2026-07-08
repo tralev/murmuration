@@ -168,7 +168,7 @@ class TestEnableCsvLogging(unittest.TestCase):
 class TestFlagCount(unittest.TestCase):
     """Verify the number and names of active feature flags."""
 
-    def test_exactly_seventeen_flags(self):
+    def test_exactly_eighteen_flags(self):
         """features.py should have exactly 17 active flags — catch accidental
         additions or deletions."""
         expected = {
@@ -189,6 +189,7 @@ class TestFlagCount(unittest.TestCase):
             'ENABLE_H2_ROBUSTNESS',
             'ENABLE_SEASONAL',
             'ENABLE_FLOCK_SHAPE',
+            'ENABLE_LEADER',
         }
         actual = {k for k in dir(features)
                   if k.startswith('ENABLE_') and not k.startswith('_')}
