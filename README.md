@@ -83,12 +83,32 @@ Mouse drag to orbit camera, scroll to zoom, **`M`** to toggle mode.
 | `←` / `→` | φa ±0.01 |
 | `[` / `]` | σ ±1 |
 | `+` / `-` | Add / remove 10 birds |
+| `a`–`h`, `w` | 3D scenario presets (see `scenario_presets_3d.py`) |
 | `G` | Toggle grid overlay |
+| `O` | Toggle camera auto-rotate (0.45 rad/s) |
+| `V` | Reset camera view |
 | `SPACE` | Pause / resume |
 | `R` | Reset flock |
 | `ESC` | Quit |
 | **Mouse drag** | Orbit camera |
 | **Scroll** | Zoom in/out |
+
+Live scientific metrics (order parameter α, internal/external opacity Θ/Θ′,
+angular momentum L, dispersion σ_r) are shown in the window title bar — see
+**3D Science Modules** below.
+
+### 3D Science Modules
+
+The 3D stack implements the observables and models from the three founding
+papers (PDFs in `sci/`). These are standalone, unit-tested modules
+(`test_science_3d.py`) usable independently of the render loop:
+
+| Module | Paper | What it provides |
+|--------|-------|------------------|
+| `metrics_3d.py` | Pearce et al. 2014 | `FlockMetrics3D` — order parameter α = \|Σv̂\|/N, internal opacity Θ (marginally-opaque flocks sit near μ≈0.30), external opacity Θ′ (rasterised silhouette coverage from a distant observer), angular momentum L, dispersion σ_r |
+| `h2_robustness.py` | Young et al. 2013 | consensus-network robustness — k-NN Laplacian H₂ norm, per-neighbour efficiency η(m), and `cost_optimal_m()` that reproduces the paper's optimal **m\* ≈ 6–7** cohesion-vs-effort trade-off |
+| `ecology.py` | Goodenough et al. 2017 | seasonal flock-size curve (mid-winter peak), ~500-bird critical-mass onset gate, ~29.6% predator-presence rate |
+| `scenario_presets_3d.py` | — | eight one-key 3D regimes (Pearce Default, Ball of Birds, Storm Cloud, 3D Stream, Vertical Column, 3D Acro, Spiral Vortex, 3D Void) |
 
 ---
 

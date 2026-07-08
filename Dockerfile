@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir \
     "pygame>=2.0,<3.0" \
     "numpy>=1.21" \
+    "scipy>=1.7" \
     "moderngl>=5.6" \
     "PyGLM>=2.5"
 
@@ -37,7 +38,10 @@ WORKDIR /app
 COPY main_3d.py boid_3d.py spatial_3d.py renderer_3d.py ./
 COPY camera_3d.py shaders_3d.py capture_3d.py ./
 COPY input_handler_3d.py occlusion_geom.py flock_core.py features.py ./
-COPY test_3d.py ./
+# Paper-grounded 3D science modules (Pearce metrics, Young H₂, Goodenough
+# ecology) + restored 3D scenario presets, and their tests.
+COPY metrics_3d.py h2_robustness.py ecology.py scenario_presets_3d.py ./
+COPY test_3d.py test_science_3d.py ./
 COPY LICENSE ./
 
 # ── Default command: headless simulation via xvfb ───────────────────

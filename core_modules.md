@@ -1,5 +1,15 @@
 # Core 2D Modules — 3D-Port Assessment
 
+> **Status update:** the paper-grounded pieces flagged below have since been
+> implemented for the 3D stack: **`metrics_3d.py`** now provides the 3D
+> `FlockMetrics3D` (order parameter α, internal opacity Θ, external opacity Θ′,
+> angular momentum, dispersion), replacing the "needs a 3D metrics core" note
+> for `metrics.py` / `external_opacity.py`; and 3D scenario presets are
+> restored in **`scenario_presets_3d.py`** (wired into `input_handler_3d.py`).
+> The remaining high-value item is still **true 3D spherical-cap occlusion**
+> (from the removed `three_d.py`) to replace the projection XY-plane
+> approximation. See README → "3D Science Modules".
+
 ## Purpose of this document
 
 Commit `6b71b15` removed the 2D simulation, leaving a **3D-only ModernGL

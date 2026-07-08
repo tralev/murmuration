@@ -21,7 +21,7 @@ services:
   tests:
     build: .
     image: murmuration:latest
-    command: python -m unittest test_3d -v
+    command: python -m unittest test_3d test_science_3d -v
     stdin_open: true
     tty: true
 

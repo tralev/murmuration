@@ -1,5 +1,15 @@
 # Extensions — Reference for Re-implementation in the 3D Stack
 
+> **Status update:** the paper-grounded analysis extensions have since been
+> ported to the 3D stack as standalone, unit-tested modules (tests in
+> `test_science_3d.py`): **`h2_robustness.py`** (Young et al. consensus H₂ +
+> cost-optimal m*, verified to land at m*≈6–7 in 3D) and **`ecology.py`**
+> (Goodenough seasonal flock-size curve, ~500-bird critical-mass gate, predator
+> presence — merging the former `seasonal.py` + `critical_mass.py`). The
+> behaviour/agent extensions below (threat, wander, leader, vacuole, …) and the
+> **true 3D spherical-cap occlusion** from `three_d.py` are still to do; the
+> port notes here remain the spec for them.
+
 ## Purpose of this document
 
 The repository was cut down to a **3D-only ModernGL stack** in commit
