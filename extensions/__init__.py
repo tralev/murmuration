@@ -41,6 +41,7 @@ from extensions.seasonal import (
 from extensions.flock_shape import analyze_shape, ShapeReport, suggested_m_star
 from extensions.leader import LeaderAnchor, LeaderConfig, attractor_force, leader_force
 from extensions.vacuole import VacuoleAgent, VacuoleConfig, vacuole_force
+from extensions.shell_formation import ShellConfig, assign_shells, shell_force
 
 __all__ = [
     # Boid inheritance chain
@@ -61,4 +62,5 @@ __all__ = [
     "analyze_shape", "ShapeReport", "suggested_m_star",
     "LeaderAnchor", "LeaderConfig", "attractor_force", "leader_force",
     "VacuoleAgent", "VacuoleConfig", "vacuole_force",
+    "ShellConfig", "assign_shells", "shell_force",
 ]

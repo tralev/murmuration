@@ -604,6 +604,7 @@ class TestExtensionToggles(unittest.TestCase):
         self._saved_seasonal = features.ENABLE_SEASONAL
         self._saved_shape = features.ENABLE_FLOCK_SHAPE
         self._saved_vacuole = features.ENABLE_VACUOLE
+        self._saved_shell = features.ENABLE_SHELL
 
     def tearDown(self):
         features.ENABLE_THREAT = self._saved_threat
@@ -614,6 +615,7 @@ class TestExtensionToggles(unittest.TestCase):
         features.ENABLE_SEASONAL = self._saved_seasonal
         features.ENABLE_FLOCK_SHAPE = self._saved_shape
         features.ENABLE_VACUOLE = self._saved_vacuole
+        features.ENABLE_SHELL = self._saved_shell
 
     # ── T: threat agent ──────────────────────────────────────────
 
@@ -901,6 +903,45 @@ class TestExtensionToggles(unittest.TestCase):
         result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_e)])
         self.assertIsNone(result['ext_state']['vacuole'])
 
+    # ── P: shell formation ─────────────────────────────────────
+
+    def test_p_spawns_shell_formation(self):
+        """P key toggles shell formation on."""
+        features.ENABLE_SHELL = True
+        from extensions.shell_formation import ShellConfig
+        cfg = ShellConfig()
+        flock = [_make_boid(i * 20, 350) for i in range(10)]
+        s = _default_state()
+        s['flock'] = flock
+        s['ext_state'] = {'shell_active': False, 'shell_cfg': cfg,
+                          'shell_time': 0.0, 'shell_assignments': []}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_p)])
+        self.assertTrue(result['ext_state']['shell_active'])
+        self.assertEqual(len(result['ext_state']['shell_assignments']), len(flock))
+
+    def test_p_removes_shell_formation(self):
+        """P key with active shells removes them."""
+        features.ENABLE_SHELL = True
+        from extensions.shell_formation import ShellConfig
+        cfg = ShellConfig()
+        s = _default_state()
+        s['ext_state'] = {'shell_active': True, 'shell_cfg': cfg,
+                          'shell_time': 0.0, 'shell_assignments': [(0, 0.0, 1)]}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_p)])
+        self.assertFalse(result['ext_state']['shell_active'])
+        self.assertEqual(len(result['ext_state']['shell_assignments']), 0)
+
+    def test_p_ignored_when_shell_disabled(self):
+        """P key ignored when ENABLE_SHELL=False."""
+        features.ENABLE_SHELL = False
+        s = _default_state()
+        s['ext_state'] = {'shell_active': False, 'shell_assignments': []}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_p)])
+        self.assertFalse(result['ext_state']['shell_active'])
+
     # ── ext_state survives non-extension events ──────────────────
 
     def test_ext_state_preserved_on_non_extension_key(self):
@@ -921,7 +962,7 @@ class TestExtensionToggles(unittest.TestCase):
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count for input_handler module."""
 
-    EXPECTED_TEST_COUNT = 57
+    EXPECTED_TEST_COUNT = 60
 
 
 if __name__ == '__main__':

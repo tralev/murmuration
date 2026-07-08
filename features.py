@@ -92,3 +92,4 @@ ENABLE_SEASONAL           = False   # seasonal flock size variation
 ENABLE_FLOCK_SHAPE        = False   # PCA flock shape analysis
 ENABLE_LEADER             = True    # O-key leader / attractor system
 ENABLE_VACUOLE            = True    # E-key vacuole formation (orbiting cavity)
+ENABLE_SHELL              = True    # P-key shell formation / piloting

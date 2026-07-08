@@ -1879,10 +1879,79 @@ class TestVacuoleAgent(unittest.TestCase):
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 8 — SHELL FORMATION / PILOTING                              ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestShellFormation(unittest.TestCase):
+    """Shell assignment, orbital force, and config."""
+
+    def test_assign_shells_covers_all_birds(self):
+        from extensions.shell_formation import assign_shells, ShellConfig
+        cfg = ShellConfig(radii=[40, 80], speeds=[0.8, 0.5])
+        flock = list(range(20))
+        assignments = assign_shells(flock, cfg)
+        self.assertEqual(len(assignments), len(flock))
+
+    def test_assign_shells_distributes_across_shells(self):
+        from extensions.shell_formation import assign_shells, ShellConfig
+        cfg = ShellConfig(radii=[40, 80, 120])
+        flock = list(range(30))
+        assignments = assign_shells(flock, cfg)
+        shells = set(s for s, _, _ in assignments)
+        self.assertEqual(len(shells), 3)
+
+    def test_shell_force_pulls_toward_target(self):
+        from extensions.shell_formation import shell_force, ShellConfig
+        cfg = ShellConfig(radii=[100], speeds=[0.5])
+        # Bird at (0, 0), centre at (100, 0), shell radius 100, phase 0, time 0
+        # target = (100 + 100*cos(0), 0 + 100*sin(0)) = (200, 0)
+        fx, fy = shell_force((0, 0), (100, 0), 0, 0.0, 1, 0.0, cfg)
+        self.assertGreater(fx, 0.0)  # pulled right toward target
+
+    def test_shell_force_different_phase(self):
+        from extensions.shell_formation import shell_force, ShellConfig
+        cfg = ShellConfig(radii=[100], speeds=[0.5])
+        # Phase π, time=0, radius=100, centre=(100,0)
+        # angle = π + 0 = π, target = (100 + 100*cos(π), 100*sin(π)) = (0, 0)
+        # Bird at (200, 0), dist=200, force toward (0,0) → negative x
+        fx, fy = shell_force((200, 0), (100, 0), 0, math.pi, 1, 0.0, cfg)
+        self.assertLess(fx, 0.0)  # pulled left toward target
+
+    def test_shell_force_clockwise_orbits(self):
+        from extensions.shell_formation import shell_force, ShellConfig
+        import math as _m
+        cfg = ShellConfig(radii=[80], speeds=[1.0])
+        # At t=π/2, dir=1, phase=0, speed=1.0: angle=π/2
+        # target = (80 + 80*cos(π/2), 0 + 80*sin(π/2)) = (80, 80)
+        # bird at (80, 0), dist=80, force toward (80,80): fx=0, fy>0
+        fx, fy = shell_force((80, 0), (80, 0), 0, 0.0, 1, _m.pi / 2, cfg)
+        self.assertAlmostEqual(fx, 0.0, places=5)
+        self.assertGreater(fy, 0.0)  # pulled up toward target
+
+    def test_shell_force_zero_dist_no_crash(self):
+        from extensions.shell_formation import shell_force, ShellConfig
+        cfg = ShellConfig()
+        # Bird at exact target position
+        fx, fy = shell_force((100, 0), (0, 0), 0, 0.0, 1, 0.0, cfg)
+        # Need to check: at time 0 with radius=40, target = (40, 0)
+        # Target = (0+40*cos(0), 0+40*sin(0)) = (40, 0)
+        # Bird at (100, 0), dist to (40,0) = 60 > 0, so there IS force
+        # Let's put bird at target to test zero-dist
+        fx2, fy2 = shell_force((40, 0), (0, 0), 0, 0.0, 1, 0.0, cfg)
+        self.assertEqual((fx2, fy2), (0.0, 0.0))
+
+    def test_default_config_has_four_shells(self):
+        from extensions.shell_formation import ShellConfig
+        cfg = ShellConfig()
+        self.assertEqual(len(cfg.radii), 4)
+        self.assertEqual(len(cfg.speeds), 4)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
 # ║  Test discovery sanity check                                         ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count to catch accidental regressions in discovery."""
 
-    EXPECTED_TEST_COUNT = 176
+    EXPECTED_TEST_COUNT = 183

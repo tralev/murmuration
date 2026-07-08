@@ -288,6 +288,19 @@ def handle_events(config, flock, running, paused, pending_reset,
                 else:
                     ext_state['vacuole'] = None
                     print("Vacuole REMOVED")
+            elif key == pygame.K_p and features.ENABLE_SHELL:
+                from extensions.shell_formation import ShellConfig, assign_shells
+                if ext_state.get('shell_active'):
+                    ext_state['shell_active'] = False
+                    ext_state['shell_assignments'] = []
+                    print("Shell formation: OFF")
+                else:
+                    cfg = ext_state.get('shell_cfg', ShellConfig())
+                    ext_state['shell_active'] = True
+                    ext_state['shell_time'] = 0.0
+                    ext_state['shell_assignments'] = assign_shells(flock, cfg)
+                    n_shells = len(cfg.radii)
+                    print(f"Shell formation: ON ({n_shells} shells, {len(flock)} birds)")
 
             # ── Simulation control  (space, r, esc) ───────────
             elif key == pygame.K_SPACE:

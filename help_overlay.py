@@ -65,6 +65,8 @@ def _build_help_lines():
         lines.append("O         toggle leader / attractor system")
     if features.ENABLE_VACUOLE:
         lines.append("E         spawn / remove vacuole cavity")
+    if features.ENABLE_SHELL:
+        lines.append("P         toggle shell formation / piloting")
     lines.extend([
         "H         hide this help",
         "SPACE     pause / resume",

@@ -45,6 +45,8 @@ if features.ENABLE_LEADER:
     from extensions.leader import leader_force
 if features.ENABLE_VACUOLE:
     from extensions.vacuole import vacuole_force
+if features.ENABLE_SHELL:
+    from extensions.shell_formation import shell_force
 
 
 def update_frame(config, flock, metrics, grid, frame, clock,
@@ -156,6 +158,25 @@ def update_frame(config, flock, metrics, grid, frame, clock,
                 boid.apply_force(pygame.Vector2(fx, fy))
 
     # ╔══════════════════════════════════════════════════════════╗
+    # ╔══════════════════════════════════════════════════════════╗
+    # ║  EXTENSION: shell formation  (P key)                    ║
+    # ╚══════════════════════════════════════════════════════════╝
+    if features.ENABLE_SHELL and ext_state.get('shell_active'):
+        cfg = ext_state.get('shell_cfg')
+        ext_state['shell_time'] = ext_state.get('shell_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
+        swarm_x = sum(b.position.x for b in flock) / max(len(flock), 1)
+        swarm_y = sum(b.position.y for b in flock) / max(len(flock), 1)
+        assignments = ext_state.get('shell_assignments', [])
+        t = ext_state['shell_time']
+        for i, boid in enumerate(flock):
+            if i < len(assignments):
+                sidx, phase, direction = assignments[i]
+                fx, fy = shell_force(
+                    boid.position, (swarm_x, swarm_y),
+                    sidx, phase, direction, t, cfg)
+                if fx != 0.0 or fy != 0.0:
+                    boid.apply_force(pygame.Vector2(fx, fy))
+
     # ║  EXTENSION: wander behaviour  (W key)                   ║
     # ╚══════════════════════════════════════════════════════════╝
     if features.ENABLE_WANDER and ext_state.get('wander_active'):

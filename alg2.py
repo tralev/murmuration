@@ -78,6 +78,8 @@ if features.ENABLE_LEADER:
     from extensions.leader import LeaderAnchor, LeaderConfig, draw_anchors
 if features.ENABLE_VACUOLE:
     from extensions.vacuole import VacuoleAgent, VacuoleConfig, draw_vacuole
+if features.ENABLE_SHELL:
+    from extensions.shell_formation import ShellConfig, assign_shells, draw_shells
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -168,9 +170,11 @@ def main():
         ext_state['vacuole'] = None
         ext_state['vacuole_cfg'] = VacuoleConfig()
         ext_state['vacuole_time'] = 0.0
-
-    # ══════════════════════════════════════════════════════════════
-    #  MAIN FRAME LOOP
+    if features.ENABLE_SHELL:
+        ext_state['shell_active'] = False
+        ext_state['shell_cfg'] = ShellConfig()
+        ext_state['shell_time'] = 0.0
+        ext_state['shell_assignments'] = []
     # ══════════════════════════════════════════════════════════════
     while running:
         dt = clock.tick(FPS)
@@ -246,6 +250,11 @@ def main():
             draw_anchors(screen, ext_state['leader_anchors'], ext_state.get('leader_cfg'))
         if features.ENABLE_VACUOLE and ext_state.get('vacuole') is not None:
             draw_vacuole(screen, ext_state['vacuole'], ext_state.get('vacuole_cfg'))
+        if features.ENABLE_SHELL and ext_state.get('shell_active') and len(flock) > 0:
+            # Draw shells around the flock centre
+            cx = sum(b.position.x for b in flock) / len(flock)
+            cy = sum(b.position.y for b in flock) / len(flock)
+            draw_shells(screen, (cx, cy), ext_state.get('shell_cfg'))
 
         frame += 1
         pygame.display.flip()
