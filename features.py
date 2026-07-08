@@ -76,3 +76,17 @@ ENABLE_3D            = True    # 3D simulation (main_3d.py, renderer_3d.py,
 ENABLE_CSV_LOGGING   = True    # write metrics to CSV every N frames
                                #   (rows contain metrics values, so this
                                #    also requires ENABLE_METRICS)
+
+# ── Extension modules  (affect alg2.py, input_handler.py, simulation.py)
+#  Each extension is gated — disabled modules are never imported and
+#  their keyboard toggles are ignored.
+
+ENABLE_THREAT            = False   # T-key threat agent (approach/egress +
+                               #   escape-wave propagation)
+ENABLE_WANDER            = False   # W-key flock wander behaviour
+ENABLE_ADAPTIVE_QUALITY   = False   # A-key three-tier FPS degradation
+ENABLE_MEDIUM_PRESETS     = False   # N-key ambient medium presets
+                               #   (air/dust/starlight/grid)
+ENABLE_H2_ROBUSTNESS      = False   # H₂ consensus robustness metric
+ENABLE_SEASONAL           = False   # seasonal flock size variation
+ENABLE_FLOCK_SHAPE        = False   # PCA flock shape analysis

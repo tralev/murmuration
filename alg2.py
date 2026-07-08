@@ -40,6 +40,7 @@
 import pygame
 import sys
 import os
+import math
 
 import features
 
@@ -63,6 +64,16 @@ if features.ENABLE_FOCAL_DEBUG:
     from focal_debug import draw as _draw_focal_debug
 if features.ENABLE_PRESETS:
     from scenario_presets import PRESETS as _PRESETS
+if features.ENABLE_THREAT:
+    from extensions.threat import ThreatAgent, THREAT_RADIUS, THREAT_COLOR
+if features.ENABLE_WANDER:
+    from extensions.wander import WanderConfig, flock_wander_center
+if features.ENABLE_ADAPTIVE_QUALITY:
+    from extensions.adaptive_quality import AdaptiveQuality
+if features.ENABLE_MEDIUM_PRESETS:
+    from medium_presets import MediumConfig, MEDIUM_PRESETS
+if features.ENABLE_FLOCK_SHAPE:
+    from extensions.flock_shape import ShapeReport
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -123,6 +134,28 @@ def main():
     last_preset_key = None
     saved_config = None
 
+    # ── Extension state (mutable dict — passed through input/update/render)
+    ext_state = {}
+    if features.ENABLE_THREAT:
+        ext_state['threat'] = None
+    if features.ENABLE_WANDER:
+        ext_state['wander_active'] = False
+        ext_state['wander_cfg'] = WanderConfig()
+        ext_state['wander_time'] = 0.0
+    if features.ENABLE_ADAPTIVE_QUALITY:
+        ext_state['aq'] = AdaptiveQuality()
+        ext_state['aq_label'] = ""
+    if features.ENABLE_MEDIUM_PRESETS:
+        ext_state['medium'] = MediumConfig("grid")
+        ext_state['medium_label'] = "MEDIUM grid"
+    if features.ENABLE_H2_ROBUSTNESS:
+        ext_state['h2_val'] = -1.0
+    if features.ENABLE_SEASONAL:
+        ext_state['seasonal_day'] = 1
+        ext_state['seasonal_label'] = ""
+    if features.ENABLE_FLOCK_SHAPE:
+        ext_state['flock_shape'] = None
+
     # ══════════════════════════════════════════════════════════════
     #  MAIN FRAME LOOP
     # ══════════════════════════════════════════════════════════════
@@ -131,20 +164,22 @@ def main():
 
         # ── 1. INPUT  (→ input_handler.py) ──────────────────────
         (running, paused, pending_reset, pending_add, pending_remove,
-         focal_index, last_preset_key, saved_config, preset_label) = \
+         focal_index, last_preset_key, saved_config, preset_label,
+         ext_state) = \
             input_handler.handle_events(
                 config, flock, running, paused, pending_reset,
                 pending_add, pending_remove, focal_index,
-                last_preset_key, saved_config, preset_label)
+                last_preset_key, saved_config, preset_label,
+                ext_state)
 
         # ── 2. UPDATE  (→ simulation.py) ────────────────────────
         if not paused:
             (flock, grid, metrics, frame, pending_remove, pending_add,
-             pending_reset, focal_index) = \
+             pending_reset, focal_index, ext_state) = \
                 simulation.update_frame(
                     config, flock, metrics, grid, frame, clock,
                     pending_remove, pending_add, pending_reset,
-                    focal_index, log_fid)
+                    focal_index, log_fid, ext_state)
 
         # ── 3. RENDER  (→ boid_render.py, hud.py, overlays) ─────
         screen.fill((20, 22, 30))
@@ -173,6 +208,27 @@ def main():
         hud.draw_badges(screen, font_small, config)
         if paused:
             hud.draw_paused_banner(screen, font_small)
+
+        # ── Extension render  (threat, AQ badge, medium label, etc.)
+        if features.ENABLE_THREAT and ext_state.get('threat') is not None:
+            ext_state['threat'].draw(screen, config)
+        if features.ENABLE_ADAPTIVE_QUALITY and ext_state.get('aq_label'):
+            aq_surf = font_small.render(ext_state['aq_label'], True, (200, 160, 80))
+            screen.blit(aq_surf, (10, 10))
+        if features.ENABLE_MEDIUM_PRESETS:
+            med_label = ext_state.get('medium_label', '')
+            if med_label:
+                med_surf = font_small.render(med_label, True, (160, 200, 220))
+                screen.blit(med_surf, (10, 28))
+        if features.ENABLE_SEASONAL and ext_state.get('seasonal_label'):
+            seas_surf = font_small.render(ext_state['seasonal_label'], True, (140, 200, 140))
+            screen.blit(seas_surf, (10, 46))
+        if features.ENABLE_FLOCK_SHAPE and ext_state.get('flock_shape') is not None:
+            sr = ext_state['flock_shape']
+            shape_surf = font_small.render(
+                f"aspect={sr.aspect_ratio:.1f}  orient={math.degrees(sr.orientation):.0f}°  m*={sr.suggested_m:.1f}",
+                True, (180, 220, 160))
+            screen.blit(shape_surf, (10, 64))
 
         frame += 1
         pygame.display.flip()

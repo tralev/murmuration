@@ -33,6 +33,14 @@ import boid as boid_module
 # preset keys then fall through to the remaining key handlers.
 if features.ENABLE_PRESETS:
     from scenario_presets import apply_preset
+if features.ENABLE_THREAT:
+    from extensions.threat import ThreatAgent
+if features.ENABLE_MEDIUM_PRESETS:
+    from medium_presets import apply_medium, MEDIUM_PRESETS
+if features.ENABLE_SEASONAL:
+    from extensions.seasonal import seasonal_size_factor, flock_size_for_day
+if features.ENABLE_H2_ROBUSTNESS:
+    pass  # analysis-only, no key toggle needed
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
@@ -81,7 +89,8 @@ def _restore_config(config, saved):
 
 def handle_events(config, flock, running, paused, pending_reset,
                   pending_add, pending_remove, focal_index,
-                  last_preset_key, saved_config, preset_label):
+                  last_preset_key, saved_config, preset_label,
+                  ext_state=None):
     """
     Process all pending Pygame events for one frame.
 
@@ -99,13 +108,17 @@ def handle_events(config, flock, running, paused, pending_reset,
     last_preset_key : any | None — tracked for toggle behaviour
     saved_config    : dict | None — config snapshot for preset toggle
     preset_label    : str — label for on-screen preset name display
+    ext_state       : dict | None — extension state (threat, wander, aq, medium, etc.)
 
     Returns
     -------
     tuple of (running, paused, pending_reset, pending_add, pending_remove,
-              focal_index, last_preset_key, saved_config, preset_label)
-    — updated values for immutable types.
+              focal_index, last_preset_key, saved_config, preset_label,
+              ext_state)
+    — updated values for immutable types and ext_state.
     """
+    if ext_state is None:
+        ext_state = {}
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -212,6 +225,49 @@ def handle_events(config, flock, running, paused, pending_reset,
                 mode_name = "MARGIN" if flock_core.MARGIN_BOUNDARY else "TOROIDAL"
                 print(f"[BOUNDARY] Switched to {mode_name} wrap")
 
+            # ── Extension toggles  (T, W, A, N, J, S, K) ──────
+            elif key == pygame.K_t and features.ENABLE_THREAT:
+                if ext_state.get('threat') is None:
+                    ext_state['threat'] = ThreatAgent()
+                    print("Threat agent SPAWNED — birds will flee!")
+                else:
+                    ext_state['threat'] = None
+                    print("Threat agent REMOVED")
+            elif key == pygame.K_w and features.ENABLE_WANDER:
+                ext_state['wander_active'] = not ext_state.get('wander_active', False)
+                state = "ON" if ext_state['wander_active'] else "OFF"
+                print(f"Wander behaviour: {state}")
+            elif key == pygame.K_a and features.ENABLE_ADAPTIVE_QUALITY:
+                aq = ext_state.get('aq')
+                if aq is not None:
+                    enabled = aq.toggle()
+                    state = "ON" if enabled else "OFF (full quality)"
+                    print(f"Adaptive quality: {state}")
+                    ext_state['aq_label'] = "" if not enabled else f"AQ tier {aq.tier}"
+            elif key == pygame.K_n and features.ENABLE_MEDIUM_PRESETS:
+                medium = ext_state.get('medium')
+                if medium is not None:
+                    names = list(MEDIUM_PRESETS)
+                    idx = (names.index(medium.name) + 1) % len(names)
+                    label = apply_medium(medium, names[idx])
+                    ext_state['medium_label'] = label
+                    print(label)
+            elif key == pygame.K_j and features.ENABLE_H2_ROBUSTNESS:
+                from extensions.h2_robustness import h2_norm, cost_optimal_m
+                h2 = h2_norm(flock, config.sigma)
+                ext_state['h2_val'] = h2
+                best_m, _ = cost_optimal_m(flock)
+                print(f"H₂={h2:.4f}  cost-optimal m*={best_m}")
+            elif key == pygame.K_c and features.ENABLE_SEASONAL:
+                day = ext_state.get('seasonal_day', 1)
+                day = (day % 365) + 30  # jump 30 days
+                ext_state['seasonal_day'] = day
+                factor = seasonal_size_factor(day)
+                ext_state['seasonal_label'] = f"Day {day}: flock factor {factor:.2f}"
+                print(ext_state['seasonal_label'])
+            elif key == pygame.K_y and features.ENABLE_FLOCK_SHAPE:
+                pass  # computed in simulation.py each frame
+
             # ── Simulation control  (space, r, esc) ───────────
             elif key == pygame.K_SPACE:
                 paused = not paused
@@ -238,4 +294,5 @@ def handle_events(config, flock, running, paused, pending_reset,
                 print(f"Focal bird: #{focal_index}")
 
     return (running, paused, pending_reset, pending_add, pending_remove,
-            focal_index, last_preset_key, saved_config, preset_label)
+            focal_index, last_preset_key, saved_config, preset_label,
+            ext_state)

@@ -47,6 +47,20 @@ def _build_help_lines():
         lines.append("F         toggle focal bird debug view")
     if features.ENABLE_GRID_OVERLAY:
         lines.append("G         toggle grid overlay (SPATIAL)")
+    if features.ENABLE_THREAT:
+        lines.append("T         spawn / remove threat agent")
+    if features.ENABLE_WANDER:
+        lines.append("W         toggle wander behaviour")
+    if features.ENABLE_ADAPTIVE_QUALITY:
+        lines.append("A         toggle adaptive quality")
+    if features.ENABLE_MEDIUM_PRESETS:
+        lines.append("N         cycle ambient medium")
+    if features.ENABLE_H2_ROBUSTNESS:
+        lines.append("J         compute H₂ robustness")
+    if features.ENABLE_SEASONAL:
+        lines.append("C         advance seasonal day (+30)")
+    if features.ENABLE_FLOCK_SHAPE:
+        lines.append("Y         flock shape analysis")
     lines.extend([
         "H         hide this help",
         "SPACE     pause / resume",

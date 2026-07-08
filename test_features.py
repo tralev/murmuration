@@ -168,8 +168,8 @@ class TestEnableCsvLogging(unittest.TestCase):
 class TestFlagCount(unittest.TestCase):
     """Verify the number and names of active feature flags."""
 
-    def test_exactly_ten_flags(self):
-        """features.py should have exactly 10 active flags — catch accidental
+    def test_exactly_seventeen_flags(self):
+        """features.py should have exactly 17 active flags — catch accidental
         additions or deletions."""
         expected = {
             'ENABLE_PROJECTION_MODE',
@@ -182,6 +182,13 @@ class TestFlagCount(unittest.TestCase):
             'ENABLE_HELP_OVERLAY',
             'ENABLE_3D',
             'ENABLE_CSV_LOGGING',
+            'ENABLE_THREAT',
+            'ENABLE_WANDER',
+            'ENABLE_ADAPTIVE_QUALITY',
+            'ENABLE_MEDIUM_PRESETS',
+            'ENABLE_H2_ROBUSTNESS',
+            'ENABLE_SEASONAL',
+            'ENABLE_FLOCK_SHAPE',
         }
         actual = {k for k in dir(features)
                   if k.startswith('ENABLE_') and not k.startswith('_')}
@@ -205,13 +212,27 @@ class TestFlagDefaults(unittest.TestCase):
     """Verify that flag defaults match the expected safe values."""
 
     def test_visual_flags_default_false(self):
-        """Visual features default to False (safe: no extra rendering)."""
+        """Visual and extension flags default to False (safe: no extra rendering/cost)."""
         self.assertFalse(features.ENABLE_TRAILS,
                          "ENABLE_TRAILS should default to False")
         self.assertFalse(features.ENABLE_FOCAL_DEBUG,
                          "ENABLE_FOCAL_DEBUG should default to False")
         self.assertFalse(features.ENABLE_GRID_OVERLAY,
                          "ENABLE_GRID_OVERLAY should default to False")
+        self.assertFalse(features.ENABLE_THREAT,
+                         "ENABLE_THREAT should default to False")
+        self.assertFalse(features.ENABLE_WANDER,
+                         "ENABLE_WANDER should default to False")
+        self.assertFalse(features.ENABLE_ADAPTIVE_QUALITY,
+                         "ENABLE_ADAPTIVE_QUALITY should default to False")
+        self.assertFalse(features.ENABLE_MEDIUM_PRESETS,
+                         "ENABLE_MEDIUM_PRESETS should default to False")
+        self.assertFalse(features.ENABLE_H2_ROBUSTNESS,
+                         "ENABLE_H2_ROBUSTNESS should default to False")
+        self.assertFalse(features.ENABLE_SEASONAL,
+                         "ENABLE_SEASONAL should default to False")
+        self.assertFalse(features.ENABLE_FLOCK_SHAPE,
+                         "ENABLE_FLOCK_SHAPE should default to False")
 
     def test_simulation_flags_default_true(self):
         """Core simulation features default to True (normal operation)."""

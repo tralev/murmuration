@@ -64,7 +64,8 @@ def _call_handle_events(state, events):
     """Helper: mock pygame.event.get to return events, call handle_events."""
     with patch('input_handler.pygame.event.get', return_value=events):
         (running, paused, pending_reset, pending_add, pending_remove,
-         focal_index, last_preset_key, saved_config, preset_label) = \
+         focal_index, last_preset_key, saved_config, preset_label,
+         ext_state) = \
             handle_events(
                 state['config'], state['flock'],
                 state['running'], state['paused'], state['pending_reset'],
@@ -80,6 +81,7 @@ def _call_handle_events(state, events):
         'focal_index': focal_index,
         'last_preset_key': last_preset_key, 'saved_config': saved_config,
         'preset_label': preset_label,
+        'ext_state': ext_state,
     }
 
 

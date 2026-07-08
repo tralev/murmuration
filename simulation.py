@@ -23,6 +23,7 @@
 """
 
 import features
+import pygame
 from flock_core import (
     VISUAL_RANGE, MODE_SPATIAL, LOG_EVERY, SpatialGrid,
 )
@@ -32,11 +33,19 @@ from boid import Boid
 # metrics are disabled — update_frame() then expects metrics=None.
 if features.ENABLE_METRICS:
     from metrics import FlockMetrics
+if features.ENABLE_WANDER:
+    from extensions.wander import flock_wander_center, wander_force
+if features.ENABLE_THREAT:
+    from extensions.threat import flee_force
+if features.ENABLE_MEDIUM_PRESETS:
+    import random
+if features.ENABLE_FLOCK_SHAPE:
+    from extensions.flock_shape import analyze_shape
 
 
 def update_frame(config, flock, metrics, grid, frame, clock,
                  pending_remove, pending_add, pending_reset,
-                 focal_index, log_fid):
+                 focal_index, log_fid, ext_state=None):
     """
     Execute one frame of simulation update: boid counts, reset, grid rebuild,
     flocking, physics, metrics, and CSV logging.
@@ -59,12 +68,18 @@ def update_frame(config, flock, metrics, grid, frame, clock,
     focal_index    : int | None — cleared if bird count changes affect it
     log_fid        : file | None — CSV log file handle
 
+    Parameters
+    ----------
+    ext_state       : dict | None — extension state (threat, wander, aq, medium, etc.)
+
     Returns
     -------
     tuple of (flock, grid, metrics, frame, pending_remove, pending_add,
-              pending_reset, focal_index)
+              pending_reset, focal_index, ext_state)
     — updated values for reassigned objects and immutable types.
     """
+    if ext_state is None:
+        ext_state = {}
     # ╔══════════════════════════════════════════════════════════╗
     # ║  BOID COUNT CHANGES  (+/- keys)                         ║
     # ╚══════════════════════════════════════════════════════════╝
@@ -108,6 +123,41 @@ def update_frame(config, flock, metrics, grid, frame, clock,
     for boid in flock:
         boid.flock(flock, config, grid)
 
+    # ╔══════════════════════════════════════════════════════════╗
+    # ║  EXTENSION: wander behaviour  (W key)                   ║
+    # ╚══════════════════════════════════════════════════════════╝
+    if features.ENABLE_WANDER and ext_state.get('wander_active'):
+        ext_state['wander_time'] = ext_state.get('wander_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
+        centre = flock_wander_center(
+            ext_state['wander_time'], ext_state.get('wander_cfg'))
+        for boid in flock:
+            fx, fy = wander_force(boid.position, centre, ext_state.get('wander_cfg'))
+            boid.apply_force(pygame.Vector2(fx, fy))
+
+    # ╔══════════════════════════════════════════════════════════╗
+    # ║  EXTENSION: threat agent  (T key)                       ║
+    # ╚══════════════════════════════════════════════════════════╝
+    if features.ENABLE_THREAT and ext_state.get('threat') is not None:
+        threat = ext_state['threat']
+        swarm_x = sum(b.position.x for b in flock) / max(len(flock), 1)
+        swarm_y = sum(b.position.y for b in flock) / max(len(flock), 1)
+        threat.update((swarm_x, swarm_y))
+        for boid in flock:
+            fx, fy = flee_force(boid.position, threat.position())
+            if fx != 0.0 or fy != 0.0:
+                boid.apply_force(pygame.Vector2(fx, fy))
+
+    # ╔══════════════════════════════════════════════════════════╗
+    # ║  EXTENSION: medium presets  (N key)                     ║
+    # ╚══════════════════════════════════════════════════════════╝
+    if features.ENABLE_MEDIUM_PRESETS:
+        medium = ext_state.get('medium')
+        if medium is not None and medium.name != 'grid':
+            dvx, dvy = medium.drift_velocity()
+            for boid in flock:
+                tax, tay = medium.turbulence_accel()
+                boid.apply_force(pygame.Vector2(tax + dvx, tay + dvy))
+
     # ── Per-bird physics: Euler integration ───────────────────
     for boid in flock:
         boid.update()
@@ -132,5 +182,22 @@ def update_frame(config, flock, metrics, grid, frame, clock,
         )
         log_fid.flush()
 
+    # ╔══════════════════════════════════════════════════════════╗
+    # ║  EXTENSION: adaptive quality  (A key)                   ║
+    # ╚══════════════════════════════════════════════════════════╝
+    if features.ENABLE_ADAPTIVE_QUALITY:
+        aq = ext_state.get('aq')
+        if aq is not None and aq.enabled:
+            fps_val = max(clock.get_fps(), 1.0)
+            now_ms = pygame.time.get_ticks()
+            aq.update(fps_val, now_ms, len(flock))
+            ext_state['aq_label'] = f"AQ tier {aq.tier}"
+
+    # ╔══════════════════════════════════════════════════════════╗
+    # ║  EXTENSION: flock shape analysis  (Y key — per frame)   ║
+    # ╚══════════════════════════════════════════════════════════╝
+    if features.ENABLE_FLOCK_SHAPE:
+        ext_state['flock_shape'] = analyze_shape(flock)
+
     return (flock, grid, metrics, frame, pending_remove, pending_add,
-            pending_reset, focal_index)
+            pending_reset, focal_index, ext_state)
