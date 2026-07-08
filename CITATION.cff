@@ -4,13 +4,14 @@ title: "Murmuration — Dual-Mode Bird Flock Simulation"
 abstract: >
   A Python simulation of starling murmurations implementing two distinct
   flocking algorithms — the hybrid projection model from Pearce et al. (2014,
-  PNAS) and topological Reynolds boids — switchable at runtime. Includes 16
-  scenario presets (5 educational + 11 from a companion TypeScript/Three.js
-  project), runtime controls, real-time scientific metrics (opacity Θ, Θ',
-  order parameter α), and 17 roadmap priorities spanning paper fidelity,
-  ecological realism (threat/predator, roosting, H₂ consensus dynamics),
-  GPGPU/WebGPU compute, field-based simulation, trail rendering, adaptive
-  quality, and environmental medium/flow/wander systems.
+  PNAS) and topological Reynolds boids — switchable at runtime. Features 21
+  modular feature flags, 16 scenario presets, real-time scientific metrics
+  (internal/external opacity Θ, Θ', order parameter α, power, angular momentum,
+  dispersion), 20+ extension modules (predator, threat, wander, leader, vacuole,
+  shell, flow field, H₂ robustness, seasonal, flock shape, adaptive quality,
+  and more), GPU-accelerated 3D rendering via ModernGL, multi-language ports
+  (Python, GNU Octave, Scilab), a Docker cross-language validation pipeline,
+  a Jupyter notebook for headless analysis, and 600 unit tests.
 authors:
   - family-names: "tralev"
     given-names: ""
@@ -24,9 +25,14 @@ keywords:
   - "projection-model"
   - "boids"
   - "computational-biology"
+  - "multi-language"
+  - "Python"
+  - "GNU-Octave"
+  - "Scilab"
+  - "educational"
 license: GPL-3.0-or-later
-version: "1.0.0"
-date-released: "2026-07-05"
+version: "1.1.0"
+date-released: "2026-07-08"
 references:
   - type: article
     title: "Role of projection in the control of bird flocks"
