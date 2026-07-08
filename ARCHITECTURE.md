@@ -507,11 +507,13 @@ one `TestCase` class per module (e.g., `TestLeaderAnchor`, `TestVacuoleAgent`,
 | `test_spatial_model.py` | `spatial_model.py` functions | `flock_core` |
 | `test_input_handler.py` | `input_handler.py` event processing | `pygame`, `flock_core` |
 | `test_features.py` | Feature flag gating (`features.py`) | `features`, `flock_core` |
+| `test_help_overlay.py` | Flag-aware help overlay line assembly + draw | `pygame`, `features` |
 | `test_3d.py` | 3D physics, grid, flocking (39 tests) | `boid_3d`, `spatial_3d`, `flock_core` |
 | `test_count_mixin.py` | *(helper, contributes no tests)* — shared `TestCountMixin` for the per-module test-count discovery gates | None |
-| `extensions/test_extensions.py` | Extension modules (190 tests) — leader, vacuole, shell formation, flow field, wander, threat, adaptive quality, H₂, seasonal, flock shape, medium presets, predator, steric, blind angles, 3D, anisotropic, spatial opt, direct velocity, multi-viewpoint, correlation time | Various |
+| `extensions/test_extensions.py` | Extension modules (217 tests) — leader, vacuole, shell formation, flow field, wander, threat, adaptive quality, H₂, seasonal, flock shape, medium presets, inertia, blob init, roosting, critical mass, themes, pilot state, predator, steric, blind angles, 3D, anisotropic, spatial opt, direct velocity, multi-viewpoint, correlation time | Various |
 
-Run all tests:
+The full suite is **600 tests** (via the CI module list or `unittest discover`,
+which recurses into the `extensions` package). Run all tests:
 
 ```bash
 python3 -m unittest discover -p "test_*.py"

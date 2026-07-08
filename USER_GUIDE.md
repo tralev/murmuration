@@ -209,7 +209,7 @@ python3 -m unittest test_alg2 -v
 python3 -m unittest extensions.test_extensions -v
 ```
 
-229 tests covering occlusion geometry, all 16 presets, preset toggle behavior, letter-key presets, and the extensions suite. No display needed — Pygame is mocked. Run the full validation pipeline with `./scripts/validate-all.sh` or `./run-docker.sh validate-all`.
+600 tests covering occlusion geometry, all 16 presets, preset toggle behaviour, letter-key presets, feature-flag gating, the 3D stack, and the full extensions suite (predator, wander, threat, adaptive quality, H₂ robustness, seasonal, flock shape, inertia, blob init, roosting, critical mass, themes, pilot state, and more). No display needed — Pygame is mocked. Run the full validation pipeline with `./scripts/validate-all.sh` or `./run-docker.sh validate-all`.
 
 ---
 
@@ -269,6 +269,23 @@ python3 -m unittest extensions.test_extensions -v
 | `Y` | Flock shape | Analyse flock shape (disabled by default) |
 
 Changes take effect on the **next unpaused frame**.
+
+#### Programmatic extension modules (no key — used from code)
+
+Some extensions are pure library helpers rather than interactive toggles.
+They live in `extensions/` and are imported directly (see `extensions/__init__.py`
+for the full export list) — useful for analysis, custom initialisation, or the
+extended simulation:
+
+| Module | What it provides |
+|--------|-----------------|
+| `inertia.py` | `blend_inertia()` — smooth velocity toward desired (momentum, default 0.84) |
+| `blob_init.py` | `blob_positions()` — 5-centre spherical blob start layout (2D & 3D) |
+| `roosting.py` | `roost_force()` / `dusk_factor()` — dusk-gated roost attractor |
+| `critical_mass.py` | `coherence_factor()` — ~500-bird murmuration-onset gate |
+| `themes.py` | `THEMES`, `get_theme()`, `cycle_theme()` — colour schemes |
+| `pilot_state.py` | `SimulationPilot` — flock heading, radius, bank-roll, medium pulse |
+| `h2_robustness.py` | `h2_norm()`, `cost_optimal_m()` — Young et al. consensus robustness |
 
 ### Preset scenarios (16 total)
 
@@ -777,15 +794,18 @@ python capture_3d.py
 
 #### Camera controls
 
-| Mouse | Action |
+| Input | Action |
 |-------|--------|
 | **Click + drag** | Orbit camera (azimuth + elevation) |
 | **Scroll up** | Zoom in |
 | **Scroll down** | Zoom out |
+| `O` | Toggle **auto-rotate** — slow automatic orbit at 0.45 rad/s for unattended demos |
+| `V` | **Reset camera** — snap back to the default view (azimuth 45°, elevation 30°, distance 1200) |
 
 The camera orbits around the centre of the volume (500, 350, 200) by default.
 Drag left/right to rotate horizontally, up/down to change elevation.
-Elevation is clamped to ±89° to prevent gimbal lock.
+Elevation is clamped to ±89° to prevent gimbal lock. Note that `R` resets the
+**flock** (not the camera) — use `V` to reset the camera view.
 
 #### Parameter tuning
 

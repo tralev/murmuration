@@ -37,30 +37,40 @@ mkdir -p output
 case "$MODE" in
     tests)
         echo "═══════════════════════════════════════════════════════════"
-        echo "  Running unit tests in Docker..."
+        echo "  Running the full Python test suite in Docker (600 tests)..."
         echo "═══════════════════════════════════════════════════════════"
-        $COMPOSE build 2>&1 | tail -3
-        $COMPOSE run --rm tests
+        $COMPOSE build shell 2>&1 | tail -3
+        # Run the full canonical module list (not just the 2-module compose
+        # service) so `tests` matches CI and the pre-commit hook.
+        # -T disables TTY allocation so output streams correctly when the
+        # command is piped or run non-interactively.
+        $COMPOSE run --rm -T \
+            -e SDL_VIDEODRIVER=dummy -e SDL_AUDIODRIVER=dummy \
+            shell python -m unittest \
+                test_occlusion test_boundary test_presets test_alg2 \
+                test_cross_language test_projection_model test_spatial_model \
+                test_input_handler test_3d test_features test_help_overlay \
+                extensions.test_extensions
         ;;
 
     shell)
         echo "→ Opening bash shell in the murmuration container..."
         echo "  (type 'exit' to leave)"
-        $COMPOSE build 2>&1
+        $COMPOSE build shell 2>&1
         $COMPOSE run --rm shell
         ;;
 
     octave)
         echo "→ Opening GNU Octave CLI in the murmuration container..."
         echo "  (type 'exit' to leave)"
-        $COMPOSE build 2>&1
+        $COMPOSE build shell 2>&1
         $COMPOSE run --rm octave
         ;;
 
     scilab)
         echo "→ Opening Scilab CLI in the murmuration container..."
         echo "  (type 'exit' to leave)"
-        $COMPOSE build 2>&1
+        $COMPOSE build shell 2>&1
         $COMPOSE run --rm scilab
         ;;
 
@@ -86,13 +96,15 @@ case "$MODE" in
 
     extended)
         echo "═══════════════════════════════════════════════════════════"
-        echo "  Murmuration EXTENDED — all modules active (Docker)"
-        echo "  Running headless with virtual display..."
+        echo "  Murmuration EXTENDED — roadmap extensions active (Docker)"
+        echo "  Direct-velocity + steric + blind-angle + anisotropic +"
+        echo "  predator + spatial-optimisation chain, multi-viewpoint Θ',"
+        echo "  and correlation-time τᵨ. Headless with virtual display."
         echo "  CSV metrics → output/murmuration_metrics_extended.csv"
         echo "  Press Ctrl+C to stop"
         echo "═══════════════════════════════════════════════════════════"
         echo ""
-        $COMPOSE build 2>&1 | tail -3
+        $COMPOSE build shell 2>&1 | tail -3
         echo ""
         docker run --rm \
             -v "$PWD/output:/app/output" \
@@ -110,7 +122,7 @@ case "$MODE" in
         echo "  Press Ctrl+C to stop"
         echo "═══════════════════════════════════════════════════════════"
         echo ""
-        $COMPOSE build 2>&1 | tail -3
+        $COMPOSE build shell 2>&1 | tail -3
         echo ""
         # Run the simulation directly (not via compose up — gives better logs)
         docker run --rm \

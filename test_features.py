@@ -15,6 +15,7 @@
 ──────────────────────────────────────────────────────────────────────
 """
 
+import importlib.util
 import io
 import os
 import subprocess
@@ -67,8 +68,19 @@ class TestEnable3D(unittest.TestCase):
         self.assertIn("disabled", output,
                       f"Expected 'disabled' in output, got: {output!r}")
 
+    @unittest.skipUnless(
+        importlib.util.find_spec("moderngl") is not None
+        and importlib.util.find_spec("glm") is not None,
+        "3D GPU deps (moderngl/PyGLM) not installed — main_3d cannot import",
+    )
     def test_enable_3d_true_allows_import(self):
-        """ENABLE_3D=True (default) allows main_3d to import."""
+        """ENABLE_3D=True (default) allows main_3d to import.
+
+        Skipped where the 3D renderer's GPU deps are absent (e.g. the lean
+        Docker image): main_3d imports renderer_3d → moderngl, so the
+        positive case can only be asserted when those deps exist. The
+        disabled-guard tests below need no 3D deps and always run.
+        """
         result = self._run_import(True)
         self.assertEqual(result.returncode, 0,
                          f"Expected exit 0 for ENABLE_3D=True, "
