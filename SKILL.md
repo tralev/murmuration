@@ -187,6 +187,22 @@ and refactor everything for use as educational material.
     Build UI surfaces (e.g. the help overlay's key list) from the flags
     so disabled features don't advertise dead keys.
 
+12c. **Extract extension orchestration into a dedicated hub.** When the
+    project grows many optional extensions (10+), the core loop (alg2.py)
+    and update step (simulation.py) quickly become cluttered with per-
+    extension imports, state init, and per-frame calls. Create a single
+    `extensions/orchestration.py` that knows about every extension:
+    - `init_ext_state()` → returns a mutable ext_state dict
+    - `apply_forces()` → per-frame steering for all active extensions
+    - `render()` → per-frame visual overlays
+    Flag-gated imports keep disabled extensions from loading. The core
+    loop becomes extension-agnostic — adding a new extension touches
+    only `features.py`, `orchestration.py`, `input_handler.py`, and
+    `help_overlay.py`, never `alg2.py` or `simulation.py`.
+    Likewise, move extension key handling into `extensions/input_ext.py`
+    so the core input handler delegates unrecognised keys rather than
+    growing a branch per extension.
+
 13. **Create a minimal version for students to read first.** ~75 lines, single
     file, zero external imports (besides the necessary library like Pygame).
     Implement only the core algorithm. This is the "read in 5 minutes" version.
@@ -280,8 +296,8 @@ When this skill completes, the project should look like:
 
 ```
 project/
-├── alg2.py                    # Python entry point (pure orchestrator)
-├── features.py                # Feature flags (import-time modularity)
+├── alg2.py                    # Python entry point (pure orchestrator ~195 lines)
+├── features.py                # Feature flags (import-time modularity, 21 flags)
 ├── occlusion_geom.py          # Pure utility functions (no display deps)
 ├── flock_core.py              # Constants + data structures
 ├── projection_model.py        # Algorithm A (paper model)
@@ -290,13 +306,62 @@ project/
 ├── boid_render.py             # Agent drawing (duck-typed)
 ├── metrics.py                 # Scientific metrics + display helpers
 ├── external_opacity.py        # Observer-side metric
-├── scenario_presets.py        # Educational preset configurations
-├── input_handler.py           # Keyboard/mouse event processing
-├── simulation.py              # Per-frame update step
+├── scenario_presets.py        # Educational preset configurations (16 presets)
+├── medium_presets.py          # Ambient atmosphere presets (air, dust, etc.)
+├── input_handler.py           # Keyboard/mouse event processing (core only)
+├── input_handler_3d.py        # 3D-specific input (camera controls)
+├── simulation.py              # Per-frame update step (~148 lines)
 ├── hud.py                     # Badges, banners, preset tooltip
 ├── help_overlay.py            # Flag-aware key reference (H key)
 ├── focal_debug.py             # Click-a-bird debug view
 ├── alg_simple.py              # Minimal version for students (~75 lines)
+│
+├── extensions/
+│   ├── __init__.py            # Extension exports
+│   ├── orchestration.py       # Central hub: init / forces / render
+│   ├── input_ext.py           # Extension key handlers (delegated from core)
+│   ├── direct_velocity.py     # 1a — direct velocity setting
+│   ├── multi_viewpoint_opacity.py  # 1b — K-viewpoint external opacity
+│   ├── correlation_time.py    # 1c — density autocorrelation τᵨ
+│   ├── steric_repulsion.py    # 2a — short-range 1/r² repulsion
+│   ├── blind_angles.py        # 2b — blind sector behind birds
+│   ├── three_d.py             # 2c — 3D spherical cap occlusion
+│   ├── anisotropic_bodies.py  # 2d — elliptical birds
+│   ├── spatial_optimization.py # 3b — chunk-based far-field approx
+│   ├── predator.py            # 3a — predator agent + flight response
+│   ├── wander.py              # 10c — flock wander centre
+│   ├── threat.py              # 7 — threat agent + escape wave
+│   ├── leader.py              # 5 — attractor/leader anchors
+│   ├── vacuole.py             # 7c — orbiting cavity repulsor
+│   ├── shell_formation.py     # 8 — concentric geometric shells
+│   ├── flow_field.py          # 10b — environmental wind with gusts
+│   ├── adaptive_quality.py    # 15 — three-tier FPS degradation
+│   ├── h2_robustness.py       # 6 — Young et al. consensus H₂
+│   ├── seasonal.py            # 5 — seasonal flock size variation
+│   ├── flock_shape.py         # 6 — PCA aspect ratio analysis
+│   ├── inertia.py / blob_init.py / roosting.py / critical_mass.py
+│   ├── themes.py / pilot_state.py / data_loader.py
+│   ├── extended_simulation.py # Full extension-chain entry point
+│   ├── extended_simulation_3d.py  # 3D extended simulation
+│   ├── alg2_extended.m / .sce # Octave/Scilab extended ports
+│   ├── test_extensions.py     # 216 extension unit tests
+│   └── README.md
+│
+├── examples/                  # 9 progressive tutorial scripts
+│   ├── iteration1_single_boid.py
+│   ├── iteration2_reynolds_boids.py
+│   ├── ...
+│   └── iteration9_modular.py
+│
+├── notebooks/
+│   └── murmuration.ipynb      # Headless analysis notebook (Colab badge)
+│
+├── scripts/
+│   ├── check-test-count.sh    # Test count guard (CI hook)
+│   ├── install-hooks.sh       # Git pre-commit hook installer
+│   └── validate-all.sh        # Full cross-language validation pipeline
+│
+├── .github/workflows/test.yml # CI: Python + Octave + Scilab tests
 │
 ├── main_3d.py                 # 3D entry point (flag-gated)
 ├── boid_3d.py / spatial_3d.py # 3D agent + spatial logic
@@ -308,6 +373,11 @@ project/
 ├── alg2.m                     # GNU Octave port
 ├── alg2.sce                   # Scilab port
 │
+├── Dockerfile                 # Python + Octave + Scilab image
+├── docker-compose.yml         # Services: tests, octave, scilab, shell
+├── run-docker.sh              # Docker wrapper shortcuts
+├── run.sh                     # Native run shortcuts
+│
 ├── README.md                  # Scientific docs + paper audit + roadmap + code tour
 ├── ARCHITECTURE.md            # Dependency graph, flags, config knobs
 ├── OCTAVE_README.md           # Octave-specific docs (self-contained)
@@ -315,6 +385,19 @@ project/
 ├── USER_GUIDE.md              # Practical guide (no math, no citations)
 ├── CITATION.cff               # Citation metadata (6 paper references)
 ├── SKILL.md                   # This file (workflow for reuse)
+│
+├── test_alg2.py               # Test suite aggregator
+├── test_occlusion.py          # 47 interval-math tests
+├── test_boundary.py           # 41 margin + wrap tests
+├── test_cross_language.py     # 10 Octave/Scilab parity tests
+├── test_presets.py            # 12 preset validation tests
+├── test_projection_model.py   # Projection model tests
+├── test_spatial_model.py      # Spatial model tests
+├── test_input_handler.py      # 63 input handler tests
+├── test_features.py           # 17 feature flag tests
+├── test_help_overlay.py       # Help overlay tests
+├── test_3d.py                 # 3D simulation tests
+├── test_count_mixin.py        # Shared TestDiscovery base class
 │
 ├── LICENSE                    # GPL-3.0-or-later
 └── .gitignore                 # Python artifacts, CSV output, research papers
@@ -387,9 +470,11 @@ Before declaring the skill complete, verify:
 - [ ] All available papers audited with complete ✅/⚠️/❌ tables
 - [ ] Primary paper deviations documented and either fixed or explained
 - [ ] Implementation roadmap has 3 priority tiers with formulas
-- [ ] Python entry point is ≤300 lines (modules handle the rest)
+- [ ] Python entry point is ≤200 lines (modules handle the rest)
 - [ ] All Python modules import cleanly with no circular deps
+- [ ] Extension orchestration is centralised (new extensions don't touch alg2.py)
 - [ ] Every feature flag has an off-state test (module absent from sys.modules)
+- [ ] Standard library modules used where appropriate (statistics.mean, math.hypot, collections.deque)
 - [ ] GNU Octave script has matching section banners and math documentation
 - [ ] Scilab script has matching section banners and math documentation
 - [ ] Cross-file audit: same sections, same order, any gaps explained
