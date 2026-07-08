@@ -168,8 +168,8 @@ class TestEnableCsvLogging(unittest.TestCase):
 class TestFlagCount(unittest.TestCase):
     """Verify the number and names of active feature flags."""
 
-    def test_exactly_twenty_flags(self):
-        """features.py should have exactly 17 active flags — catch accidental
+    def test_exactly_21_flags(self):
+        """features.py should have exactly 21 active flags — catch accidental
         additions or deletions."""
         expected = {
             'ENABLE_PROJECTION_MODE',

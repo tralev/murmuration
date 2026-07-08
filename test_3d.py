@@ -15,6 +15,7 @@
 """
 
 import math
+import random
 import unittest
 
 import numpy as np
@@ -553,24 +554,31 @@ class TestFlockProjection3D(unittest.TestCase):
     # ── Determinism ─────────────────────────────────────────────────
 
     def test_deterministic_given_same_inputs(self):
-        """Same inputs produce same steer direction (noise excluded)."""
-        # Use a bird with very high phi_a (alignment dominated) so noise
-        # contributes minimally.
+        """Same inputs + same RNG seed produce the identical steer force.
+
+        The projection noise term (random.uniform on theta/phi) is the
+        only source of variation, so seeding the RNG identically before
+        each call makes the whole step deterministic — that is what
+        "given same inputs" means. Without the reseed this test is flaky:
+        with phi_n = 0.05 the two independent noise draws can pull the
+        force magnitudes apart by more than any fixed tolerance.
+        """
+        config = _make_config(phi_p=0.1, phi_a=0.85, mode=MODE_PROJECTION)
+
+        random.seed(1234)
         b1 = MockBoid(500, 350, 200, V0, 0, 0)
         o1 = MockBoid(600, 350, 200, V0, 0, 0)
-        config = _make_config(phi_p=0.1, phi_a=0.85, mode=MODE_PROJECTION)
-        grid = MockGrid([b1, o1])
-        flock_projection_3d(b1, [b1, o1], config, grid)
+        flock_projection_3d(b1, [b1, o1], config, MockGrid([b1, o1]))
         s1 = b1._forces[0].copy()
 
+        random.seed(1234)
         b2 = MockBoid(500, 350, 200, V0, 0, 0)
         o2 = MockBoid(600, 350, 200, V0, 0, 0)
-        flock_projection_3d(b2, [b2, o2], config, grid)
+        flock_projection_3d(b2, [b2, o2], config, MockGrid([b2, o2]))
         s2 = b2._forces[0]
 
-        # Delta and alignment should be the same → steer direction similar
-        # Noise adds random variation, so we check magnitude similarity
-        self.assertAlmostEqual(np.linalg.norm(s1), np.linalg.norm(s2), delta=0.05)
+        # Identical seed + inputs → bitwise-close steering force.
+        self.assertAlmostEqual(np.linalg.norm(s1 - s2), 0.0, places=5)
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
