@@ -252,21 +252,24 @@ python3 -m unittest extensions.test_extensions -v
 | `+` / `=` | Add 10 birds (capped at 200 pending) |
 | `-` | Remove 10 birds (leaves at least 1) |
 
-### Extension toggles (active by default)
+### Extension toggles
 
-| Key | Extension | Effect |
-|-----|-----------|--------|
-| `T` | Threat agent | Spawn / remove predator that chases the flock |
-| `W` | Wander behaviour | Toggle random-walk perturbation per bird |
-| `O` | Leader / attractor | Toggle sinusoidal Lissajous anchor orbits |
-| `E` | Vacuole cavity | Spawn / remove orbiting repulsor (creates empty space) |
-| `P` | Shell formation | Toggle birds orbiting in concentric geometric shells |
-| `D` | Flow field | Toggle environmental wind with gusts and drift |
-| `A` | Adaptive quality | Toggle dynamic frame-skip (disabled by default) |
-| `N` | Medium presets | Cycle ambient medium (disabled by default) |
-| `J` | H₂ robustness | Compute robustness norm (disabled by default) |
-| `C` | Seasonal | Advance seasonal day (disabled by default) |
-| `Y` | Flock shape | Analyse flock shape (disabled by default) |
+Enable/disable individual extensions via the flags in `features.py`.
+The table below shows which are active by default.
+
+| Key | Extension | Effect | Default |
+|-----|-----------|--------|---------|
+| `T` | Threat agent | Spawn / remove predator that chases the flock | On |
+| `W` | Wander behaviour | Toggle random-walk perturbation per bird | On |
+| `O` | Leader / attractor | Toggle sinusoidal Lissajous anchor orbits | On |
+| `E` | Vacuole cavity | Spawn / remove orbiting repulsor (creates empty space) | On |
+| `P` | Shell formation | Toggle birds orbiting in concentric geometric shells | On |
+| `D` | Flow field | Toggle environmental wind with gusts and drift | On |
+| `A` | Adaptive quality | Toggle dynamic frame-skip | Off |
+| `N` | Medium presets | Cycle ambient medium (air, dust, starlight, grid) | Off |
+| `J` | H₂ robustness | Compute consensus robustness norm (Young et al. 2013) | Off |
+| `C` | Seasonal | Advance seasonal day (+30) | Off |
+| `Y` | Flock shape | PCA aspect ratio and shape analysis | Off |
 
 Changes take effect on the **next unpaused frame**.
 
