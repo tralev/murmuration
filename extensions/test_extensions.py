@@ -1372,10 +1372,371 @@ class TestFlockMetricsExtended(unittest.TestCase):
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 10c — WANDER BEHAVIOUR                                       ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestWander(unittest.TestCase):
+    """Flock-level wander centre, radial pulse, and per-bird force."""
+
+    def test_radial_pulse_in_range(self):
+        from extensions.wander import radial_pulse
+        for t in [0.0, 1.7, 5.5, 42.0, 100.0]:
+            self.assertGreaterEqual(radial_pulse(t), 0.72 - 1e-9)
+            self.assertLessEqual(radial_pulse(t), 1.0 + 1e-9)
+
+    def test_wander_center_deterministic(self):
+        from extensions.wander import flock_wander_center
+        self.assertEqual(flock_wander_center(3.0), flock_wander_center(3.0))
+
+    def test_wander_center_moves_over_time(self):
+        from extensions.wander import flock_wander_center
+        self.assertNotEqual(flock_wander_center(0.0), flock_wander_center(10.0))
+
+    def test_wander_center_within_domain_envelope(self):
+        """The centre stays within attractor_radius of the domain centre."""
+        from extensions.wander import flock_wander_center, WanderConfig
+        from flock_core import WIDTH, HEIGHT
+        cfg = WanderConfig()
+        for t in range(0, 200, 7):
+            cx, cy = flock_wander_center(float(t), cfg)
+            dist = math.hypot(cx - WIDTH / 2, cy - HEIGHT / 2)
+            self.assertLessEqual(dist, cfg.attractor_radius + 1e-6)
+
+    def test_wander_force_points_toward_center(self):
+        from extensions.wander import wander_force, WanderConfig
+        cfg = WanderConfig(wander_speed=1.0)
+        fx, fy = wander_force((0.0, 0.0), (100.0, 0.0), cfg)
+        self.assertGreater(fx, 0.0)          # pulled toward +x centre
+        self.assertAlmostEqual(fy, 0.0, places=6)
+
+    def test_wander_force_zero_at_center(self):
+        from extensions.wander import wander_force
+        fx, fy = wander_force((50.0, 50.0), (50.0, 50.0))
+        self.assertAlmostEqual(fx, 0.0)
+        self.assertAlmostEqual(fy, 0.0)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 7 — THREAT AGENT & ESCAPE WAVE                               ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestThreatAgent(unittest.TestCase):
+    """Approach/egress state machine and escape-wave propagation."""
+
+    def test_starts_in_approach(self):
+        from extensions.threat import ThreatAgent
+        self.assertEqual(ThreatAgent().phase, "approach")
+
+    def test_approaches_then_egresses(self):
+        from extensions.threat import ThreatAgent
+        t = ThreatAgent(x=100, y=350)
+        start_dist = math.hypot(500 - t.x, 350 - t.y)
+        saw_egress = False
+        min_dist = start_dist
+        for _ in range(300):
+            t.update((500, 350))
+            min_dist = min(min_dist, math.hypot(500 - t.x, 350 - t.y))
+            if t.phase == "egress":
+                saw_egress = True
+        self.assertLess(min_dist, start_dist,
+                        "threat should get closer during approach")
+        self.assertTrue(saw_egress, "threat should switch to egress")
+
+    def test_speed_clamped(self):
+        from extensions.threat import ThreatAgent, THREAT_SPEED
+        t = ThreatAgent()
+        for _ in range(100):
+            t.update((500, 350))
+            self.assertLessEqual(math.hypot(t.vx, t.vy), THREAT_SPEED + 1e-6)
+
+    def test_flee_force_zero_outside_radius(self):
+        from extensions.threat import flee_force, THREAT_RADIUS
+        fx, fy = flee_force((0.0, 0.0), (THREAT_RADIUS + 50, 0.0))
+        self.assertEqual((fx, fy), (0.0, 0.0))
+
+    def test_flee_force_points_away(self):
+        from extensions.threat import flee_force
+        # Bird at +x of threat should be pushed further +x.
+        fx, fy = flee_force((60.0, 0.0), (0.0, 0.0))
+        self.assertGreater(fx, 0.0)
+        self.assertAlmostEqual(fy, 0.0, places=6)
+
+    def test_escape_wave_amplifies_through_neighbours(self):
+        """A bird just outside the danger zone still gets a non-zero
+        response via its neighbours' wave (chain reaction)."""
+        from extensions.threat import escape_wave, flee_force, THREAT_RADIUS
+        threat = (0.0, 0.0)
+        # Chain of birds; only the first is inside the danger radius.
+        positions = [(THREAT_RADIUS * 0.5, 0.0),
+                     (THREAT_RADIUS + 20, 0.0),
+                     (THREAT_RADIUS + 60, 0.0)]
+        neighbours = [[1], [0, 2], [1]]
+        wave = escape_wave(positions, threat, neighbours, sweeps=4)
+        # Bird 1 has zero direct flee but a neighbour inside the zone.
+        self.assertEqual(flee_force(positions[1], threat), (0.0, 0.0))
+        self.assertGreater(math.hypot(*wave[1]), 0.0,
+                           "wave should propagate to the neighbour")
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  MEDIUM PRESETS                                                       ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestMediumPresets(unittest.TestCase):
+    """Ambient-medium preset table and derived physics."""
+
+    def test_four_media_present(self):
+        from medium_presets import MEDIUM_PRESETS
+        self.assertEqual(set(MEDIUM_PRESETS),
+                         {"air", "dust", "starlight", "grid"})
+
+    def test_entries_have_expected_fields(self):
+        from medium_presets import MEDIUM_PRESETS
+        fields = {"label", "opacity", "pt_scale", "turbulence", "drift",
+                  "color_mix", "density", "jitter", "description"}
+        for name, p in MEDIUM_PRESETS.items():
+            self.assertSetEqual(set(p), fields, f"{name} field mismatch")
+            self.assertTrue(p["label"].startswith("MEDIUM "))
+
+    def test_grid_is_reference_no_perturbation(self):
+        from medium_presets import MediumConfig
+        m = MediumConfig("grid")
+        self.assertEqual(m.turbulence, 0.0)
+        self.assertEqual(m.drift_velocity(), (0.0, 0.0))
+        self.assertEqual(m.turbulence_accel(), (0.0, 0.0))
+
+    def test_apply_medium_switches_and_validates(self):
+        from medium_presets import MediumConfig, apply_medium
+        m = MediumConfig("grid")
+        label = apply_medium(m, "dust")
+        self.assertIn("dust", label)
+        self.assertEqual(m.name, "dust")
+        self.assertEqual(apply_medium(m, "nonsense"), "")
+
+    def test_turbulence_accel_scales_with_medium(self):
+        from medium_presets import MediumConfig
+        rng = random.Random(0)
+        dust = MediumConfig("dust")
+        mags = [math.hypot(*dust.turbulence_accel(rng)) for _ in range(50)]
+        self.assertGreater(max(mags), 0.0)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 15 — ADAPTIVE QUALITY                                        ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestAdaptiveQuality(unittest.TestCase):
+    """Three-tier FPS degradation with hysteresis."""
+
+    def _drive(self, aq, fps, count, start_ms, steps, step_ms):
+        now = start_ms
+        for _ in range(steps):
+            now += step_ms
+            aq.update(fps, now, count)
+        return now
+
+    def test_starts_full_quality(self):
+        from extensions.adaptive_quality import AdaptiveQuality
+        aq = AdaptiveQuality(target_fps=60)
+        self.assertEqual(aq.tier, 0)
+        self.assertTrue(aq.trails_enabled)
+        self.assertEqual(aq.render_scale, 1.0)
+
+    def test_low_fps_degrades_progressively(self):
+        from extensions.adaptive_quality import AdaptiveQuality
+        aq = AdaptiveQuality(target_fps=60)
+        # Sustained 30 fps, well below the 46.8 trigger; cooldown 1800ms.
+        self._drive(aq, 30, 4000, 0, 10, 2000)
+        self.assertGreaterEqual(aq.tier, 2)
+        self.assertFalse(aq.trails_enabled)          # tier ≥ 1
+        self.assertLess(aq.render_scale, 1.0)         # tier ≥ 2
+
+    def test_tier3_caps_bird_count(self):
+        from extensions.adaptive_quality import (
+            AdaptiveQuality, BIRD_COUNT_FLOOR)
+        aq = AdaptiveQuality(target_fps=60)
+        self._drive(aq, 20, 4000, 0, 12, 2000)
+        self.assertEqual(aq.tier, 3)
+        self.assertIsNotNone(aq.bird_cap)
+        self.assertGreaterEqual(aq.bird_cap, BIRD_COUNT_FLOOR)
+        self.assertLess(aq.bird_cap, 4000)
+
+    def test_hysteresis_recovers_only_above_higher_threshold(self):
+        from extensions.adaptive_quality import AdaptiveQuality
+        aq = AdaptiveQuality(target_fps=60)
+        now = self._drive(aq, 30, 4000, 0, 10, 2000)
+        degraded_tier = aq.tier
+        self.assertGreater(degraded_tier, 0)
+        # FPS at 0.85×target: above degrade (0.78) but below recover
+        # (0.92) — should NOT recover.
+        self._drive(aq, 51, 4000, now, 6, 3500)
+        self.assertEqual(aq.tier, degraded_tier)
+        # Now clearly above recovery threshold — should climb back.
+        now2 = self._drive(aq, 60, 4000, now + 100000, 12, 3500)
+        self.assertLess(aq.tier, degraded_tier)
+
+    def test_toggle_off_restores_full_quality(self):
+        from extensions.adaptive_quality import AdaptiveQuality
+        aq = AdaptiveQuality(target_fps=60)
+        self._drive(aq, 20, 4000, 0, 12, 2000)
+        self.assertGreater(aq.tier, 0)
+        aq.toggle()                       # disable → reset
+        self.assertFalse(aq.enabled)
+        self.assertEqual(aq.tier, 0)
+        self.assertTrue(aq.trails_enabled)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 6 — H₂ ROBUSTNESS METRIC                                     ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestH2Robustness(unittest.TestCase):
+    """Laplacian eigenvalues, H₂ norm, per-neighbour efficiency, m*."""
+
+    def test_jacobi_matches_known_eigenvalues(self):
+        from extensions.h2_robustness import jacobi_eigenvalues
+        # Diagonal matrix → eigenvalues are the diagonal.
+        eig = jacobi_eigenvalues([[3.0, 0.0], [0.0, 1.0]])
+        self.assertAlmostEqual(eig[0], 1.0, places=6)
+        self.assertAlmostEqual(eig[1], 3.0, places=6)
+        # 2×2 symmetric with known spectrum: [[2,1],[1,2]] → 1 and 3.
+        eig2 = jacobi_eigenvalues([[2.0, 1.0], [1.0, 2.0]])
+        self.assertAlmostEqual(eig2[0], 1.0, places=6)
+        self.assertAlmostEqual(eig2[1], 3.0, places=6)
+
+    def test_laplacian_rows_sum_to_zero(self):
+        from extensions.h2_robustness import knn_laplacian
+        random.seed(5)
+        pts = [(random.uniform(0, 100), random.uniform(0, 100))
+               for _ in range(12)]
+        lap = knn_laplacian(pts, 3)
+        for row in lap:
+            self.assertAlmostEqual(sum(row), 0.0, places=6)
+
+    def test_h2_decreases_with_more_neighbours(self):
+        from extensions.h2_robustness import h2_norm
+        random.seed(7)
+        pts = [(random.uniform(0, 200), random.uniform(0, 200))
+               for _ in range(25)]
+        self.assertGreater(h2_norm(pts, 2), h2_norm(pts, 8))
+
+    def test_disconnected_graph_is_infinite(self):
+        from extensions.h2_robustness import h2_norm
+        # Two far-apart pairs with m=1: each bird links only to its
+        # cluster-mate, so the two clusters never connect → no consensus.
+        pts = [(0.0, 0.0), (1.0, 0.0), (1000.0, 0.0), (1001.0, 0.0)]
+        self.assertEqual(h2_norm(pts, 1), math.inf)
+
+    def test_eta_marginal_positive_and_diminishes(self):
+        from extensions.h2_robustness import eta_of_m
+        random.seed(11)
+        pts = [(random.uniform(0, 200), random.uniform(0, 200))
+               for _ in range(30)]
+        # Deep into the range, marginal efficiency is small and positive.
+        self.assertGreaterEqual(eta_of_m(pts, 9), 0.0)
+        self.assertGreater(eta_of_m(pts, 4), eta_of_m(pts, 9))
+
+    def test_cost_optimal_m_in_young_range(self):
+        from extensions.h2_robustness import cost_optimal_m
+        random.seed(13)
+        pts = [(random.uniform(0, 250), random.uniform(0, 250))
+               for _ in range(40)]
+        best_m, _ = cost_optimal_m(pts)
+        self.assertGreaterEqual(best_m, 4)
+        self.assertLessEqual(best_m, 10)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 5 — SEASONAL / ECOLOGICAL REALISM                           ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestSeasonal(unittest.TestCase):
+    """Goodenough seasonal flock-size variation."""
+
+    def test_peak_at_midwinter(self):
+        from extensions.seasonal import seasonal_size_factor, PEAK_DAY
+        self.assertAlmostEqual(seasonal_size_factor(PEAK_DAY), 1.0, places=6)
+
+    def test_summer_is_trough(self):
+        from extensions.seasonal import seasonal_size_factor, MIN_FACTOR
+        # ~half a year from the peak.
+        self.assertAlmostEqual(seasonal_size_factor(15 + 182), MIN_FACTOR,
+                               places=2)
+
+    def test_factor_bounds(self):
+        from extensions.seasonal import seasonal_size_factor, MIN_FACTOR
+        for d in range(1, 366):
+            f = seasonal_size_factor(d)
+            self.assertGreaterEqual(f, MIN_FACTOR - 1e-9)
+            self.assertLessEqual(f, 1.0 + 1e-9)
+
+    def test_winter_flock_larger_than_summer(self):
+        from extensions.seasonal import flock_size_for_day
+        self.assertGreater(flock_size_for_day(15, 1000),
+                           flock_size_for_day(196, 1000))
+
+    def test_flock_size_respects_floor(self):
+        from extensions.seasonal import flock_size_for_day
+        self.assertGreaterEqual(flock_size_for_day(196, 1000, min_size=100),
+                                100)
+
+    def test_season_window(self):
+        from extensions.seasonal import is_murmuration_season
+        self.assertTrue(is_murmuration_season(15))    # January
+        self.assertFalse(is_murmuration_season(196))  # July
+
+    def test_predator_rate_deterministic(self):
+        from extensions.seasonal import predator_present
+        # Deterministic per-day (no rng): same day → same answer.
+        self.assertEqual(predator_present(42), predator_present(42))
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 6 — FLOCK SHAPE ANALYSIS                                     ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestFlockShape(unittest.TestCase):
+    """PCA aspect ratio, orientation, and shape-driven m*."""
+
+    def test_thin_flock_high_aspect_low_m(self):
+        from extensions.flock_shape import analyze_shape
+        thin = [(x, 350.0) for x in range(100, 700, 15)]
+        rep = analyze_shape(thin)
+        self.assertGreater(rep.aspect_ratio, 3.0)
+        self.assertLessEqual(rep.suggested_m, 7.0)   # thin → fewer neighbours
+
+    def test_round_flock_low_aspect_high_m(self):
+        from extensions.flock_shape import analyze_shape
+        random.seed(2)
+        round_pts = [(500 + random.uniform(-60, 60),
+                      350 + random.uniform(-60, 60)) for _ in range(60)]
+        rep = analyze_shape(round_pts)
+        self.assertLess(rep.aspect_ratio, 1.8)
+        self.assertGreater(rep.suggested_m, 8.0)     # round → more neighbours
+
+    def test_orientation_of_horizontal_flock(self):
+        from extensions.flock_shape import analyze_shape
+        horiz = [(x, 350.0) for x in range(100, 700, 15)]
+        rep = analyze_shape(horiz)
+        # Major axis is ~horizontal → orientation near 0 (mod π).
+        self.assertAlmostEqual(math.sin(rep.orientation), 0.0, places=3)
+
+    def test_suggested_m_monotone_in_aspect(self):
+        from extensions.flock_shape import suggested_m_star
+        self.assertGreater(suggested_m_star(1.0), suggested_m_star(3.0))
+
+    def test_degenerate_few_points(self):
+        from extensions.flock_shape import analyze_shape
+        rep = analyze_shape([(0.0, 0.0), (1.0, 1.0)])
+        self.assertEqual(rep.count, 2)
+        self.assertEqual(rep.area, 0.0)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
 # ║  Test discovery sanity check                                         ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count to catch accidental regressions in discovery."""
 
-    EXPECTED_TEST_COUNT = 119
+    EXPECTED_TEST_COUNT = 119 + 40
