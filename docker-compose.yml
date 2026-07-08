@@ -6,8 +6,9 @@
 #   3. Run:             docker compose up
 #
 # What happens:
-#   - Builds the image (Pygame + xvfb for headless display)
-#   - Runs the simulation for 60 seconds or until you press Ctrl+C
+#   - Builds the image (Pygame + numpy/scipy; runs headless via the SDL
+#     dummy video driver — no xvfb needed)
+#   - Runs the simulation until you press Ctrl+C
 #   - CSV metrics are saved to ./output/murmuration_metrics.csv
 #   - Press Ctrl+C to stop early
 #
@@ -32,10 +33,19 @@ services:
     stop_grace_period: 5s
 
   # ── Unit tests — run with:  docker compose run tests ───────────────
+  #  Runs the full canonical 12-module suite (600 tests), matching CI and
+  #  the pre-commit hook. Kept in sync with .github/workflows/test.yml.
+  #  The 3D-renderer import test skips when moderngl is absent (it is not
+  #  installed in this lean image); every other test runs headlessly.
   tests:
     build: .
     image: murmuration:latest
-    command: python -m unittest test_alg2 extensions.test_extensions -v
+    command: >
+      python -m unittest
+      test_occlusion test_boundary test_presets test_alg2
+      test_cross_language test_projection_model test_spatial_model
+      test_input_handler test_3d test_features test_help_overlay
+      extensions.test_extensions
     environment:
       - SDL_VIDEODRIVER=dummy
       - SDL_AUDIODRIVER=dummy
