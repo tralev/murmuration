@@ -4,7 +4,7 @@
 # Installs a pre-commit hook that:
 #   1. Runs py_compile syntax check on all .py files.
 #   2. Runs the TestDiscovery count check (prevents test-count drift).
-#   3. Runs the full Python test suite (472 tests on 12 test modules).
+#   3. Runs the full Python test suite (600 tests on 12 test modules).
 # If any fails, the commit is blocked.
 #
 # Usage:
@@ -86,10 +86,10 @@ python3 -m unittest \
     exit 1
 }
 
-echo "  ✓ all 472 tests passed"
+echo "  ✓ all 600 tests passed"
 echo ""
 EOF
 
 chmod +x "$HOOK"
 echo "✓ Installed $HOOK"
-echo "  Pre-commit will now run: syntax check → test-count gate → full test suite (472 tests)"
+echo "  Pre-commit will now run: syntax check → test-count gate → full test suite (600 tests)"

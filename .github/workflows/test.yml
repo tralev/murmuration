@@ -54,7 +54,7 @@ jobs:
 
       - name: Stage 3/3 — Full test suite
         run: |
-          echo "::group::Running all 472 tests"
+          echo "::group::Running all 600 tests"
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m unittest \
             test_occlusion \
             test_boundary \
@@ -70,4 +70,4 @@ jobs:
             extensions.test_extensions \
             -v
           echo "::endgroup::"
-          echo "✓ all 472 tests passed"
+          echo "✓ all 600 tests passed"
