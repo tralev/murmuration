@@ -252,10 +252,59 @@ class TestPresetValidation(unittest.TestCase):
 
 
 
+class TestPresetMetadata(unittest.TestCase):
+    """Validate preset labels, descriptions, and weight diversity for
+    both the 2D (PRESETS) and 3D (PRESETS_3D) dictionaries."""
+
+    _ENTRY_KEYS = {"label", "phi_p", "phi_a", "sigma", "mode", "description"}
+
+    def test_labels_follow_convention(self):
+        """Every preset label reads 'PRESET <key> — <name>' (so the
+        on-screen label always identifies which key produced it), every
+        description is a non-empty sentence, and every entry carries
+        exactly the six expected fields."""
+        from scenario_presets import PRESETS, PRESETS_3D
+
+        for name, presets in [("PRESETS", PRESETS),
+                              ("PRESETS_3D", PRESETS_3D)]:
+            for key, preset in presets.items():
+                self.assertSetEqual(set(preset.keys()), self._ENTRY_KEYS,
+                    f"{name}[{key!r}]: unexpected entry fields "
+                    f"{sorted(set(preset.keys()) ^ self._ENTRY_KEYS)}")
+                self.assertTrue(
+                    preset["label"].startswith(f"PRESET {key} — "),
+                    f"{name}[{key!r}]: label {preset['label']!r} should "
+                    f"start with 'PRESET {key} — '")
+                self.assertGreater(len(preset["description"].strip()), 10,
+                    f"{name}[{key!r}]: description should be a sentence, "
+                    f"got {preset['description']!r}")
+
+    def test_phi_n_diversity(self):
+        """Weights must leave phi_n = 1 − φp − φa non-negative without
+        clamping for every preset, and the 2D presets must explore a
+        diverse range of noise weights (not all the same phi_n)."""
+        from scenario_presets import PRESETS, PRESETS_3D
+
+        phi_n_values = set()
+        for name, presets in [("PRESETS", PRESETS),
+                              ("PRESETS_3D", PRESETS_3D)]:
+            for key, preset in presets.items():
+                raw_sum = preset["phi_p"] + preset["phi_a"]
+                self.assertLessEqual(raw_sum, 1.0 + 1e-9,
+                    f"{name}[{key!r}]: φp + φa = {raw_sum} > 1 — "
+                    f"phi_n would clamp to 0")
+                if name == "PRESETS":
+                    phi_n_values.add(round(1.0 - raw_sum, 4))
+
+        self.assertGreaterEqual(len(phi_n_values), 6,
+            f"2D presets should span a diverse set of phi_n values, "
+            f"got only {sorted(phi_n_values)}")
+
+
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count for presets module."""
 
-    EXPECTED_TEST_COUNT = 10
+    EXPECTED_TEST_COUNT = 12
 
 
 if __name__ == '__main__':

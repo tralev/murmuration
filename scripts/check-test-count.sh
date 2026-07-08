@@ -4,7 +4,7 @@
 # Runs only the TestDiscovery classes to verify EXPECTED_TEST_COUNT
 # constants haven't drifted, before running the full (expensive) suite.
 #
-# Covers all 10 test modules that define TestDiscovery (see list below).
+# Covers all 11 test modules that define TestDiscovery (see list below).
 # Exit 0 if all counts match, non-zero if any don't.
 #
 # Usage:
@@ -31,6 +31,7 @@ MODULES=(
     test_input_handler.TestDiscovery
     test_3d.TestDiscovery
     test_features.TestDiscovery
+    test_help_overlay.TestDiscovery
     extensions.test_extensions.TestDiscovery
 )
 

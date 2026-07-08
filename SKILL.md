@@ -161,15 +161,31 @@ and refactor everything for use as educational material.
 ### Phase 4: Add Educational Features (if applicable)
 
 12. **Split monolithic files into modules.** Dependency order should form a
-    clean DAG (no circular imports). Example split:
+    clean DAG (no circular imports). Keep agents free of rendering code —
+    drawing modules should duck-type the agent instead of importing it.
+    Example split:
     ```
-    occlusion_geom.py   → math only (pure functions)
-    flock_core.py       → constants + data structures
-    boid.py             → agent class with algorithm logic
+    occlusion_geom.py   → math only (pure functions, zero deps)
+    flock_core.py       → constants + data structures (zero deps)
+    projection_model.py → algorithm A (one paper, one module)
+    spatial_model.py    → algorithm B
+    boid.py             → agent class: physics + mode dispatch only
+    boid_render.py      → agent drawing (duck-types the agent)
     metrics.py          → scientific metrics + display
     scenario_presets.py → educational preset configurations
-    alg2.py             → entry point (main loop, ties everything together)
+    input_handler.py    → keyboard/mouse → state changes
+    simulation.py       → per-frame update step
+    hud.py / help_overlay.py / focal_debug.py → small render helpers
+    alg2.py             → entry point (pure orchestrator)
     ```
+
+12b. **Make features individually switchable.** A `features.py` of module-
+    level booleans, read at import time: a disabled feature's module is
+    *never imported* (guard the import itself, not just the call sites),
+    so any subset of features forms a working build. Give each flag a
+    test that asserts the module stays out of `sys.modules` when off.
+    Build UI surfaces (e.g. the help overlay's key list) from the flags
+    so disabled features don't advertise dead keys.
 
 13. **Create a minimal version for students to read first.** ~75 lines, single
     file, zero external imports (besides the necessary library like Pygame).
@@ -264,18 +280,36 @@ When this skill completes, the project should look like:
 
 ```
 project/
-├── alg2.py                    # Python entry point (main loop)
+├── alg2.py                    # Python entry point (pure orchestrator)
+├── features.py                # Feature flags (import-time modularity)
 ├── occlusion_geom.py          # Pure utility functions (no display deps)
 ├── flock_core.py              # Constants + data structures
-├── boid.py                    # Agent class with algorithm logic
+├── projection_model.py        # Algorithm A (paper model)
+├── spatial_model.py           # Algorithm B (classic boids)
+├── boid.py                    # Agent class: physics + dispatch
+├── boid_render.py             # Agent drawing (duck-typed)
 ├── metrics.py                 # Scientific metrics + display helpers
+├── external_opacity.py        # Observer-side metric
 ├── scenario_presets.py        # Educational preset configurations
+├── input_handler.py           # Keyboard/mouse event processing
+├── simulation.py              # Per-frame update step
+├── hud.py                     # Badges, banners, preset tooltip
+├── help_overlay.py            # Flag-aware key reference (H key)
+├── focal_debug.py             # Click-a-bird debug view
 ├── alg_simple.py              # Minimal version for students (~75 lines)
+│
+├── main_3d.py                 # 3D entry point (flag-gated)
+├── boid_3d.py / spatial_3d.py # 3D agent + spatial logic
+├── renderer_3d.py             # ModernGL plumbing
+├── camera_3d.py               # Orbit camera (GPU-free math)
+├── shaders_3d.py              # Bird mesh + GLSL sources
+├── capture_3d.py              # Headless demo-GIF generator
 │
 ├── alg2.m                     # GNU Octave port
 ├── alg2.sce                   # Scilab port
 │
 ├── README.md                  # Scientific docs + paper audit + roadmap + code tour
+├── ARCHITECTURE.md            # Dependency graph, flags, config knobs
 ├── OCTAVE_README.md           # Octave-specific docs (self-contained)
 ├── SCILAB_README.md           # Scilab-specific docs (self-contained)
 ├── USER_GUIDE.md              # Practical guide (no math, no citations)
@@ -354,7 +388,8 @@ Before declaring the skill complete, verify:
 - [ ] Primary paper deviations documented and either fixed or explained
 - [ ] Implementation roadmap has 3 priority tiers with formulas
 - [ ] Python entry point is ≤300 lines (modules handle the rest)
-- [ ] All 6 Python modules import cleanly with no circular deps
+- [ ] All Python modules import cleanly with no circular deps
+- [ ] Every feature flag has an off-state test (module absent from sys.modules)
 - [ ] GNU Octave script has matching section banners and math documentation
 - [ ] Scilab script has matching section banners and math documentation
 - [ ] Cross-file audit: same sections, same order, any gaps explained

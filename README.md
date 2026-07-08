@@ -1778,6 +1778,21 @@ All 11 companion presets from the TypeScript/Three.js project have been ported t
 
 Note: the companion project uses flock sizes of 3,000–16,000 birds; the Python simulation is limited to ~200 birds due to O(N² log N) occlusion. Presets are tuned for this smaller scale while preserving the visual character.
 
+The 3D simulation (`python main_3d.py`) has its own preset set, tuned for the larger 1000 × 700 × 400 volume:
+
+| Key | Preset | φp | φa | σ | Mode | Character |
+|-----|--------|----|----|---|------|-----------|
+| a | 3D Pearce Default | 0.04 | 0.80 | 6 | PROJECTION | Paper parameters adapted for 3D (marginal opacity) |
+| b | Ball of Birds | 0.18 | 0.70 | 7 | PROJECTION | Dense sphere, near-opaque from inside |
+| c | Storm Cloud | 0.06 | 0.45 | 3 | PROJECTION | Dispersed, noisy 3D wandering |
+| d | 3D Stream | 0.25 | 0.55 | 8 | SPATIAL | Directional school, elongated in flight direction |
+| e | Vertical Column | 0.10 | 0.75 | 6 | PROJECTION | Layered pancake, altitude cohesion visible |
+| f | 3D Acro | 0.02 | 0.85 | 3 | PROJECTION | Rapid three-dimensional turns |
+| w | Spiral Vortex | 0.08 | 0.82 | 10 | SPATIAL | Rotating column, milling behaviour |
+| h | 3D Void | 0.35 | 0.58 | 9 | SPATIAL | Hollow cavity voids in the flock interior |
+
+Both preset dictionaries live in `scenario_presets.py` with the same entry shape (`label`, `phi_p`, `phi_a`, `sigma`, `mode`, `description`) — validated by `test_presets.py`.
+
 #### 5b. Roosting / thermoregulation hypothesis
 
 **Based on Goodenough et al. (2017)**: One hypothesis for why starlings murmurate is to recruit more birds to create larger, warmer roosts (the "warmer together" hypothesis).

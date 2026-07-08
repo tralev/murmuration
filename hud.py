@@ -52,3 +52,21 @@ def draw_paused_banner(screen: pygame.Surface, font: pygame.font.Font):
         "PAUSED  (SPACE to resume, R to reset, ESC to quit)",
         True, (255, 200, 100))
     screen.blit(ptext, (WIDTH // 2 - 220, HEIGHT - 30))
+
+
+def draw_preset_tooltip(screen: pygame.Surface, font: pygame.font.Font,
+                        description: str):
+    """Draw the active preset's one-line description as a tooltip
+    strip along the bottom edge (shown while a preset is active;
+    pressing the preset key again dismisses it with the preset)."""
+    if not description:
+        return
+    text = font.render(description, True, (190, 190, 150))
+    pad = 6
+    bg = pygame.Surface((text.get_width() + pad * 2,
+                         text.get_height() + pad * 2), pygame.SRCALPHA)
+    bg.fill((10, 12, 18, 200))
+    x = (WIDTH - bg.get_width()) // 2
+    y = HEIGHT - bg.get_height() - 6
+    screen.blit(bg, (x, y))
+    screen.blit(text, (x + pad, y + pad))

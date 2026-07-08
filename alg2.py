@@ -61,6 +61,8 @@ if features.ENABLE_HELP_OVERLAY:
     from help_overlay import draw as _draw_help
 if features.ENABLE_FOCAL_DEBUG:
     from focal_debug import draw as _draw_focal_debug
+if features.ENABLE_PRESETS:
+    from scenario_presets import PRESETS as _PRESETS
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -161,6 +163,12 @@ def main():
 
         if features.ENABLE_HELP_OVERLAY and config.show_help:
             _draw_help(screen, font_help)
+
+        # ── Preset tooltip: active preset's description ──────────
+        if (features.ENABLE_PRESETS and preset_label
+                and last_preset_key is not None):
+            _desc = _PRESETS.get(last_preset_key, {}).get("description", "")
+            hud.draw_preset_tooltip(screen, font_help, _desc)
 
         hud.draw_badges(screen, font_small, config)
         if paused:
