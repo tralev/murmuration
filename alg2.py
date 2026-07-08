@@ -40,8 +40,6 @@
 import pygame
 import sys
 import os
-import math
-from statistics import mean
 
 import features
 
@@ -55,6 +53,7 @@ import boid_render
 import hud
 import input_handler
 import simulation
+from extensions.orchestration import init_ext_state, render as _render_extensions
 
 # ── Flag-gated imports — disabled features never load their module ──
 if features.ENABLE_METRICS:
@@ -65,24 +64,6 @@ if features.ENABLE_FOCAL_DEBUG:
     from focal_debug import draw as _draw_focal_debug
 if features.ENABLE_PRESETS:
     from scenario_presets import PRESETS as _PRESETS
-if features.ENABLE_THREAT:
-    from extensions.threat import ThreatAgent, THREAT_RADIUS, THREAT_COLOR
-if features.ENABLE_WANDER:
-    from extensions.wander import WanderConfig, flock_wander_center
-if features.ENABLE_ADAPTIVE_QUALITY:
-    from extensions.adaptive_quality import AdaptiveQuality
-if features.ENABLE_MEDIUM_PRESETS:
-    from medium_presets import MediumConfig, MEDIUM_PRESETS
-if features.ENABLE_FLOCK_SHAPE:
-    from extensions.flock_shape import ShapeReport
-if features.ENABLE_LEADER:
-    from extensions.leader import LeaderAnchor, LeaderConfig, draw_anchors
-if features.ENABLE_VACUOLE:
-    from extensions.vacuole import VacuoleAgent, VacuoleConfig, draw_vacuole
-if features.ENABLE_SHELL:
-    from extensions.shell_formation import ShellConfig, assign_shells, draw_shells
-if features.ENABLE_FLOW_FIELD:
-    from extensions.flow_field import FlowConfig, draw_flow
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -144,46 +125,7 @@ def main():
     saved_config = None
 
     # ── Extension state (mutable dict — passed through input/update/render)
-    ext_state = {}
-    if features.ENABLE_THREAT:
-        ext_state['threat'] = None
-    if features.ENABLE_WANDER:
-        ext_state['wander_active'] = False
-        ext_state['wander_cfg'] = WanderConfig()
-        ext_state['wander_time'] = 0.0
-    if features.ENABLE_ADAPTIVE_QUALITY:
-        ext_state['aq'] = AdaptiveQuality()
-        ext_state['aq_label'] = ""
-    if features.ENABLE_MEDIUM_PRESETS:
-        ext_state['medium'] = MediumConfig("grid")
-        ext_state['medium_label'] = "MEDIUM grid"
-    if features.ENABLE_H2_ROBUSTNESS:
-        ext_state['h2_val'] = -1.0
-    if features.ENABLE_SEASONAL:
-        ext_state['seasonal_day'] = 1
-        ext_state['seasonal_label'] = ""
-    if features.ENABLE_FLOCK_SHAPE:
-        ext_state['flock_shape'] = None
-    if features.ENABLE_LEADER:
-        ext_state['leader_active'] = False
-        ext_state['leader_cfg'] = LeaderConfig()
-        ext_state['leader_time'] = 0.0
-        ext_state['leader_anchors'] = []
-    if features.ENABLE_VACUOLE:
-        ext_state['vacuole'] = None
-        ext_state['vacuole_cfg'] = VacuoleConfig()
-        ext_state['vacuole_time'] = 0.0
-    if features.ENABLE_SHELL:
-        ext_state['shell_active'] = False
-        ext_state['shell_cfg'] = ShellConfig()
-        ext_state['shell_time'] = 0.0
-        ext_state['shell_assignments'] = []
-    if features.ENABLE_FLOW_FIELD:
-        ext_state['flow_active'] = False
-        ext_state['flow_cfg'] = FlowConfig()
-        ext_state['flow_time'] = 0.0
-        ext_state['flow_gust'] = False
-        ext_state['flow_gust_time'] = 0.0
+    ext_state = init_ext_state()
     # ══════════════════════════════════════════════════════════════
     while running:
         dt = clock.tick(FPS)
@@ -235,39 +177,8 @@ def main():
         if paused:
             hud.draw_paused_banner(screen, font_small)
 
-        # ── Extension render  (threat, AQ badge, medium label, etc.)
-        if features.ENABLE_THREAT and ext_state.get('threat') is not None:
-            ext_state['threat'].draw(screen, config)
-        if features.ENABLE_ADAPTIVE_QUALITY and ext_state.get('aq_label'):
-            aq_surf = font_small.render(ext_state['aq_label'], True, (200, 160, 80))
-            screen.blit(aq_surf, (10, 10))
-        if features.ENABLE_MEDIUM_PRESETS:
-            med_label = ext_state.get('medium_label', '')
-            if med_label:
-                med_surf = font_small.render(med_label, True, (160, 200, 220))
-                screen.blit(med_surf, (10, 28))
-        if features.ENABLE_SEASONAL and ext_state.get('seasonal_label'):
-            seas_surf = font_small.render(ext_state['seasonal_label'], True, (140, 200, 140))
-            screen.blit(seas_surf, (10, 46))
-        if features.ENABLE_FLOCK_SHAPE and ext_state.get('flock_shape') is not None:
-            sr = ext_state['flock_shape']
-            shape_surf = font_small.render(
-                f"aspect={sr.aspect_ratio:.1f}  orient={math.degrees(sr.orientation):.0f}°  m*={sr.suggested_m:.1f}",
-                True, (180, 220, 160))
-            screen.blit(shape_surf, (10, 64))
-        if features.ENABLE_LEADER and ext_state.get('leader_active'):
-            draw_anchors(screen, ext_state['leader_anchors'], ext_state.get('leader_cfg'))
-        if features.ENABLE_VACUOLE and ext_state.get('vacuole') is not None:
-            draw_vacuole(screen, ext_state['vacuole'], ext_state.get('vacuole_cfg'))
-        if features.ENABLE_SHELL and ext_state.get('shell_active') and len(flock) > 0:
-            # Draw shells around the flock centre
-            cx = mean(b.position.x for b in flock)
-            cy = mean(b.position.y for b in flock)
-            draw_shells(screen, (cx, cy), ext_state.get('shell_cfg'))
-        if features.ENABLE_FLOW_FIELD and ext_state.get('flow_active'):
-            draw_flow(screen, ext_state.get('flow_cfg'),
-                      ext_state.get('flow_time', 0.0),
-                      ext_state.get('flow_gust', False))
+        # ── Extension render (threat, AQ badge, medium label, etc.)
+        _render_extensions(screen, ext_state, flock, font_small)
 
         frame += 1
         pygame.display.flip()

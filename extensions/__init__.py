@@ -23,6 +23,7 @@ where possible so they unit-test without pygame):
 Run:  python -m extensions.extended_simulation
 """
 
+from extensions.orchestration import init_ext_state, apply_forces, render
 from extensions.direct_velocity import DirectVelocityBoid
 from extensions.steric_repulsion import StericBoid
 from extensions.blind_angles import BlindAnglesBoid

@@ -24,7 +24,6 @@
 
 import features
 import pygame
-from statistics import mean
 from flock_core import (
     VISUAL_RANGE, MODE_SPATIAL, LOG_EVERY, SpatialGrid,
 )
@@ -34,21 +33,8 @@ from boid import Boid
 # metrics are disabled — update_frame() then expects metrics=None.
 if features.ENABLE_METRICS:
     from metrics import FlockMetrics
-if features.ENABLE_WANDER:
-    from extensions.wander import flock_wander_center, wander_force
-if features.ENABLE_THREAT:
-    from extensions.threat import flee_force
-if features.ENABLE_MEDIUM_PRESETS:
-    import random
-if features.ENABLE_FLOCK_SHAPE:
-    from extensions.flock_shape import analyze_shape
-if features.ENABLE_LEADER:
-    from extensions.leader import leader_force
-if features.ENABLE_VACUOLE:
-    from extensions.vacuole import vacuole_force
-if features.ENABLE_SHELL:
-    from extensions.shell_formation import shell_force
-from extensions.flow_field import flow_force
+
+from extensions.orchestration import apply_forces
 
 
 def update_frame(config, flock, metrics, grid, frame, clock,
@@ -131,108 +117,8 @@ def update_frame(config, flock, metrics, grid, frame, clock,
     for boid in flock:
         boid.flock(flock, config, grid)
 
-    # ╔══════════════════════════════════════════════════════════╗
-    # ║  EXTENSION: leader / attractor  (O key)                 ║
-    # ╚══════════════════════════════════════════════════════════╝
-    if features.ENABLE_LEADER and ext_state.get('leader_active'):
-        cfg = ext_state.get('leader_cfg')
-        ext_state['leader_time'] = ext_state.get('leader_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
-        for anchor in ext_state.get('leader_anchors', []):
-            anchor.update(ext_state['leader_time'])
-        for boid in flock:
-            fx, fy = leader_force(boid.position, ext_state.get('leader_anchors', []), cfg)
-            if fx != 0.0 or fy != 0.0:
-                boid.apply_force(pygame.Vector2(fx, fy))
-
-    # ╔══════════════════════════════════════════════════════════╗
-    # ║  EXTENSION: flow field  (D key)                          ║
-    # ╚══════════════════════════════════════════════════════════╝
-    if features.ENABLE_FLOW_FIELD and ext_state.get('flow_active'):
-        cfg = ext_state.get('flow_cfg')
-        ext_state['flow_time'] = ext_state.get('flow_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
-        # Gust management
-        if ext_state.get('flow_gust'):
-            ext_state['flow_gust_time'] = ext_state.get('flow_gust_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
-            if ext_state['flow_gust_time'] >= cfg.gust_duration:
-                ext_state['flow_gust'] = False
-                ext_state['flow_gust_time'] = 0.0
-        elif random.random() < cfg.gust_chance / max(clock.get_fps(), 1.0):
-            ext_state['flow_gust'] = True
-            ext_state['flow_gust_time'] = 0.0
-        fx, fy = flow_force(cfg, ext_state['flow_time'],
-                            ext_state.get('flow_gust', False),
-                            ext_state.get('flow_gust_time', 0.0))
-        for boid in flock:
-            if fx != 0.0 or fy != 0.0:
-                boid.apply_force(pygame.Vector2(fx, fy))
-
-    # ╔══════════════════════════════════════════════════════════╗
-    # ║  EXTENSION: vacuole formation  (E key)                 ║
-    # ╚══════════════════════════════════════════════════════════╝
-    if features.ENABLE_VACUOLE and ext_state.get('vacuole') is not None:
-        vacuole = ext_state['vacuole']
-        swarm_x = mean(b.position.x for b in flock)
-        swarm_y = mean(b.position.y for b in flock)
-        ext_state['vacuole_time'] = ext_state.get('vacuole_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
-        vacuole.update((swarm_x, swarm_y), ext_state['vacuole_time'])
-        cfg = ext_state.get('vacuole_cfg')
-        for boid in flock:
-            fx, fy = vacuole_force(boid.position, vacuole.position(), cfg)
-            if fx != 0.0 or fy != 0.0:
-                boid.apply_force(pygame.Vector2(fx, fy))
-
-    # ╔══════════════════════════════════════════════════════════╗
-    # ║  EXTENSION: shell formation  (P key)                    ║
-    # ╚══════════════════════════════════════════════════════════╝
-    if features.ENABLE_SHELL and ext_state.get('shell_active'):
-        cfg = ext_state.get('shell_cfg')
-        ext_state['shell_time'] = ext_state.get('shell_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
-        swarm_x = mean(b.position.x for b in flock)
-        swarm_y = mean(b.position.y for b in flock)
-        assignments = ext_state.get('shell_assignments', [])
-        t = ext_state['shell_time']
-        for i, boid in enumerate(flock):
-            if i < len(assignments):
-                sidx, phase, direction = assignments[i]
-                fx, fy = shell_force(
-                    boid.position, (swarm_x, swarm_y),
-                    sidx, phase, direction, t, cfg)
-                if fx != 0.0 or fy != 0.0:
-                    boid.apply_force(pygame.Vector2(fx, fy))
-
-    # ║  EXTENSION: wander behaviour  (W key)                   ║
-    # ╚══════════════════════════════════════════════════════════╝
-    if features.ENABLE_WANDER and ext_state.get('wander_active'):
-        ext_state['wander_time'] = ext_state.get('wander_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
-        centre = flock_wander_center(
-            ext_state['wander_time'], ext_state.get('wander_cfg'))
-        for boid in flock:
-            fx, fy = wander_force(boid.position, centre, ext_state.get('wander_cfg'))
-            boid.apply_force(pygame.Vector2(fx, fy))
-
-    # ╔══════════════════════════════════════════════════════════╗
-    # ║  EXTENSION: threat agent  (T key)                       ║
-    # ╚══════════════════════════════════════════════════════════╝
-    if features.ENABLE_THREAT and ext_state.get('threat') is not None:
-        threat = ext_state['threat']
-        swarm_x = mean(b.position.x for b in flock)
-        swarm_y = mean(b.position.y for b in flock)
-        threat.update((swarm_x, swarm_y))
-        for boid in flock:
-            fx, fy = flee_force(boid.position, threat.position())
-            if fx != 0.0 or fy != 0.0:
-                boid.apply_force(pygame.Vector2(fx, fy))
-
-    # ╔══════════════════════════════════════════════════════════╗
-    # ║  EXTENSION: medium presets  (N key)                     ║
-    # ╚══════════════════════════════════════════════════════════╝
-    if features.ENABLE_MEDIUM_PRESETS:
-        medium = ext_state.get('medium')
-        if medium is not None and medium.name != 'grid':
-            dvx, dvy = medium.drift_velocity()
-            for boid in flock:
-                tax, tay = medium.turbulence_accel()
-                boid.apply_force(pygame.Vector2(tax + dvx, tay + dvy))
+    # ── Extensions: apply steering forces for all active extensions
+    apply_forces(flock, ext_state, clock)
 
     # ── Per-bird physics: Euler integration ───────────────────
     for boid in flock:
@@ -257,23 +143,6 @@ def update_frame(config, flock, metrics, grid, frame, clock,
             f"{metrics.order_param:.4f},{fps_val:.1f}\n"
         )
         log_fid.flush()
-
-    # ╔══════════════════════════════════════════════════════════╗
-    # ║  EXTENSION: adaptive quality  (A key)                   ║
-    # ╚══════════════════════════════════════════════════════════╝
-    if features.ENABLE_ADAPTIVE_QUALITY:
-        aq = ext_state.get('aq')
-        if aq is not None and aq.enabled:
-            fps_val = max(clock.get_fps(), 1.0)
-            now_ms = pygame.time.get_ticks()
-            aq.update(fps_val, now_ms, len(flock))
-            ext_state['aq_label'] = f"AQ tier {aq.tier}"
-
-    # ╔══════════════════════════════════════════════════════════╗
-    # ║  EXTENSION: flock shape analysis  (Y key — per frame)   ║
-    # ╚══════════════════════════════════════════════════════════╝
-    if features.ENABLE_FLOCK_SHAPE:
-        ext_state['flock_shape'] = analyze_shape(flock)
 
     return (flock, grid, metrics, frame, pending_remove, pending_add,
             pending_reset, focal_index, ext_state)
