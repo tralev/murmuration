@@ -40,6 +40,7 @@ from extensions.seasonal import (
 )
 from extensions.flock_shape import analyze_shape, ShapeReport, suggested_m_star
 from extensions.leader import LeaderAnchor, LeaderConfig, attractor_force, leader_force
+from extensions.vacuole import VacuoleAgent, VacuoleConfig, vacuole_force
 
 __all__ = [
     # Boid inheritance chain
@@ -59,4 +60,5 @@ __all__ = [
     "seasonal_size_factor", "flock_size_for_day", "is_murmuration_season",
     "analyze_shape", "ShapeReport", "suggested_m_star",
     "LeaderAnchor", "LeaderConfig", "attractor_force", "leader_force",
+    "VacuoleAgent", "VacuoleConfig", "vacuole_force",
 ]

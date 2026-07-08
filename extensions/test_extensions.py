@@ -1813,10 +1813,76 @@ class TestLeaderAnchor(unittest.TestCase):
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 7c — VACUOLE FORMATION                                      ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestVacuoleAgent(unittest.TestCase):
+    """Vacuole orbit and radial repulsion force."""
+
+    def test_starts_at_orbit_position(self):
+        from extensions.vacuole import VacuoleAgent, VacuoleConfig
+        cfg = VacuoleConfig(orbit_radius=50)
+        a = VacuoleAgent(config=cfg)
+        dist = math.hypot(a.px - 500, a.py - 350)  # swarm_center defaults
+        self.assertGreater(dist, 0.0)
+
+    def test_update_moves_position(self):
+        from extensions.vacuole import VacuoleAgent
+        a = VacuoleAgent()
+        p0 = a.position()
+        a.update((500, 350), 1.0)
+        p1 = a.position()
+        self.assertNotEqual(p0, p1, "Vacuole should orbit over time")
+
+    def test_orbits_near_swarm_centre(self):
+        from extensions.vacuole import VacuoleAgent, VacuoleConfig
+        cfg = VacuoleConfig(orbit_radius=60)
+        a = VacuoleAgent(config=cfg)
+        for t in [0.0, 1.0, 2.5, 5.0]:
+            a.update((500, 350), t)
+            px, py = a.position()
+            dist = math.hypot(px - 500, py - 350)
+            self.assertAlmostEqual(dist, 60.0, places=5)
+
+    def test_force_zero_outside_radius(self):
+        from extensions.vacuole import vacuole_force, VacuoleConfig
+        cfg = VacuoleConfig(vacuole_radius=100)
+        fx, fy = vacuole_force((200, 0), (0, 0), cfg)
+        self.assertEqual((fx, fy), (0.0, 0.0))
+
+    def test_force_pushes_away(self):
+        from extensions.vacuole import vacuole_force, VacuoleConfig
+        cfg = VacuoleConfig(vacuole_radius=200, vacuole_strength=1.0)
+        # Bird at (50, 0), vacuole at (0, 0) → pushed right
+        fx, fy = vacuole_force((50, 0), (0, 0), cfg)
+        self.assertGreater(fx, 0.0)
+        self.assertAlmostEqual(fy, 0.0, places=6)
+
+    def test_force_linear_falloff(self):
+        from extensions.vacuole import vacuole_force, VacuoleConfig
+        cfg = VacuoleConfig(vacuole_radius=200, vacuole_strength=1.0)
+        near = vacuole_force((50, 0), (0, 0), cfg)
+        far  = vacuole_force((150, 0), (0, 0), cfg)
+        self.assertGreater(math.hypot(*near), math.hypot(*far))
+
+    def test_force_zero_at_zero_distance(self):
+        from extensions.vacuole import vacuole_force, VacuoleConfig
+        cfg = VacuoleConfig(vacuole_radius=200)
+        fx, fy = vacuole_force((0, 0), (0, 0), cfg)
+        self.assertEqual((fx, fy), (0.0, 0.0))
+
+    def test_force_zero_at_exact_radius_boundary(self):
+        from extensions.vacuole import vacuole_force, VacuoleConfig
+        cfg = VacuoleConfig(vacuole_radius=100, vacuole_strength=1.0)
+        fx, fy = vacuole_force((100, 0), (0, 0), cfg)
+        self.assertEqual((fx, fy), (0.0, 0.0))
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
 # ║  Test discovery sanity check                                         ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count to catch accidental regressions in discovery."""
 
-    EXPECTED_TEST_COUNT = 168
+    EXPECTED_TEST_COUNT = 176

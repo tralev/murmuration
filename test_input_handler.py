@@ -603,6 +603,7 @@ class TestExtensionToggles(unittest.TestCase):
         self._saved_h2 = features.ENABLE_H2_ROBUSTNESS
         self._saved_seasonal = features.ENABLE_SEASONAL
         self._saved_shape = features.ENABLE_FLOCK_SHAPE
+        self._saved_vacuole = features.ENABLE_VACUOLE
 
     def tearDown(self):
         features.ENABLE_THREAT = self._saved_threat
@@ -612,6 +613,7 @@ class TestExtensionToggles(unittest.TestCase):
         features.ENABLE_H2_ROBUSTNESS = self._saved_h2
         features.ENABLE_SEASONAL = self._saved_seasonal
         features.ENABLE_FLOCK_SHAPE = self._saved_shape
+        features.ENABLE_VACUOLE = self._saved_vacuole
 
     # ── T: threat agent ──────────────────────────────────────────
 
@@ -867,6 +869,38 @@ class TestExtensionToggles(unittest.TestCase):
         result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_y)])
         # No crash
 
+    # ── E: vacuole formation ───────────────────────────────────
+
+    def test_e_spawns_vacuole(self):
+        """E key with vacuole=None → creates VacuoleAgent."""
+        features.ENABLE_VACUOLE = True
+        from extensions.vacuole import VacuoleAgent
+        s = _default_state()
+        s['ext_state'] = {'vacuole': None, 'vacuole_time': 0.0}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_e)])
+        self.assertIsNotNone(result['ext_state']['vacuole'])
+        self.assertIsInstance(result['ext_state']['vacuole'], VacuoleAgent)
+
+    def test_e_removes_vacuole(self):
+        """E key with existing vacuole → removes it."""
+        features.ENABLE_VACUOLE = True
+        from extensions.vacuole import VacuoleAgent
+        s = _default_state()
+        s['ext_state'] = {'vacuole': VacuoleAgent(), 'vacuole_time': 0.0}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_e)])
+        self.assertIsNone(result['ext_state']['vacuole'])
+
+    def test_e_ignored_when_vacuole_disabled(self):
+        """E key ignored when ENABLE_VACUOLE=False."""
+        features.ENABLE_VACUOLE = False
+        s = _default_state()
+        s['ext_state'] = {'vacuole': None}
+
+        result = _call_handle_events(s, [MockEvent(pygame.KEYDOWN, key=pygame.K_e)])
+        self.assertIsNone(result['ext_state']['vacuole'])
+
     # ── ext_state survives non-extension events ──────────────────
 
     def test_ext_state_preserved_on_non_extension_key(self):
@@ -887,7 +921,7 @@ class TestExtensionToggles(unittest.TestCase):
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count for input_handler module."""
 
-    EXPECTED_TEST_COUNT = 54
+    EXPECTED_TEST_COUNT = 57
 
 
 if __name__ == '__main__':

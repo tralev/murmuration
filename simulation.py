@@ -43,6 +43,8 @@ if features.ENABLE_FLOCK_SHAPE:
     from extensions.flock_shape import analyze_shape
 if features.ENABLE_LEADER:
     from extensions.leader import leader_force
+if features.ENABLE_VACUOLE:
+    from extensions.vacuole import vacuole_force
 
 
 def update_frame(config, flock, metrics, grid, frame, clock,
@@ -126,7 +128,7 @@ def update_frame(config, flock, metrics, grid, frame, clock,
         boid.flock(flock, config, grid)
 
     # ╔══════════════════════════════════════════════════════════╗
-    # ║  EXTENSION: leader / attractor  (L key)                 ║
+    # ║  EXTENSION: leader / attractor  (O key)                 ║
     # ╚══════════════════════════════════════════════════════════╝
     if features.ENABLE_LEADER and ext_state.get('leader_active'):
         cfg = ext_state.get('leader_cfg')
@@ -135,6 +137,21 @@ def update_frame(config, flock, metrics, grid, frame, clock,
             anchor.update(ext_state['leader_time'])
         for boid in flock:
             fx, fy = leader_force(boid.position, ext_state.get('leader_anchors', []), cfg)
+            if fx != 0.0 or fy != 0.0:
+                boid.apply_force(pygame.Vector2(fx, fy))
+
+    # ╔══════════════════════════════════════════════════════════╗
+    # ║  EXTENSION: vacuole formation  (E key)                 ║
+    # ╚══════════════════════════════════════════════════════════╝
+    if features.ENABLE_VACUOLE and ext_state.get('vacuole') is not None:
+        vacuole = ext_state['vacuole']
+        swarm_x = sum(b.position.x for b in flock) / max(len(flock), 1)
+        swarm_y = sum(b.position.y for b in flock) / max(len(flock), 1)
+        ext_state['vacuole_time'] = ext_state.get('vacuole_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
+        vacuole.update((swarm_x, swarm_y), ext_state['vacuole_time'])
+        cfg = ext_state.get('vacuole_cfg')
+        for boid in flock:
+            fx, fy = vacuole_force(boid.position, vacuole.position(), cfg)
             if fx != 0.0 or fy != 0.0:
                 boid.apply_force(pygame.Vector2(fx, fy))
 

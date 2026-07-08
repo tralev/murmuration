@@ -76,6 +76,8 @@ if features.ENABLE_FLOCK_SHAPE:
     from extensions.flock_shape import ShapeReport
 if features.ENABLE_LEADER:
     from extensions.leader import LeaderAnchor, LeaderConfig, draw_anchors
+if features.ENABLE_VACUOLE:
+    from extensions.vacuole import VacuoleAgent, VacuoleConfig, draw_vacuole
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -162,6 +164,10 @@ def main():
         ext_state['leader_cfg'] = LeaderConfig()
         ext_state['leader_time'] = 0.0
         ext_state['leader_anchors'] = []
+    if features.ENABLE_VACUOLE:
+        ext_state['vacuole'] = None
+        ext_state['vacuole_cfg'] = VacuoleConfig()
+        ext_state['vacuole_time'] = 0.0
 
     # ══════════════════════════════════════════════════════════════
     #  MAIN FRAME LOOP
@@ -238,6 +244,8 @@ def main():
             screen.blit(shape_surf, (10, 64))
         if features.ENABLE_LEADER and ext_state.get('leader_active'):
             draw_anchors(screen, ext_state['leader_anchors'], ext_state.get('leader_cfg'))
+        if features.ENABLE_VACUOLE and ext_state.get('vacuole') is not None:
+            draw_vacuole(screen, ext_state['vacuole'], ext_state.get('vacuole_cfg'))
 
         frame += 1
         pygame.display.flip()

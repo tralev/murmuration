@@ -278,6 +278,16 @@ def handle_events(config, flock, running, paused, pending_reset,
                         LeaderAnchor(config=cfg) for _ in range(cfg.anchor_count)]
                     ext_state['leader_time'] = 0.0
                     print(f"Leader system: ON ({cfg.anchor_count} anchor(s))")
+            elif key == pygame.K_e and features.ENABLE_VACUOLE:
+                from extensions.vacuole import VacuoleAgent, VacuoleConfig
+                if ext_state.get('vacuole') is None:
+                    cfg = ext_state.get('vacuole_cfg', VacuoleConfig())
+                    ext_state['vacuole'] = VacuoleAgent(config=cfg)
+                    ext_state['vacuole_time'] = 0.0
+                    print("Vacuole SPAWNED — birds will be pushed outward!")
+                else:
+                    ext_state['vacuole'] = None
+                    print("Vacuole REMOVED")
 
             # ── Simulation control  (space, r, esc) ───────────
             elif key == pygame.K_SPACE:
