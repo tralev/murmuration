@@ -16,8 +16,9 @@
 
  Dependencies:  flock_core  (constants, Config, SpatialGrid)
                 boid        (Boid class)
-                metrics     (FlockMetrics)
-                features    (ENABLE_GRID_OVERLAY)
+                metrics     (FlockMetrics — only when ENABLE_METRICS)
+                features    (ENABLE_GRID_OVERLAY, ENABLE_METRICS,
+                             ENABLE_CSV_LOGGING)
 ──────────────────────────────────────────────────────────────────────
 """
 
@@ -26,7 +27,11 @@ from flock_core import (
     VISUAL_RANGE, MODE_SPATIAL, LOG_EVERY, SpatialGrid,
 )
 from boid import Boid
-from metrics import FlockMetrics
+
+# metrics.py (and its external_opacity dependency) never load when
+# metrics are disabled — update_frame() then expects metrics=None.
+if features.ENABLE_METRICS:
+    from metrics import FlockMetrics
 
 
 def update_frame(config, flock, metrics, grid, frame, clock,
@@ -40,8 +45,9 @@ def update_frame(config, flock, metrics, grid, frame, clock,
     ----------
     config         : Config — mutable; num_boids updated during add/remove
     flock          : list[Boid] — may be reassigned during reset
-    metrics        : FlockMetrics — may be reassigned during reset;
-                     .update() called each frame
+    metrics        : FlockMetrics | None — None when ENABLE_METRICS is
+                     False; may be reassigned during reset;
+                     .update() called each frame when present
     grid           : SpatialGrid — may be reassigned during reset;
                      .rebuild() called each frame
     frame          : int — current frame counter; may be reset to 0
@@ -85,7 +91,7 @@ def update_frame(config, flock, metrics, grid, frame, clock,
     # ╚══════════════════════════════════════════════════════════╝
     if pending_reset:
         flock = [Boid() for _ in range(config.num_boids)]
-        metrics = FlockMetrics()
+        metrics = FlockMetrics() if features.ENABLE_METRICS else None
         grid = SpatialGrid(cell_size=VISUAL_RANGE)
         frame = 0
         pending_reset = False
@@ -107,10 +113,13 @@ def update_frame(config, flock, metrics, grid, frame, clock,
         boid.update()
 
     # ── Metrics: Θ, Θ', α, FPS (EMA-smoothed) ─────────────────
-    metrics.update(flock, clock, config)
+    if metrics is not None:
+        metrics.update(flock, clock, config)
 
-    # ── CSV logging  (every LOG_EVERY frames) ─────────────────
-    if features.ENABLE_CSV_LOGGING and log_fid is not None and frame % LOG_EVERY == 0:
+    # ── CSV logging  (every LOG_EVERY frames; rows contain
+    #    metrics values, so a metrics object is required) ──────
+    if (features.ENABLE_CSV_LOGGING and metrics is not None
+            and log_fid is not None and frame % LOG_EVERY == 0):
         fps_val = clock.get_fps()
         n = len(flock)
         log_fid.write(

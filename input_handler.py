@@ -11,10 +11,12 @@
  (config, flock) directly; returns updated values for immutable types.
 
  Dependencies:  pygame (for event constants and mouse position)
-                features.py   (ENABLE_FOCAL_DEBUG, ENABLE_GRID_OVERLAY)
+                features.py   (ENABLE_FOCAL_DEBUG, ENABLE_GRID_OVERLAY,
+                               ENABLE_PRESETS, ENABLE_HELP_OVERLAY,
+                               ENABLE_PROJECTION_MODE, ENABLE_SPATIAL_MODE)
                 flock_core    (MARGIN_BOUNDARY, etc.)
                 boid_module   (for MARGIN_BOUNDARY sync)
-                scenario_presets (apply_preset)
+                scenario_presets (apply_preset — only when ENABLE_PRESETS)
 ──────────────────────────────────────────────────────────────────────
 """
 
@@ -26,7 +28,11 @@ from flock_core import (
     MODE_PROJECTION, MODE_SPATIAL,
 )
 import boid as boid_module
-from scenario_presets import apply_preset
+
+# scenario_presets.py never loads when presets are disabled; the
+# preset keys then fall through to the remaining key handlers.
+if features.ENABLE_PRESETS:
+    from scenario_presets import apply_preset
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
@@ -109,7 +115,8 @@ def handle_events(config, flock, running, paused, pending_reset,
             key = event.key
 
             # ── Scenario presets  (toggle: same key = restore) ──
-            preset_key = _get_preset_key(key)
+            preset_key = (_get_preset_key(key)
+                          if features.ENABLE_PRESETS else None)
             if preset_key is not None:
                 if (last_preset_key == preset_key
                         and saved_config is not None):
@@ -125,13 +132,18 @@ def handle_events(config, flock, running, paused, pending_reset,
                     preset_label = apply_preset(config, preset_key)
                     last_preset_key = preset_key
 
-            # ── Mode toggle  (m) ─────────────────────────────
+            # ── Mode toggle  (m) — needs both models enabled ──
             elif key == pygame.K_m:
-                config.mode = 1 - config.mode
-                mode_name = "PROJECTION" if config.mode == MODE_PROJECTION else "SPATIAL"
-                print(f"[MODE] Switched to {mode_name}")
-                last_preset_key = None   # invalidate preset toggle
-                saved_config = None
+                if (features.ENABLE_PROJECTION_MODE
+                        and features.ENABLE_SPATIAL_MODE):
+                    config.mode = 1 - config.mode
+                    mode_name = "PROJECTION" if config.mode == MODE_PROJECTION else "SPATIAL"
+                    print(f"[MODE] Switched to {mode_name}")
+                    last_preset_key = None   # invalidate preset toggle
+                    saved_config = None
+                else:
+                    print("[MODE] Toggle disabled — only one flocking "
+                          "model is enabled in features.py")
 
             # ── φp  (up/down arrows) ─────────────────────────
             elif key == pygame.K_UP:
@@ -190,7 +202,7 @@ def handle_events(config, flock, running, paused, pending_reset,
             # ── Visual toggles  (g, h) ────────────────────────
             elif key == pygame.K_g and features.ENABLE_GRID_OVERLAY:
                 config.show_grid = not config.show_grid
-            elif key == pygame.K_h:
+            elif key == pygame.K_h and features.ENABLE_HELP_OVERLAY:
                 config.show_help = not config.show_help
 
             # ── Boundary mode toggle  (b) ─────────────────────

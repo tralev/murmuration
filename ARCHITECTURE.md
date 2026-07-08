@@ -47,13 +47,17 @@ geometry and the constants/config module.
     │                          │
 ┌───▼──────────────────────────▼────────────────┐
 │           alg2.py  (2D entry point)           │
-│  also imports boid, metrics, help_overlay,    │
-│  and focal_debug directly                     │
+│  also imports boid, boid_render, hud, and     │
+│  (flag-gated) metrics, help_overlay,          │
+│  focal_debug                                  │
 └───────────────────────────────────────────────┘
 
-    ┌──────────────────┐   ┌──────────────────┐
-    │  help_overlay.py │   │  focal_debug.py  │   (leaf render helpers —
-    └──────────────────┘   └──────────────────┘    import flock_core only)
+    ┌──────────────────┐  ┌──────────────────┐    (leaf render helpers —
+    │  boid_render.py  │  │      hud.py      │     import flock_core
+    └──────────────────┘  └──────────────────┘     [+ features] only;
+    ┌──────────────────┐  ┌──────────────────┐     boid_render duck-types
+    │  help_overlay.py │  │  focal_debug.py  │     the boid, no boid.py
+    └──────────────────┘  └──────────────────┘     import)
 ```
 
 ### 3D Stack (independent of 2D, shares only occlusion_geom + flock_core)
@@ -75,8 +79,10 @@ geometry and the constants/config module.
                          │
     ┌────────────────────▼─────────────────────┐
     │            renderer_3d.py                │
-    │  ModernGL instanced rendering, GLSL      │
-    │  shaders, OrbitCamera, FBO capture       │
+    │  ModernGL buffers, uniforms, instanced   │
+    │  draw calls, FBO capture — imports       │
+    │  camera_3d (OrbitCamera) and shaders_3d  │
+    │  (bird mesh + GLSL sources)              │
     └────────────────────┬─────────────────────┘
                          │
     ┌────────────────────▼─────────────────────┐
@@ -131,22 +137,38 @@ from main_3d import main     # 3D guard passes
 
 | Flag | Default | Checked in | Effect when `False` |
 |------|---------|-----------|---------------------|
-| `ENABLE_TRAILS` | `False` | `boid.py` (draw, update) | No position-history trail behind birds |
-| `ENABLE_FOCAL_DEBUG` | `False` | `alg2.py` (render), `input_handler.py` (F key) | F key does nothing; no debug overlay |
+| `ENABLE_PROJECTION_MODE` | `True` | `boid.py` (import guard, dispatch), `input_handler.py` (M key), `alg2.py` (initial mode) | `projection_model.py` never imported; dispatch falls back to spatial |
+| `ENABLE_SPATIAL_MODE` | `True` | `boid.py` (import guard, dispatch), `input_handler.py` (M key), `alg2.py` (initial mode) | `spatial_model.py` never imported; dispatch falls back to projection. Disabling **both** models makes `import boid` raise `ImportError` |
+| `ENABLE_TRAILS` | `False` | `boid.py` (update), `boid_render.py` (draw) | No position-history trail behind birds |
+| `ENABLE_FOCAL_DEBUG` | `False` | `alg2.py` (import + render), `input_handler.py` (F key) | `focal_debug.py` never imported; F key does nothing |
 | `ENABLE_GRID_OVERLAY` | `False` | `alg2.py` (render), `simulation.py` (grid rebuild), `input_handler.py` (G key) | G key does nothing; grid never rebuilt or drawn |
+| `ENABLE_METRICS` | `True` | `alg2.py` + `simulation.py` (import guard, update, draw) | `metrics.py`/`external_opacity.py` never imported; no HUD panel; no CSV (rows contain metrics) |
+| `ENABLE_PRESETS` | `True` | `input_handler.py` (import guard, preset keys) | `scenario_presets.py` never imported; preset keys do nothing |
+| `ENABLE_HELP_OVERLAY` | `True` | `alg2.py` (import + render), `input_handler.py` (H key) | `help_overlay.py` never imported; H key does nothing |
 | `ENABLE_3D` | `True` | `main_3d.py` (import guard) | `import main_3d` raises `ImportError` — 3D modules never loaded |
 | `ENABLE_CSV_LOGGING` | `True` | `alg2.py` (file open), `simulation.py` (row writes) | No CSV file created; no rows written |
 
 ### Complete flag declarations
 
-For reference, here is the full content of [`features.py`](features.py):
+For reference, here are the flag declarations from [`features.py`](features.py):
 
 ```python
-# ── Visual features  (affect boid.py and alg2.py) ────────────────────
+# ── Flocking models  (affect boid.py — at least one must be True) ────
+
+ENABLE_PROJECTION_MODE = True  # Pearce et al. (2014) hybrid projection model
+ENABLE_SPATIAL_MODE    = True  # Reynolds (1987) boids, topological neighbours
+
+# ── Visual features  (affect boid_render.py and alg2.py) ─────────────
 
 ENABLE_TRAILS        = False   # position-history trail behind each boid
 ENABLE_FOCAL_DEBUG   = False   # focal bird debug overlay (F key)
 ENABLE_GRID_OVERLAY  = False   # spatial grid overlay (G key)
+
+# ── Analysis & UI  (affect alg2.py, simulation.py, input_handler.py) ─
+
+ENABLE_METRICS       = True    # FlockMetrics: Θ, Θ', α + HUD panel
+ENABLE_PRESETS       = True    # scenario preset keys (1-0, s,l,i,v,k,q)
+ENABLE_HELP_OVERLAY  = True    # H-key help overlay
 
 # ── Simulation mode  (affects which entry point modules are loaded) ──
 
@@ -158,6 +180,11 @@ ENABLE_3D            = True    # 3D simulation (main_3d.py, renderer_3d.py,
 
 ENABLE_CSV_LOGGING   = True    # write metrics to CSV every N frames
 ```
+
+A disabled feature's module is **never imported** — running
+`import alg2` with `ENABLE_METRICS = False` leaves `metrics.py` and
+`external_opacity.py` entirely out of `sys.modules`, so any subset of
+features forms a working build (verified by `test_features.py`).
 
 ### Pattern for wiring a new flag
 
@@ -275,7 +302,7 @@ then wire the key into `input_handler.py` (2D) or `main_3d.py` (3D).
 | Algorithm | `projection_model.py`, `spatial_3d.py` | Flocking behaviour, steering forces |
 | Agent | `boid.py`, `boid_3d.py` | Per-bird state and lifecycle |
 | Metrics | `metrics.py`, `external_opacity.py` | Scientific measurements |
-| Rendering | `help_overlay.py`, `focal_debug.py`, `renderer_3d.py` | Visual output |
+| Rendering | `boid_render.py`, `hud.py`, `help_overlay.py`, `focal_debug.py`, `renderer_3d.py` (+ `camera_3d.py`, `shaders_3d.py`) | Visual output |
 | Orchestration | `alg2.py`, `main_3d.py`, `simulation.py` | Main loop, frame update |
 | Input | `input_handler.py` | Keyboard/mouse → state changes |
 

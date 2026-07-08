@@ -7,10 +7,17 @@
 
  The Boid class — a single bird agent with both flocking modes.
  Imported by metrics.py (for opacity sampling) and alg2.py (for the
- main simulation loop).
+ main simulation loop).  Drawing lives in boid_render.py so the agent
+ stays free of rendering concerns.
+
+ Feature flags (set BEFORE importing this module):
+   ENABLE_PROJECTION_MODE / ENABLE_SPATIAL_MODE — each model's module
+   is only imported when its flag is True, so either model can run
+   entirely on its own.  At least one must be enabled.
 
  Dependencies:  occlusion_geom (angular intervals)
                 flock_core    (constants, Config, SpatialGrid)
+                projection_model / spatial_model (flag-gated)
 ──────────────────────────────────────────────────────────────────────
 """
 
@@ -25,8 +32,18 @@ from occlusion_geom import (
     _merge_all,
 )
 
-import projection_model
-import spatial_model
+# ── Flag-gated model imports — a disabled model is never loaded ──────
+if not (features.ENABLE_PROJECTION_MODE or features.ENABLE_SPATIAL_MODE):
+    raise ImportError(
+        "Both flocking models are disabled in features.py. "
+        "Enable ENABLE_PROJECTION_MODE and/or ENABLE_SPATIAL_MODE "
+        "before importing boid."
+    )
+if features.ENABLE_PROJECTION_MODE:
+    import projection_model
+if features.ENABLE_SPATIAL_MODE:
+    import spatial_model
+
 from flock_core import (
     WIDTH, HEIGHT, V0, BOID_SIZE,
     MODE_PROJECTION, MODE_SPATIAL,
@@ -151,8 +168,18 @@ class Boid:
         """
         Dispatch to the active flocking logic based on config.mode.
         This is the per-frame decision rule for each bird.
+
+        If the requested mode's model is disabled in features.py, the
+        enabled model is used instead — a single-model build keeps
+        running regardless of config.mode.
         """
-        if config.mode == MODE_PROJECTION:
+        use_projection = config.mode == MODE_PROJECTION
+        if use_projection and not features.ENABLE_PROJECTION_MODE:
+            use_projection = False
+        elif not use_projection and not features.ENABLE_SPATIAL_MODE:
+            use_projection = True
+
+        if use_projection:
             self._flock_projection(boids, config)
         else:
             self._flock_spatial(boids, config, grid)
@@ -271,32 +298,11 @@ class Boid:
 
     def draw(self, screen: pygame.Surface, config: Config):
         """
-        Render this bird as a small triangle pointing in its heading direction.
-        Colour: cool blue-white in PROJECTION mode, warm amber in SPATIAL mode.
+        Render this bird — delegates to boid_render.draw_boid().
+
+        The import is local so that the agent module has no static
+        dependency on rendering code (agents don't know about pixels);
+        this method exists only for backward compatibility.
         """
-        if self.velocity.length_squared() > 0.001:
-            direction = math.atan2(self.velocity.y, self.velocity.x)
-        else:
-            direction = 0
-
-        tip = self.position + pygame.Vector2(
-            math.cos(direction), math.sin(direction)
-        ) * BOID_SIZE * 2.5
-        back_left = self.position + pygame.Vector2(
-            math.cos(direction + 2.3), math.sin(direction + 2.3)
-        ) * BOID_SIZE * 1.5
-        back_right = self.position + pygame.Vector2(
-            math.cos(direction - 2.3), math.sin(direction - 2.3)
-        ) * BOID_SIZE * 1.5
-
-        # ── Trail (position-history polyline, drawn behind the bird) ──
-        if features.ENABLE_TRAILS and len(self.history) > 1:
-            pts = [(p.x, p.y) for p in self.history]
-            pygame.draw.aalines(screen, (85, 140, 244), False, pts, 1)
-
-        if config.mode == MODE_PROJECTION:
-            color = (200, 210, 230)
-        else:
-            color = (230, 200, 160)
-
-        pygame.draw.polygon(screen, color, [tip, back_left, back_right])
+        import boid_render
+        boid_render.draw_boid(screen, self, config)

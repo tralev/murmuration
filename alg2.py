@@ -19,10 +19,17 @@
    occlusion_geom.py  — angular interval utilities (pure math)
    flock_core.py      — constants, Config, SpatialGrid
    boid.py            — Boid agent with flocking logic
-   metrics.py         — FlockMetrics, external opacity, help overlay
+   boid_render.py     — 2D bird/trail drawing
+   hud.py             — status badges and paused banner
+   metrics.py         — FlockMetrics + external opacity  (flag-gated)
+   help_overlay.py    — H-key help text                  (flag-gated)
+   focal_debug.py     — focal-bird debug view            (flag-gated)
    scenario_presets.py — educational preset configurations
    input_handler.py   — keyboard/mouse event processing
    simulation.py      — per-frame update (flocking, physics, metrics)
+
+ Modules for disabled features are never imported — set flags in
+ features.py to run any subset (see features.py for the full list).
 
   See the companion files alg2.m (GNU Octave) and alg2.sce (Scilab)
   for ports to other computing environments.
@@ -36,18 +43,24 @@ import os
 
 import features
 
-import flock_core
 from flock_core import (
     WIDTH, HEIGHT, FPS, NUM_BOIDS, VISUAL_RANGE,
     LOG_FILE, LOG_EVERY, MODE_PROJECTION, MODE_SPATIAL,
     Config, SpatialGrid,
 )
 from boid import Boid
-from metrics import FlockMetrics
-from help_overlay import draw as _draw_help
-from focal_debug import draw as _draw_focal_debug
+import boid_render
+import hud
 import input_handler
 import simulation
+
+# ── Flag-gated imports — disabled features never load their module ──
+if features.ENABLE_METRICS:
+    from metrics import FlockMetrics
+if features.ENABLE_HELP_OVERLAY:
+    from help_overlay import draw as _draw_help
+if features.ENABLE_FOCAL_DEBUG:
+    from focal_debug import draw as _draw_focal_debug
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -71,9 +84,17 @@ def main():
     config = Config()
     grid = SpatialGrid(cell_size=VISUAL_RANGE)
 
-    # ── CSV log file (gated by features.ENABLE_CSV_LOGGING) ─────
+    # ── Single-model build: start in the enabled mode ────────────
+    if not features.ENABLE_PROJECTION_MODE:
+        config.mode = MODE_SPATIAL
+    elif not features.ENABLE_SPATIAL_MODE:
+        config.mode = MODE_PROJECTION
+
+    # ── CSV log file (needs ENABLE_CSV_LOGGING + ENABLE_METRICS,
+    #    since every row contains metrics values) ─────────────────
     log_fid = None
-    if features.ENABLE_CSV_LOGGING and LOG_FILE is not None:
+    if (features.ENABLE_CSV_LOGGING and features.ENABLE_METRICS
+            and LOG_FILE is not None):
         try:
             os.makedirs(os.path.dirname(LOG_FILE) or ".", exist_ok=True)
             log_fid = open(LOG_FILE, "w")
@@ -88,7 +109,7 @@ def main():
 
     # ── Initial state ────────────────────────────────────────────
     flock = [Boid() for _ in range(config.num_boids)]
-    metrics = FlockMetrics()
+    metrics = FlockMetrics() if features.ENABLE_METRICS else None
     frame = 0
     running = True
     paused = False
@@ -123,38 +144,27 @@ def main():
                     pending_remove, pending_add, pending_reset,
                     focal_index, log_fid)
 
-        # ── 3. RENDER ───────────────────────────────────────────
+        # ── 3. RENDER  (→ boid_render.py, hud.py, overlays) ─────
         screen.fill((20, 22, 30))
 
         if features.ENABLE_GRID_OVERLAY and config.mode == MODE_SPATIAL and config.show_grid:
             grid.draw(screen, font_help)
 
         for boid in flock:
-            boid.draw(screen, config)
+            boid_render.draw_boid(screen, boid, config)
 
         if features.ENABLE_FOCAL_DEBUG and focal_index is not None and 0 <= focal_index < len(flock):
-            _draw_focal_bird_debug(screen, flock[focal_index], font_debug)
+            _draw_focal_debug(screen, flock[focal_index], font_debug)
 
-        metrics.draw(screen, font_small, config, len(flock), preset_label)
+        if metrics is not None:
+            metrics.draw(screen, font_small, config, len(flock), preset_label)
 
-        if config.show_help:
+        if features.ENABLE_HELP_OVERLAY and config.show_help:
             _draw_help(screen, font_help)
 
-        badge_text = "PROJECTION" if config.mode == MODE_PROJECTION else "SPATIAL"
-        badge_color = (120, 180, 220) if config.mode == MODE_PROJECTION else (220, 180, 120)
-        badge = font_small.render(badge_text, True, badge_color)
-        screen.blit(badge, (WIDTH - badge.get_width() - 10, 10))
-
-        boundary_text = "MARGIN" if flock_core.MARGIN_BOUNDARY else "TOROIDAL"
-        boundary_color = (220, 140, 100) if flock_core.MARGIN_BOUNDARY else (100, 200, 140)
-        boundary_badge = font_small.render(boundary_text, True, boundary_color)
-        screen.blit(boundary_badge, (WIDTH - boundary_badge.get_width() - 10, 30))
-
+        hud.draw_badges(screen, font_small, config)
         if paused:
-            ptext = font_small.render(
-                "PAUSED  (SPACE to resume, R to reset, ESC to quit)",
-                True, (255, 200, 100))
-            screen.blit(ptext, (WIDTH // 2 - 220, HEIGHT - 30))
+            hud.draw_paused_banner(screen, font_small)
 
         frame += 1
         pygame.display.flip()

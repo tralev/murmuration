@@ -168,13 +168,18 @@ class TestEnableCsvLogging(unittest.TestCase):
 class TestFlagCount(unittest.TestCase):
     """Verify the number and names of active feature flags."""
 
-    def test_exactly_five_flags(self):
-        """features.py should have exactly 5 active flags — catch accidental
+    def test_exactly_ten_flags(self):
+        """features.py should have exactly 10 active flags — catch accidental
         additions or deletions."""
         expected = {
+            'ENABLE_PROJECTION_MODE',
+            'ENABLE_SPATIAL_MODE',
             'ENABLE_TRAILS',
             'ENABLE_FOCAL_DEBUG',
             'ENABLE_GRID_OVERLAY',
+            'ENABLE_METRICS',
+            'ENABLE_PRESETS',
+            'ENABLE_HELP_OVERLAY',
             'ENABLE_3D',
             'ENABLE_CSV_LOGGING',
         }
@@ -210,10 +215,144 @@ class TestFlagDefaults(unittest.TestCase):
 
     def test_simulation_flags_default_true(self):
         """Core simulation features default to True (normal operation)."""
+        self.assertTrue(features.ENABLE_PROJECTION_MODE,
+                        "ENABLE_PROJECTION_MODE should default to True")
+        self.assertTrue(features.ENABLE_SPATIAL_MODE,
+                        "ENABLE_SPATIAL_MODE should default to True")
+        self.assertTrue(features.ENABLE_METRICS,
+                        "ENABLE_METRICS should default to True")
+        self.assertTrue(features.ENABLE_PRESETS,
+                        "ENABLE_PRESETS should default to True")
+        self.assertTrue(features.ENABLE_HELP_OVERLAY,
+                        "ENABLE_HELP_OVERLAY should default to True")
         self.assertTrue(features.ENABLE_3D,
                         "ENABLE_3D should default to True")
         self.assertTrue(features.ENABLE_CSV_LOGGING,
                         "ENABLE_CSV_LOGGING should default to True")
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Flocking model flags — import guards + dispatch fallback            ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestModelFlags(unittest.TestCase):
+    """Tests for ENABLE_PROJECTION_MODE / ENABLE_SPATIAL_MODE gating
+    in boid.py.
+
+    Uses subprocess so each test gets a fresh interpreter — the gated
+    imports fire at module level and are cached afterwards.
+    """
+
+    def _run(self, script):
+        return subprocess.run(
+            [sys.executable, "-c",
+             f"import sys; sys.path.insert(0, {_PROJECT_ROOT!r}); "
+             + script],
+            capture_output=True, text=True, timeout=30,
+        )
+
+    def test_both_models_disabled_raises_importerror(self):
+        """With both model flags False, importing boid fails loudly."""
+        result = self._run(
+            "import features; "
+            "features.ENABLE_PROJECTION_MODE = False; "
+            "features.ENABLE_SPATIAL_MODE = False; "
+            "import boid"
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("disabled", result.stderr + result.stdout)
+
+    def test_projection_only_never_imports_spatial(self):
+        """ENABLE_SPATIAL_MODE=False keeps spatial_model out of
+        sys.modules, and a SPATIAL-mode config falls back to the
+        projection model without crashing."""
+        result = self._run(
+            "import features; features.ENABLE_SPATIAL_MODE = False; "
+            "import sys; "
+            "from flock_core import Config, MODE_SPATIAL; "
+            "from boid import Boid; "
+            "assert 'spatial_model' not in sys.modules; "
+            "c = Config(); c.mode = MODE_SPATIAL; "
+            "f = [Boid() for _ in range(8)]; "
+            "[b.flock(f, c) for b in f]; [b.update() for b in f]; "
+            "print('ok')"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ok", result.stdout)
+
+    def test_spatial_only_never_imports_projection(self):
+        """ENABLE_PROJECTION_MODE=False keeps projection_model out of
+        sys.modules, and a PROJECTION-mode config falls back to the
+        spatial model without crashing."""
+        result = self._run(
+            "import features; features.ENABLE_PROJECTION_MODE = False; "
+            "import sys; "
+            "from flock_core import Config, SpatialGrid, VISUAL_RANGE, "
+            "MODE_PROJECTION; "
+            "from boid import Boid; "
+            "assert 'projection_model' not in sys.modules; "
+            "c = Config(); c.mode = MODE_PROJECTION; "
+            "g = SpatialGrid(cell_size=VISUAL_RANGE); "
+            "f = [Boid() for _ in range(8)]; g.rebuild(f); "
+            "[b.flock(f, c, g) for b in f]; [b.update() for b in f]; "
+            "print('ok')"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ok", result.stdout)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Lazy-import guards — disabled features never load their module      ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestLazyImports(unittest.TestCase):
+    """Disabled features must keep their implementation module out of
+    sys.modules entirely (the ENABLE_3D pattern applied everywhere)."""
+
+    def _run(self, script):
+        return subprocess.run(
+            [sys.executable, "-c",
+             f"import sys; sys.path.insert(0, {_PROJECT_ROOT!r}); "
+             f"import os; os.environ['SDL_VIDEODRIVER'] = 'dummy'; "
+             + script],
+            capture_output=True, text=True, timeout=30,
+        )
+
+    def test_metrics_disabled_never_imports_metrics(self):
+        """ENABLE_METRICS=False keeps metrics + external_opacity out of
+        alg2 and simulation."""
+        result = self._run(
+            "import features; features.ENABLE_METRICS = False; "
+            "import sys, alg2, simulation; "
+            "assert 'metrics' not in sys.modules; "
+            "assert 'external_opacity' not in sys.modules; "
+            "print('ok')"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ok", result.stdout)
+
+    def test_presets_disabled_never_imports_presets(self):
+        """ENABLE_PRESETS=False keeps scenario_presets out of
+        input_handler."""
+        result = self._run(
+            "import features; features.ENABLE_PRESETS = False; "
+            "import sys, input_handler; "
+            "assert 'scenario_presets' not in sys.modules; "
+            "print('ok')"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ok", result.stdout)
+
+    def test_help_disabled_never_imports_help_overlay(self):
+        """ENABLE_HELP_OVERLAY=False keeps help_overlay out of alg2."""
+        result = self._run(
+            "import features; features.ENABLE_HELP_OVERLAY = False; "
+            "import sys, alg2; "
+            "assert 'help_overlay' not in sys.modules; "
+            "print('ok')"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ok", result.stdout)
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
@@ -223,7 +362,7 @@ class TestFlagDefaults(unittest.TestCase):
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count for features module."""
 
-    EXPECTED_TEST_COUNT = 11
+    EXPECTED_TEST_COUNT = 17
 
 
 if __name__ == '__main__':
