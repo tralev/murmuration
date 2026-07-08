@@ -1593,14 +1593,14 @@ class TestAdaptiveQuality(unittest.TestCase):
 class TestH2Robustness(unittest.TestCase):
     """Laplacian eigenvalues, H₂ norm, per-neighbour efficiency, m*."""
 
-    def test_jacobi_matches_known_eigenvalues(self):
-        from extensions.h2_robustness import jacobi_eigenvalues
-        # Diagonal matrix → eigenvalues are the diagonal.
-        eig = jacobi_eigenvalues([[3.0, 0.0], [0.0, 1.0]])
+    def test_symmetric_eigenvalues_known(self):
+        from extensions.h2_robustness import symmetric_eigenvalues
+        # Diagonal matrix → eigenvalues are the diagonal (ascending).
+        eig = symmetric_eigenvalues([[3.0, 0.0], [0.0, 1.0]])
         self.assertAlmostEqual(eig[0], 1.0, places=6)
         self.assertAlmostEqual(eig[1], 3.0, places=6)
         # 2×2 symmetric with known spectrum: [[2,1],[1,2]] → 1 and 3.
-        eig2 = jacobi_eigenvalues([[2.0, 1.0], [1.0, 2.0]])
+        eig2 = symmetric_eigenvalues([[2.0, 1.0], [1.0, 2.0]])
         self.assertAlmostEqual(eig2[0], 1.0, places=6)
         self.assertAlmostEqual(eig2[1], 3.0, places=6)
 

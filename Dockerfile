@@ -31,13 +31,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ── Install Python deps ──────────────────────────────────────────────
 #  pygame  — 2D simulation runtime
-#  numpy   — 3D stack (spatial_3d / boid_3d) + the 3D and extension tests,
-#            so `run-docker.sh tests` runs the full suite including test_3d.
+#  numpy   — 3D stack (spatial_3d / boid_3d) + analysis extensions
+#  scipy   — spatial.ConvexHull + spatial.cKDTree used by the
+#            correlation_time / flock_shape / h2_robustness extensions
+#  Together these let `run-docker.sh tests` run the full suite (including
+#  test_3d and the scientific extension tests) headlessly.
 #  moderngl/PyGLM (GPU renderer) are intentionally omitted: moderngl has no
 #  arm64 wheel and would need a C++ toolchain to build. The one test that
 #  imports the GPU renderer (test_features' ENABLE_3D-true guard) skips when
 #  moderngl is absent; every other test runs headlessly.
-RUN pip install --no-cache-dir pygame numpy
+RUN pip install --no-cache-dir pygame numpy scipy
 
 # ── Copy project files ───────────────────────────────────────────────
 WORKDIR /app

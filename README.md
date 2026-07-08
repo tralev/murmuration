@@ -1475,7 +1475,7 @@ Three research papers were cross-referenced against `alg2.py` (July 2026).
 | 2 | **Optimal neighbour count**: 6–7 neighbours maximises robustness-per-neighbour | ⚠️ | Default is σ = 4 (from Pearce). Adjustable via `[`/`]` keys, but default doesn't match the 6–7 optimum. |
 | 3 | **Independence of σ from N** — optimal count doesn't depend on flock size | ✅ | σ is fixed regardless of `NUM_BOIDS`. |
 | 4 | **Dependence on flock thickness** — anisotropy (thin vs. spherical flocks) changes optimal σ | ✅ | Shape analysis via PCA aspect ratio in `extensions/flock_shape.py` with `suggested_m_star()`. |
-| 5 | **Consensus dynamics framework** — Laplacian matrix, H₂ robustness metric | ✅ | Jacobi eigenvalue solver + H₂ norm + η(m) efficiency in `extensions/h2_robustness.py`. |
+| 5 | **Consensus dynamics framework** — Laplacian matrix, H₂ robustness metric | ✅ | `scipy.spatial.cKDTree` k-NN graph + `numpy.linalg.eigvalsh` Laplacian spectrum + H₂ norm + η(m) efficiency in `extensions/h2_robustness.py`. |
 | 6 | **Incremental cost of sensing** — asymptotic cost of sensing m neighbors is O(m), cost of reacting to noise scales with H₂ norm | ✅ | `eta_of_m()` per-neighbour efficiency and `cost_optimal_m()` in `extensions/h2_robustness.py`. |
 | 7 | **Optimal m* from empirical data** — m* = 6.05 ± 0.25 for longitudinal (thin) flocks vs m* = 9.78 ± 0.32 for transverse (thick) flocks | ✅ | `suggested_m_star()` interpolates between the two endpoints based on PCA aspect ratio. |
 

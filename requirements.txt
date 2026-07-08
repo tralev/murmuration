@@ -3,8 +3,23 @@
 # Python 3.7+ required (uses statistics, collections.deque, dataclasses)
 # Install with:  pip install -r requirements.txt
 #
-# Core dependency:
+# Core dependency (2D simulation):
 pygame>=2.0,<3.0
+
+# Numerical / scientific — required by the 3D stack (boid_3d, spatial_3d)
+# and the analysis extensions:
+#   numpy — vector physics, covariance/eigenvalues (flock_shape, h2_robustness)
+#   scipy — spatial.ConvexHull (correlation_time density, flock_shape area)
+#           and spatial.cKDTree k-NN graphs (h2_robustness)
+numpy>=1.21
+scipy>=1.7
+
+# 3D rendering only (main_3d.py, renderer_3d.py, capture_3d.py):
+#   moderngl needs a GPU/OpenGL context — not required for headless runs
+#   or the test suite (those tests skip when it is absent).
+moderngl>=5.6
+PyGLM>=2.5
+Pillow>=9.0        # capture_3d.py GIF export
 
 # Jupyter notebook support (for notebooks/murmuration.ipynb):
 matplotlib>=3.5

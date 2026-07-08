@@ -482,6 +482,15 @@ than toggled from the 2D key loop:
 | `pilot_state.py` | 16 | `SimulationPilot` — heading, radius, bank-roll, medium_pulse |
 | `h2_robustness.py` | 6 | Consensus H₂ norm, η(m), cost-optimal m* (also `J`-key metric) |
 
+The scientific-analysis extensions delegate their heavy numerics to
+established libraries rather than hand-rolled code: `correlation_time.py`
+and `flock_shape.py` use `scipy.spatial.ConvexHull` (Qhull) for hull area,
+`flock_shape.py` uses `numpy.cov` + `numpy.linalg.eigh` for the PCA, and
+`h2_robustness.py` uses `scipy.spatial.cKDTree` for the k-NN graph and
+`numpy.linalg.eigvalsh` for the Laplacian spectrum. Importing the
+`extensions` package therefore requires **numpy** and **scipy** (both in
+`requirements.txt`).
+
 The 3D camera (`camera_3d.OrbitCamera`) additionally supports **auto-rotate**
 (O key, 0.45 rad/s) and **reset** (V key) in `main_3d.py`.
 

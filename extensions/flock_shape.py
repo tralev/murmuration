@@ -20,8 +20,9 @@
    • area           = convex-hull area (reused from correlation_time)
    • suggested m*   = interpolated between the thin/thick endpoints
 
- Pure Python (a closed-form 2×2 symmetric eigensolve — no numpy), and
- the hull area is reused from the existing correlation_time module.
+ The covariance and its eigen-decomposition use `numpy` (`np.cov`,
+ `np.linalg.eigh`); the hull area comes from `correlation_time`
+ (which delegates to `scipy.spatial.ConvexHull`).
 
  Usage:
    from extensions.flock_shape import analyze_shape, ShapeReport
@@ -29,6 +30,8 @@
 """
 
 import math
+
+import numpy as np
 
 from extensions.correlation_time import convex_hull_area
 
@@ -65,33 +68,6 @@ class ShapeReport:
                 f"area={self.area:.0f}, m*={self.suggested_m:.1f})")
 
 
-def _covariance_2x2(pts):
-    """Population covariance [[cxx, cxy], [cxy, cyy]] of 2D points."""
-    n = len(pts)
-    mx = sum(p[0] for p in pts) / n
-    my = sum(p[1] for p in pts) / n
-    cxx = cyy = cxy = 0.0
-    for x, y in pts:
-        dx, dy = x - mx, y - my
-        cxx += dx * dx
-        cyy += dy * dy
-        cxy += dx * dy
-    return cxx / n, cyy / n, cxy / n
-
-
-def _symmetric_eig_2x2(cxx, cyy, cxy):
-    """Eigenvalues (λ_major ≥ λ_minor) and major-axis angle of the
-    symmetric 2×2 covariance, in closed form."""
-    tr = cxx + cyy
-    diff = cxx - cyy
-    disc = math.sqrt(max(0.0, diff * diff + 4.0 * cxy * cxy))
-    lam_major = 0.5 * (tr + disc)
-    lam_minor = 0.5 * (tr - disc)
-    # Major-axis orientation.
-    angle = 0.5 * math.atan2(2.0 * cxy, diff)
-    return lam_major, lam_minor, angle
-
-
 def suggested_m_star(aspect_ratio: float) -> float:
     """Interpolate Young et al.'s optimal m* from the aspect ratio.
 
@@ -114,21 +90,31 @@ def analyze_shape(positions) -> ShapeReport:
     -------
     ShapeReport — degenerate (aspect 1.0, area 0) for < 3 points.
     """
-    pts = [_as_xy(p) for p in positions]
+    pts = np.array([_as_xy(p) for p in positions], dtype=float)
     n = len(pts)
     if n < 3:
         return ShapeReport(n, 1.0, 0.0, 0.0, 0.0, 0.0,
                            M_STAR_TRANSVERSE)
 
-    cxx, cyy, cxy = _covariance_2x2(pts)
-    lam_major, lam_minor, angle = _symmetric_eig_2x2(cxx, cyy, cxy)
+    # Population covariance (bias=1 → divide by N, matching the previous
+    # hand-rolled version) and its symmetric eigen-decomposition.
+    cov = np.cov(pts, rowvar=False, bias=True)
+    evals, evecs = np.linalg.eigh(cov)     # ascending eigenvalues
+    lam_minor, lam_major = float(evals[0]), float(evals[1])
+    major_axis = evecs[:, 1]               # eigenvector for λ_major
+    angle = math.atan2(major_axis[1], major_axis[0])
+    # Fold orientation into (−π/2, π/2] — axes are undirected.
+    if angle > math.pi / 2:
+        angle -= math.pi
+    elif angle <= -math.pi / 2:
+        angle += math.pi
 
     if lam_minor < 1e-9:
         aspect = float("inf") if lam_major > 1e-9 else 1.0
     else:
         aspect = math.sqrt(lam_major / lam_minor)
 
-    area = convex_hull_area(pts)
+    area = convex_hull_area(pts.tolist())
     # For m* interpolation an infinite aspect just pins to the thin end.
     aspect_for_m = aspect if math.isfinite(aspect) else _ASPECT_THIN
     return ShapeReport(n, aspect, angle, lam_major, lam_minor, area,

@@ -23,9 +23,10 @@
    per-neighbour efficiency  η(m) = (robustness gain) / (sensing cost)
                                    ≈ [H₂(m₀) − H₂(m)] / (m − m₀)
 
- The Laplacian eigenvalues come from a compact, from-scratch Jacobi
- rotation solver (pure Python, no numpy) — in the spirit of the
- from-scratch Graham scan in correlation_time.py.
+ The k-nearest-neighbour graph is built with `scipy.spatial.cKDTree`
+ (O(N log N)) and the Laplacian's eigenvalues come from
+ `numpy.linalg.eigvalsh` (LAPACK, symmetric) — the right tools for
+ the nearest-neighbour query and the symmetric eigenproblem.
 
  Usage:
    from extensions.h2_robustness import h2_norm, knn_laplacian, eta_of_m
@@ -34,66 +35,21 @@
 
 import math
 
+import numpy as np
+from scipy.spatial import cKDTree
 
-# ══════════════════════════════════════════════════════════════════════
-#  Symmetric eigenvalues — Jacobi rotation method (pure Python)
-# ══════════════════════════════════════════════════════════════════════
 
-def jacobi_eigenvalues(matrix, max_sweeps=100, tol=1e-10):
-    """Eigenvalues of a real symmetric matrix via cyclic Jacobi rotations.
+def symmetric_eigenvalues(matrix):
+    """Ascending eigenvalues of a real symmetric matrix.
 
-    Repeatedly zeroes the largest off-diagonal entry with an orthogonal
-    rotation; the diagonal converges to the eigenvalues.  O(N³) per
-    sweep — fine for the small graphs (tens of birds) this metric
-    samples.
-
-    Parameters
-    ----------
-    matrix : list[list[float]] — square, symmetric
-    max_sweeps : iteration cap
-    tol : off-diagonal magnitude below which the matrix is "diagonal"
-
-    Returns
-    -------
-    list[float] — eigenvalues in ascending order.
+    Thin wrapper over `numpy.linalg.eigvalsh` (LAPACK), which exploits
+    symmetry for accuracy and speed. Returns a plain list so callers stay
+    numpy-agnostic.
     """
-    n = len(matrix)
-    if n == 0:
+    a = np.asarray(matrix, dtype=float)
+    if a.size == 0:
         return []
-    # Work on a mutable copy.
-    a = [list(row) for row in matrix]
-
-    for _ in range(max_sweeps):
-        # Largest off-diagonal magnitude and its (p, q).
-        off = 0.0
-        p, q = 0, 1
-        for i in range(n):
-            for j in range(i + 1, n):
-                if abs(a[i][j]) > off:
-                    off = abs(a[i][j])
-                    p, q = i, j
-        if off < tol:
-            break
-
-        app, aqq, apq = a[p][p], a[q][q], a[p][q]
-        if abs(apq) < tol:
-            continue
-        # Rotation angle that zeroes a[p][q].
-        phi = 0.5 * math.atan2(2 * apq, aqq - app)
-        c, s = math.cos(phi), math.sin(phi)
-
-        # Apply rotation to rows/cols p and q.
-        for k in range(n):
-            akp, akq = a[k][p], a[k][q]
-            a[k][p] = c * akp - s * akq
-            a[k][q] = s * akp + c * akq
-        for k in range(n):
-            apk, aqk = a[p][k], a[q][k]
-            a[p][k] = c * apk - s * aqk
-            a[q][k] = s * apk + c * aqk
-
-    eig = sorted(a[i][i] for i in range(n))
-    return eig
+    return np.linalg.eigvalsh(a).tolist()
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -107,6 +63,9 @@ def knn_laplacian(positions, m):
     bird sees the other), matching the undirected consensus network in
     Young et al.  L = D − A with unit edge weights.
 
+    Neighbour queries use a `scipy.spatial.cKDTree` (k-d tree, O(N log N))
+    instead of a hand-built O(N²) distance matrix.
+
     Parameters
     ----------
     positions : list of (x, y[, z]) or objects with .x/.y[/.z]
@@ -114,32 +73,27 @@ def knn_laplacian(positions, m):
 
     Returns
     -------
-    list[list[float]] — the N×N Laplacian.
+    numpy.ndarray — the N×N Laplacian (float64).
     """
-    pts = [_as_tuple(p) for p in positions]
+    pts = np.array([_as_tuple(p) for p in positions], dtype=float)
     n = len(pts)
     if n == 0:
-        return []
+        return np.zeros((0, 0))
     m = max(1, min(m, n - 1))
 
-    # Adjacency (symmetric): edge if j is among i's m nearest OR vice versa.
-    adj = [[0] * n for _ in range(n)]
-    for i in range(n):
-        dists = sorted(
-            ((_sq_dist(pts[i], pts[j]), j) for j in range(n) if j != i),
-        )
-        for _, j in dists[:m]:
-            adj[i][j] = 1
-            adj[j][i] = 1
+    # cKDTree.query with k = m+1 returns each point plus its m nearest
+    # (column 0 is the point itself). Symmetrise the directed relation.
+    tree = cKDTree(pts)
+    _, idx = tree.query(pts, k=m + 1)
+    idx = np.atleast_2d(idx)
 
-    lap = [[0.0] * n for _ in range(n)]
-    for i in range(n):
-        deg = 0
-        for j in range(n):
-            if adj[i][j]:
-                lap[i][j] = -1.0
-                deg += 1
-        lap[i][i] = float(deg)
+    adj = np.zeros((n, n), dtype=float)
+    rows = np.repeat(np.arange(n), m)
+    cols = idx[:, 1:].reshape(-1)          # drop self-column
+    adj[rows, cols] = 1.0
+    adj = np.maximum(adj, adj.T)           # edge if either sees the other
+
+    lap = np.diag(adj.sum(axis=1)) - adj
     return lap
 
 
@@ -159,10 +113,10 @@ def h2_norm(positions, m):
     float — the H₂ norm (smaller = more robust); math.inf if disconnected.
     """
     lap = knn_laplacian(positions, m)
-    n = len(lap)
+    n = lap.shape[0]
     if n < 2:
         return 0.0
-    eig = jacobi_eigenvalues(lap)
+    eig = symmetric_eigenvalues(lap)
     # Skip λ₁ ≈ 0 (the consensus mode). A near-zero λ₂ ⇒ disconnected.
     acc = 0.0
     for lam in eig[1:]:
@@ -260,7 +214,3 @@ def _as_tuple(p):
         z = getattr(p, "z", None)
         return (x, y) if z is None else (x, y, z)
     return tuple(p)
-
-
-def _sq_dist(a, b):
-    return sum((a[k] - b[k]) ** 2 for k in range(min(len(a), len(b))))

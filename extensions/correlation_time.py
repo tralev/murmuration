@@ -25,7 +25,8 @@
 ──────────────────────────────────────────────────────────────────────
 """
 
-import math
+import numpy as np
+from scipy.spatial import ConvexHull, QhullError
 
 
 # ── Tunable constants ──────────────────────────────────────────────
@@ -36,60 +37,19 @@ MAX_LAG_FRACTION      = 0.25  # integrate up to 25% of buffer length
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║  Convex Hull — Graham Scan                                          ║
+# ║  Convex Hull — scipy.spatial.ConvexHull (Qhull)                     ║
 # ╚══════════════════════════════════════════════════════════════════════╝
-
-def _cross(o, a, b):
-    """
-    2D cross product of vectors OA and OB.
-
-    Returns (a_x − o_x)(b_y − o_y) − (a_y − o_y)(b_x − o_x).
-
-    Used by Graham scan to determine turn direction:
-      > 0  → counter-clockwise (left turn) — keep on hull
-      ≤ 0  → clockwise or collinear (right turn) — pop from hull
-
-    This is the determinant of the matrix [[OA_x, OA_y], [OB_x, OB_y]].
-    """
-    return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
-
-
-def _dist_sq(a, b):
-    """Squared Euclidean distance between points a and b."""
-    dx = a[0] - b[0]
-    dy = a[1] - b[1]
-    return dx * dx + dy * dy
-
 
 def convex_hull_area(points: list) -> float:
     """
-    Compute the area of the convex hull of a set of 2D points
-    using Graham scan.  Returns 0 if fewer than 3 points.
+    Area of the convex hull of a set of 2D points, used to estimate the
+    flock density ρ = N / area for the correlation time τᵨ.
 
-    ── GRAHAM SCAN ALGORITHM (O(N log N)) ──
-
-    1. FIND PIVOT: the point with the lowest y-coordinate (ties
-       broken by lowest x).  This point is guaranteed to be on
-       the hull.
-
-    2. SORT by polar angle from pivot.  Points with the same angle
-       are sorted by distance (closest first).
-
-    3. BUILD HULL: iterate through sorted points.  For each point,
-       pop from the hull while the last three points make a
-       clockwise or collinear turn (_cross ≤ 0).  Then push the
-       new point.
-
-       This "pop-and-push" loop ensures the hull stays convex!
-       It works because the cross product detects when adding a
-       new point would create a concave indentation.
-
-    4. SHOELACE FORMULA: compute polygon area from hull vertices.
-       area = (1/2) × |Σ (x_i·y_{i+1} − x_{i+1}·y_i)|
-
-    Complexity: O(N log N) where N = len(points).
-    The sort dominates; the hull-building loop is O(N) (each point
-    is pushed and popped at most once).
+    Delegates to `scipy.spatial.ConvexHull` (Qhull). For a 2D hull,
+    Qhull's ``.volume`` attribute is the enclosed **area** (``.area`` is
+    the perimeter). Qhull raises ``QhullError`` for degenerate inputs —
+    fewer than 3 points, or all points collinear/coincident — which have
+    no positive area; we map those to 0.0.
 
     Parameters
     ----------
@@ -97,100 +57,15 @@ def convex_hull_area(points: list) -> float:
 
     Returns
     -------
-    float — area of the convex hull polygon (0 if degenerate)
+    float — area of the convex hull polygon (0.0 if degenerate)
     """
-    n = len(points)
-    if n < 3:
+    if len(points) < 3:
         return 0.0  # need at least 3 points for a polygon
-
-    # ═══════════════════════════════════════════════════════════
-    #  STEP 1: Find pivot — lowest y, then leftmost x
-    # ═══════════════════════════════════════════════════════════
-    #
-    #  The pivot is guaranteed to be a hull vertex.  We swap it
-    #  into position [0] so the rest of the algorithm can use it
-    #  as the reference point for polar angle sorting.
-    #
-    #  Each comparison checks against points[0] (which may have
-    #  changed due to earlier swaps — this is the "current best").
-    # ───────────────────────────────────────────────────────────
-
-    for i in range(1, n):
-        if (points[i][1] < points[0][1] or
-            (points[i][1] == points[0][1] and points[i][0] < points[0][0])):
-            points[0], points[i] = points[i], points[0]
-
-    pivot = points[0]
-
-    # ═══════════════════════════════════════════════════════════
-    #  STEP 2: Sort by polar angle from pivot
-    # ═══════════════════════════════════════════════════════════
-    #
-    #  polar_order returns (angle, distance_sq).  Sorting by
-    #  this pair ensures:
-    #    - Points are ordered counter-clockwise around pivot.
-    #    - Collinear points (same angle) are ordered closest-first,
-    #      allowing the hull-building loop to naturally skip
-    #      interior collinear points.
-    # ───────────────────────────────────────────────────────────
-
-    def polar_order(p):
-        dx, dy = p[0] - pivot[0], p[1] - pivot[1]
-        return (math.atan2(dy, dx), dx * dx + dy * dy)
-
-    sorted_pts = sorted(points[1:], key=polar_order)
-
-    # ═══════════════════════════════════════════════════════════
-    #  STEP 3: Build convex hull via Graham scan
-    # ═══════════════════════════════════════════════════════════
-    #
-    #  Start with the pivot and the first sorted point.  For each
-    #  subsequent point p, check if the last three points make a
-    #  RIGHT turn (clockwise or collinear).  If so, pop the middle
-    #  point — it's inside the hull.  Repeat until the turn is LEFT
-    #  (counter-clockwise), then push p.
-    #
-    #  VISUAL TRACE (square: (0,0), (1,0), (1,1), (0,1)):
-    #    pivot=(0,0), sorted=[(1,0), (1,1), (0,1)]
-    #    hull=[(0,0), (1,0)]          — initial
-    #    p=(1,1): cross((0,0),(1,0),(1,1)) = 1 > 0 → push → [(0,0),(1,0),(1,1)]
-    #    p=(0,1): cross((1,0),(1,1),(0,1)) = 1 > 0 → push → [(0,0),(1,0),(1,1),(0,1)]
-    #
-    #  COLLINEAR EXAMPLE ((0,0), (1,0), (2,0), (2,2), (0,2)):
-    #    sorted=[(1,0), (2,0), (2,2), (0,2)]
-    #    hull=[(0,0), (1,0)]
-    #    p=(2,0): cross((0,0),(1,0),(2,0)) = 0 ≤ 0 → pop (1,0) → [(0,0)] → push (2,0)
-    #    → [(0,0), (2,0)]  ... collinear (1,0) excluded!
-    # ───────────────────────────────────────────────────────────
-
-    hull = [pivot, sorted_pts[0]]
-    for p in sorted_pts[1:]:
-        # Pop while the last two hull points + p make a right turn
-        while len(hull) >= 2 and _cross(hull[-2], hull[-1], p) <= 0:
-            hull.pop()
-        hull.append(p)
-
-    # ═══════════════════════════════════════════════════════════
-    #  STEP 4: Shoelace formula for polygon area
-    # ═══════════════════════════════════════════════════════════
-    #
-    #  area = (1/2) × |Σ (x_i·y_{i+1} − x_{i+1}·y_i)|
-    #
-    #  Each edge from vertex i to i+1 contributes a signed
-    #  trapezoid area.  Summing around the closed polygon gives
-    #  the total area.  The absolute value handles winding order.
-    #
-    #  The modulo index (i+1) % m closes the polygon back to the
-    #  first vertex.
-    # ───────────────────────────────────────────────────────────
-
-    area = 0.0
-    m = len(hull)
-    for i in range(m):
-        x1, y1 = hull[i]
-        x2, y2 = hull[(i + 1) % m]  # wrap to first vertex
-        area += x1 * y2 - x2 * y1
-    return abs(area) / 2.0
+    try:
+        return float(ConvexHull(np.asarray(points, dtype=float)).volume)
+    except QhullError:
+        # Collinear or coincident points — no 2D hull, zero area.
+        return 0.0
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
