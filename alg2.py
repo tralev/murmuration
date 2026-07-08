@@ -41,6 +41,7 @@ import pygame
 import sys
 import os
 import math
+from statistics import mean
 
 import features
 
@@ -260,8 +261,8 @@ def main():
             draw_vacuole(screen, ext_state['vacuole'], ext_state.get('vacuole_cfg'))
         if features.ENABLE_SHELL and ext_state.get('shell_active') and len(flock) > 0:
             # Draw shells around the flock centre
-            cx = sum(b.position.x for b in flock) / len(flock)
-            cy = sum(b.position.y for b in flock) / len(flock)
+            cx = mean(b.position.x for b in flock)
+            cy = mean(b.position.y for b in flock)
             draw_shells(screen, (cx, cy), ext_state.get('shell_cfg'))
         if features.ENABLE_FLOW_FIELD and ext_state.get('flow_active'):
             draw_flow(screen, ext_state.get('flow_cfg'),

@@ -24,6 +24,7 @@
 
 import features
 import pygame
+from statistics import mean
 from flock_core import (
     VISUAL_RANGE, MODE_SPATIAL, LOG_EVERY, SpatialGrid,
 )
@@ -170,8 +171,8 @@ def update_frame(config, flock, metrics, grid, frame, clock,
     # ╚══════════════════════════════════════════════════════════╝
     if features.ENABLE_VACUOLE and ext_state.get('vacuole') is not None:
         vacuole = ext_state['vacuole']
-        swarm_x = sum(b.position.x for b in flock) / max(len(flock), 1)
-        swarm_y = sum(b.position.y for b in flock) / max(len(flock), 1)
+        swarm_x = mean(b.position.x for b in flock)
+        swarm_y = mean(b.position.y for b in flock)
         ext_state['vacuole_time'] = ext_state.get('vacuole_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
         vacuole.update((swarm_x, swarm_y), ext_state['vacuole_time'])
         cfg = ext_state.get('vacuole_cfg')
@@ -186,8 +187,8 @@ def update_frame(config, flock, metrics, grid, frame, clock,
     if features.ENABLE_SHELL and ext_state.get('shell_active'):
         cfg = ext_state.get('shell_cfg')
         ext_state['shell_time'] = ext_state.get('shell_time', 0.0) + 1.0 / max(clock.get_fps(), 1.0)
-        swarm_x = sum(b.position.x for b in flock) / max(len(flock), 1)
-        swarm_y = sum(b.position.y for b in flock) / max(len(flock), 1)
+        swarm_x = mean(b.position.x for b in flock)
+        swarm_y = mean(b.position.y for b in flock)
         assignments = ext_state.get('shell_assignments', [])
         t = ext_state['shell_time']
         for i, boid in enumerate(flock):
@@ -214,8 +215,8 @@ def update_frame(config, flock, metrics, grid, frame, clock,
     # ╚══════════════════════════════════════════════════════════╝
     if features.ENABLE_THREAT and ext_state.get('threat') is not None:
         threat = ext_state['threat']
-        swarm_x = sum(b.position.x for b in flock) / max(len(flock), 1)
-        swarm_y = sum(b.position.y for b in flock) / max(len(flock), 1)
+        swarm_x = mean(b.position.x for b in flock)
+        swarm_y = mean(b.position.y for b in flock)
         threat.update((swarm_x, swarm_y))
         for boid in flock:
             fx, fy = flee_force(boid.position, threat.position())

@@ -1,5 +1,6 @@
 # Murmuration — Python Dependencies
 #
+# Python 3.7+ required (uses statistics, collections.deque, dataclasses)
 # Install with:  pip install -r requirements.txt
 #
 # Core dependency:

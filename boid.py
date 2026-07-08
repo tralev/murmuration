@@ -24,6 +24,7 @@
 import math
 import random
 import pygame
+from collections import deque
 
 import features
 
@@ -79,7 +80,7 @@ class Boid:
         self._last_theta = 0.0          # cached internal opacity
         self._debug_delta = pygame.Vector2(0, 0)   # δ̂ for debug view
         self._debug_merged = []          # merged intervals for debug view
-        self.history = []                # position trail (ring buffer, last TRAIL_LENGTH)
+        self.history = deque(maxlen=TRAIL_LENGTH)
 
     # ╔══════════════════════════════════════════════════════════╗
     # ║  SECTION 9 — PHYSICS UPDATE  (shared by both modes)      ║
@@ -155,8 +156,6 @@ class Boid:
         # ── Trail history ──────────────────────────────────────
         if features.ENABLE_TRAILS:
             self.history.append(pygame.Vector2(self.position))
-            if len(self.history) > TRAIL_LENGTH:
-                self.history.pop(0)
 
     def apply_force(self, force: pygame.Vector2):
         """Accumulate a steering force for the current frame."""

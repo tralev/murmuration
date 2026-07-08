@@ -16,6 +16,7 @@
 import math
 import random
 import pygame
+from statistics import mean
 
 from occlusion_geom import _normalise_interval, _merge_all
 from flock_core import (
@@ -87,11 +88,11 @@ class FlockMetrics:
         #  PROJECTION: exact, already cached on each boid as _last_theta.
         #  SPATIAL:    sampled from 5 random birds to avoid O(N²).
         if config.mode == MODE_PROJECTION:
-            theta = sum(b._last_theta for b in flock) / n
+            theta = mean(b._last_theta for b in flock)
         else:
             sample_n = min(self.SAMPLES, n)
             sampled = random.sample(flock, sample_n)
-            theta = sum(b.compute_internal_opacity(flock) for b in sampled) / sample_n
+            theta = mean(b.compute_internal_opacity(flock) for b in sampled)
         self._theta += (theta - self._theta) * s
 
         # ── α — order parameter  |Σ v_i| / (N · v₀) ──────────────
@@ -123,13 +124,13 @@ class FlockMetrics:
         self._avg_accel += (accel_sum / n / MAX_FORCE - self._avg_accel) * s
 
         # ── Flock dispersion: mean distance from centre of mass ───
-        com_x = sum(b.position.x for b in flock) / n
-        com_y = sum(b.position.y for b in flock) / n
+        com_x = mean(b.position.x for b in flock)
+        com_y = mean(b.position.y for b in flock)
         disp_sum = 0.0
         for b in flock:
             dx = b.position.x - com_x
             dy = b.position.y - com_y
-            disp_sum += (dx * dx + dy * dy) ** 0.5
+            disp_sum += math.hypot(dx, dy)
         self._dispersion += (disp_sum / n - self._dispersion) * s
 
     # ── Properties ───────────────────────────────────────────────────
