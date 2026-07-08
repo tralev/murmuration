@@ -466,6 +466,25 @@ if ext_state.get('leader_active'):
 | `flock_shape.py` | `Y` | `ENABLE_FLOCK_SHAPE` | `False` | Flock shape analysis |
 | `medium_presets.py` | `N` | `ENABLE_MEDIUM_PRESETS` | `False` | Medium preset cycling (grid → air → water → vacuum) |
 
+#### Library modules (pure helpers — no key/flag, imported where needed)
+
+These follow the same pure-function, unit-tested convention but are used
+programmatically (by `extended_simulation`, analysis, or the 3D stack) rather
+than toggled from the 2D key loop:
+
+| Module | Roadmap | Description |
+|--------|---------|-------------|
+| `inertia.py` | 8 | Velocity→desired blend smoothing (`blend_inertia`, default 0.84) |
+| `blob_init.py` | 8 | 5-centre spherical blob start positions (2D & 3D) |
+| `roosting.py` | 5 | Dusk-gated roost attractor (logistic dusk ramp) |
+| `critical_mass.py` | 5 | Smoothstep coherence gate around ~500 birds |
+| `themes.py` | 4 | Colour schemes (dark/ink/paper/graphite/inverse) |
+| `pilot_state.py` | 16 | `SimulationPilot` — heading, radius, bank-roll, medium_pulse |
+| `h2_robustness.py` | 6 | Consensus H₂ norm, η(m), cost-optimal m* (also `J`-key metric) |
+
+The 3D camera (`camera_3d.OrbitCamera`) additionally supports **auto-rotate**
+(O key, 0.45 rad/s) and **reset** (V key) in `main_3d.py`.
+
 ### Tests
 
 All extension unit tests live in `extensions/test_extensions.py`, organised as

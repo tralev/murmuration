@@ -104,6 +104,12 @@ def handle_input(config, flock, running, paused, camera, pending_remove,
                 print(f"MODE: {MODE_NAMES[config.mode]}")
             elif key == K_g:
                 show_grid = not show_grid
+            elif key == K_v:
+                camera.reset()
+                print("Camera reset to default view")
+            elif key == K_o:
+                on = camera.toggle_auto_rotate()
+                print(f"Auto-rotate {'ON' if on else 'OFF'}")
             elif key == K_UP:
                 config.phi_p = min(1.0, config.phi_p + 0.01)
             elif key == K_DOWN:
@@ -200,6 +206,9 @@ def main():
          pending_reset, show_grid) = handle_input(
             config, flock, running, paused, renderer.camera,
             pending_remove, pending_add, pending_reset, show_grid)
+
+        # ── Auto-rotate the camera for unattended demos (O key) ──
+        renderer.camera.step_auto_rotate(dt)
 
         # ── 2. UPDATE ────────────────────────────────────────
         if not paused:

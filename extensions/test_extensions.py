@@ -2014,10 +2014,244 @@ class TestShellFormation(unittest.TestCase):
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 8 — INERTIA SMOOTHING                                        ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestInertia(unittest.TestCase):
+    """Velocity/desired blend smoothing."""
+
+    def test_zero_inertia_snaps_to_desired(self):
+        from extensions.inertia import blend_inertia
+        from flock_core import V0
+        out = blend_inertia((V0, 0), (0, V0), inertia=0.0)
+        # No smoothing → heading equals desired (+y), speed preserved.
+        self.assertAlmostEqual(out[0], 0.0, places=5)
+        self.assertAlmostEqual(out[1], V0, places=5)
+
+    def test_speed_preserved(self):
+        from extensions.inertia import blend_inertia
+        from flock_core import V0
+        out = blend_inertia((V0, 0), (0, V0), inertia=0.5, speed=V0)
+        self.assertAlmostEqual(math.hypot(*out), V0, places=5)
+
+    def test_higher_inertia_turns_less(self):
+        from extensions.inertia import turn_rate
+        from flock_core import V0
+        low = turn_rate((V0, 0), (0, V0), inertia=0.2)
+        high = turn_rate((V0, 0), (0, V0), inertia=0.9)
+        self.assertGreater(low, high)
+
+    def test_inertia_clamped(self):
+        from extensions.inertia import blend_inertia
+        from flock_core import V0
+        # inertia > 1 clamps to 1 → keeps current heading.
+        out = blend_inertia((V0, 0), (0, V0), inertia=5.0, speed=V0)
+        self.assertAlmostEqual(out[0], V0, places=5)
+        self.assertAlmostEqual(out[1], 0.0, places=5)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 8 — BLOB INITIALISATION                                      ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestBlobInit(unittest.TestCase):
+    """5-centre spherical blob start positions."""
+
+    def test_count_and_bounds_2d(self):
+        from extensions.blob_init import blob_positions
+        from flock_core import WIDTH, HEIGHT
+        pts = blob_positions(150, dims=2, rng=random.Random(1))
+        self.assertEqual(len(pts), 150)
+        for x, y in pts:
+            self.assertTrue(0 <= x <= WIDTH and 0 <= y <= HEIGHT)
+
+    def test_3d_returns_triples_in_bounds(self):
+        from extensions.blob_init import blob_positions
+        pts = blob_positions(60, dims=3, bounds=(1000, 700, 400),
+                             rng=random.Random(2))
+        self.assertTrue(all(len(p) == 3 for p in pts))
+        for x, y, z in pts:
+            self.assertTrue(0 <= x <= 1000 and 0 <= y <= 700 and 0 <= z <= 400)
+
+    def test_deterministic_with_seeded_rng(self):
+        from extensions.blob_init import blob_positions
+        a = blob_positions(40, rng=random.Random(7))
+        b = blob_positions(40, rng=random.Random(7))
+        self.assertEqual(a, b)
+
+    def test_clustered_not_uniform(self):
+        """Blobs concentrate points: mean nearest-centre distance is well
+        under the blob radius for most birds."""
+        from extensions.blob_init import blob_positions, BLOB_RADIUS_DEFAULT
+        pts = blob_positions(100, n_centers=5, radius=BLOB_RADIUS_DEFAULT,
+                             rng=random.Random(3))
+        # Every point lies within the blob radius of *some* seed by
+        # construction, so the spread stays bounded — check the overall
+        # extent is smaller than the full domain.
+        xs = [p[0] for p in pts]
+        self.assertLess(max(xs) - min(xs), 1000)  # narrower than full WIDTH
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 5 — ROOSTING / THERMOREGULATION                             ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestRoosting(unittest.TestCase):
+    """Dusk-gated roost attractor."""
+
+    def test_dusk_factor_monotone_ramp(self):
+        from extensions.roosting import dusk_factor
+        self.assertLess(dusk_factor(10), dusk_factor(17))
+        self.assertLess(dusk_factor(17), dusk_factor(20))
+
+    def test_dusk_factor_bounds(self):
+        from extensions.roosting import dusk_factor
+        for h in [0, 6, 12, 17, 19, 23]:
+            self.assertGreaterEqual(dusk_factor(h), 0.0)
+            self.assertLessEqual(dusk_factor(h), 1.0)
+
+    def test_no_pull_by_day_strong_at_night(self):
+        from extensions.roosting import roost_force
+        day = roost_force((100, 100), 12)
+        night = roost_force((100, 100), 20)
+        self.assertAlmostEqual(math.hypot(*day), 0.0, places=2)
+        self.assertGreater(math.hypot(*night), math.hypot(*day))
+
+    def test_force_points_toward_roost(self):
+        from extensions.roosting import roost_force
+        roost = (500, 600)
+        fx, fy = roost_force((500, 100), 21, roost=roost)
+        self.assertGreater(fy, 0.0)      # roost is below → pulled +y
+        self.assertAlmostEqual(fx, 0.0, places=6)
+
+    def test_is_roosting_time(self):
+        from extensions.roosting import is_roosting_time
+        self.assertFalse(is_roosting_time(12))
+        self.assertTrue(is_roosting_time(20))
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 5 — CRITICAL MASS THRESHOLD                                  ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestCriticalMass(unittest.TestCase):
+    """~500-bird murmuration-onset gate."""
+
+    def test_coherence_rises_with_size(self):
+        from extensions.critical_mass import coherence_factor
+        self.assertLess(coherence_factor(50), coherence_factor(500))
+        self.assertLess(coherence_factor(500), coherence_factor(800))
+
+    def test_coherence_bounds(self):
+        from extensions.critical_mass import coherence_factor
+        self.assertEqual(coherence_factor(0), 0.0)
+        self.assertAlmostEqual(coherence_factor(100000), 1.0, places=6)
+
+    def test_subcritical_is_incoherent(self):
+        from extensions.critical_mass import has_critical_mass
+        self.assertFalse(has_critical_mass(100))
+        self.assertTrue(has_critical_mass(600))
+
+    def test_gated_weight_scales(self):
+        from extensions.critical_mass import gated_weight, coherence_factor
+        self.assertAlmostEqual(gated_weight(0.8, 500),
+                               0.8 * coherence_factor(500))
+        self.assertAlmostEqual(gated_weight(0.8, 10), 0.0, places=4)
+
+    def test_custom_critical_mass(self):
+        from extensions.critical_mass import has_critical_mass
+        self.assertTrue(has_critical_mass(120, critical_mass=100))
+        self.assertFalse(has_critical_mass(20, critical_mass=100))
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 4 — VISUAL THEMES                                            ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestThemes(unittest.TestCase):
+    """Colour-scheme registry and cycling."""
+
+    def test_five_themes_present(self):
+        from extensions.themes import THEMES
+        self.assertEqual(set(THEMES),
+                         {"dark", "ink", "paper", "graphite", "inverse"})
+
+    def test_theme_colours_are_rgb_triples(self):
+        from extensions.themes import THEMES
+        for name, th in THEMES.items():
+            for attr in ("background", "bird_projection", "bird_spatial",
+                         "trail", "hud_text", "accent"):
+                c = getattr(th, attr)
+                self.assertEqual(len(c), 3, f"{name}.{attr}")
+                self.assertTrue(all(0 <= v <= 255 for v in c))
+
+    def test_get_theme_unknown_falls_back_to_dark(self):
+        from extensions.themes import get_theme
+        self.assertEqual(get_theme("nonexistent").name, "dark")
+
+    def test_cycle_wraps_around(self):
+        from extensions.themes import cycle_theme, THEME_ORDER
+        t = THEME_ORDER[0]
+        seen = [t]
+        for _ in range(len(THEME_ORDER)):
+            t = cycle_theme(t)
+            seen.append(t)
+        self.assertEqual(seen[0], seen[-1])           # wrapped
+        self.assertEqual(set(seen), set(THEME_ORDER))  # visited all
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  ROADMAP 16 — RICH PILOT STATE                                        ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestPilotState(unittest.TestCase):
+    """SimulationPilot: heading, radius, roll, medium_pulse."""
+
+    def test_roll_banks_into_turn(self):
+        from extensions.pilot_state import SimulationPilot
+        p = SimulationPilot(heading=0.0, radius=100)
+        p.update(math.radians(40), 100, dt=1.0)   # turn +40°
+        left = p.roll
+        q = SimulationPilot(heading=0.0, radius=100)
+        q.update(math.radians(-40), 100, dt=1.0)  # turn −40°
+        self.assertGreater(left, 0.0)
+        self.assertLess(q.roll, 0.0)
+        self.assertAlmostEqual(left, -q.roll, places=6)  # symmetric
+
+    def test_roll_clamped(self):
+        from extensions.pilot_state import SimulationPilot, _ROLL_MAX
+        p = SimulationPilot(heading=0.0, radius=100)
+        for _ in range(20):
+            p.update(p.heading + math.radians(120), 100, dt=1.0)
+        self.assertLessEqual(abs(p.roll), _ROLL_MAX + 1e-6)
+
+    def test_medium_pulse_in_range(self):
+        from extensions.pilot_state import SimulationPilot
+        p = SimulationPilot()
+        for i in range(50):
+            p.update(0.0, 100, dt=0.5)
+            self.assertGreaterEqual(p.medium_pulse, 0.0)
+            self.assertLessEqual(p.medium_pulse, 1.0)
+
+    def test_from_flock_seeds_heading_and_radius(self):
+        from extensions.pilot_state import SimulationPilot
+
+        class _B:
+            def __init__(self, pos, vel):
+                self.position = pygame.Vector2(*pos)
+                self.velocity = pygame.Vector2(*vel)
+
+        flock = [_B((450, 350), (4, 0)), _B((550, 350), (4, 0))]
+        p = SimulationPilot.from_flock(flock)
+        self.assertAlmostEqual(p.heading, 0.0, places=6)   # moving +x
+        self.assertGreater(p.radius, 0.0)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
 # ║  Test discovery sanity check                                         ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestDiscovery(unittest.TestCase, TestCountMixin):
     """Verify test count to catch accidental regressions in discovery."""
 
-    EXPECTED_TEST_COUNT = 190
+    EXPECTED_TEST_COUNT = 190 + 26

@@ -1831,13 +1831,13 @@ Quick-reference list of features present in the companion TypeScript/Three.js pr
 - [ ] **3D WebGL/WebGPU rendering** — headless 3D extension exists; needs Three.js or similar browser-based frontend
 - [ ] **Scene rotation / camera orbit** — PyGame view is fixed 2D orthographic; no camera controls. See Priority 4b for planned orbit controls (rotateSpeed 0.62, panSpeed 0.45, zoomSpeed 0.8, autoRotate 0.45 rad/s, R to reset)
   - [ ] **2D zoom/pan** — scroll-wheel zoom and middle-mouse-drag pan in PyGame (simpler than full 3D orbit)
-  - [ ] **3D orbit controls** — OrbitControls with damping for the Three.js/WebGL frontend
-  - [ ] **Auto-rotate mode** — optional automatic scene rotation at 0.45 rad/s for unattended demos
-  - [ ] **Camera reset** — R key to snap camera back to default position
-- [ ] **Visual themes** — ink/paper/panel color schemes (light, dark, graphite, inverse) from companion `themes.ts`
+  - [ ] **3D orbit controls** — OrbitControls with damping for the Three.js/WebGL frontend *(browser frontend — out of scope for this Python repo)*
+  - [x] **Auto-rotate mode** — automatic scene rotation at 0.45 rad/s for unattended demos (`main_3d.py` O key; `camera_3d.OrbitCamera.step_auto_rotate`)
+  - [x] **Camera reset** — V key snaps the 3D camera back to its default orbit (`camera_3d.OrbitCamera.reset`; R stays flock reset)
+- [x] **Visual themes** — dark/ink/paper/graphite/inverse colour schemes (`extensions/themes.py`, from companion `themes.ts`)
 - [ ] **Velocity trails in 3D** — 5-segment geometric trail lines with wave offset (companion `TrailLines.ts`)
 - [ ] **Frame accumulation trails** — semi-transparent overlay ghosting (companion `accumulation.ts`): fadeOpacity formula, autoClear management
-- [ ] **Performance adaptive quality** — three-tier degradation: disable trails → reduce pixel ratio → reduce particle count (companion `adaptiveQuality.ts`)
+- [x] **Performance adaptive quality** — three-tier degradation: disable trails → reduce render scale → reduce bird count (`extensions/adaptive_quality.py`, A key)
 
 ### Testing & Validation
 
@@ -1872,26 +1872,26 @@ Quick-reference list of features present in the companion TypeScript/Three.js pr
 - [x] **Wander behavior** — deterministic wander centre with radial pulse for leaderless exploration (`extensions/wander.py`)
 - [x] **Field-based simulation** — N/A (O(N) structured-anchor mode for 10,000+ birds requires GPU)
 - [x] **Shell formation / piloting** — birds orbiting leader in geometric shells (`extensions/shell_formation.py`, P key)
-- [ ] **Inertia smoothing** — blend current velocity with desired using `inertia` parameter (companion default: 0.84)
-- [ ] **Blob initialization** — 5-center spherical distribution with volumetric density (companion `particleInitialization.ts`)
-- [ ] **3D spatial hash** — string-keyed 3×3×3 cell queries replacing 2D toroidal grid (companion `cpuSpatialHash.ts`)
-- [ ] **Threat state machine** — full approach/egress phase transitions with arc offsets and phase-specific steering (companion `threat.ts`)
+- [x] **Inertia smoothing** — blend current velocity toward desired via `inertia` parameter (default 0.84) (`extensions/inertia.py`)
+- [x] **Blob initialization** — 5-centre spherical distribution with volumetric density falloff, 2D & 3D (`extensions/blob_init.py`)
+- [x] **3D spatial hash** — 3×3×3 (27-cell) neighbour queries in `spatial_3d.SpatialGrid3D` (replaces the 2D toroidal grid for the 3D stack)
+- [x] **Threat state machine** — approach/egress phase transitions with phase-specific steering + escape-wave propagation (`extensions/threat.py`, T key)
 - [ ] **Geometric trail lines** — 5-segment wave-offset trails with dynamic BufferGeometry (companion `TrailLines.ts`)
 - [ ] **Frame accumulation mode** — semi-transparent overlay for motion-blur ghosting (companion `accumulation.ts`)
 - [x] **Adaptive quality** — three-tier FPS-based degradation with hysteresis recovery (`extensions/adaptive_quality.py`)
-- [ ] **Rich pilot state** — SimulationPilot with roll, mediumPulse, heading, radius (companion `types.ts`)
+- [x] **Rich pilot state** — `SimulationPilot` with heading, radius, bank-roll, and medium_pulse (`extensions/pilot_state.py`, from companion `types.ts`)
 
 *(XR/WebXR support, Playwright E2E tests, and browser-based rendering are not applicable without migrating from PyGame to a web frontend.)*
 
 ### Ecological Realism
 
-- [ ] **Roosting/thermoregulation hypothesis** — birds attracted to roost site, clustering at dusk
+- [x] **Roosting/thermoregulation hypothesis** — dusk-gated roost attractor (logistic dusk ramp → roosting descent) (`extensions/roosting.py`)
 - [x] **Seasonal flock size variation** — flock size peaks mid-winter, troughs in summer per Goodenough 2017 citizen-science data (`extensions/seasonal.py`)
-- [ ] **Critical mass threshold** — ~500 birds needed to initiate murmuration (Goodenough)
+- [x] **Critical mass threshold** — smoothstep coherence gate around ~500 birds initiating coherent murmuration (`extensions/critical_mass.py`)
 - [x] **H₂ robustness metric** — consensus dynamics framework from Young et al. (2013): Laplacian matrix eigenvalues, per-neighbor efficiency η(m), optimal m* from flock shape (`extensions/h2_robustness.py`)
-- [ ] **Default σ = 6–7** — Ballerini/Young optimal neighbor count (current default: 4 from Pearce)
+- [ ] **Default σ = 6–7** — Ballerini/Young optimal neighbour count. Left at 4 deliberately (Pearce's canonical value); `flock_shape.suggested_m_star` and `h2_robustness.cost_optimal_m` compute the 6–7 range at runtime instead of changing the default.
 - [x] **Flock aspect ratio analysis** — PCA-based shape analysis, aspect ratio → suggested m* (`extensions/flock_shape.py`)
-- [ ] **Sensing cost/benefit model** — O(m) cost vs O(log m) benefit trade-off from Young et al.
+- [x] **Sensing cost/benefit model** — O(m) sensing cost vs robustness benefit; `h2_robustness.cost_optimal_m` minimises H₂(m) + cost·m, reproducing Young's m* ≈ 6–7 (`extensions/h2_robustness.py`)
 
 ---
 

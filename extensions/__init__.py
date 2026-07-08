@@ -44,6 +44,14 @@ from extensions.leader import LeaderAnchor, LeaderConfig, attractor_force, leade
 from extensions.vacuole import VacuoleAgent, VacuoleConfig, vacuole_force
 from extensions.flow_field import FlowConfig, flow_force, draw_flow
 from extensions.shell_formation import ShellConfig, assign_shells, shell_force
+from extensions.inertia import blend_inertia, turn_rate, INERTIA_DEFAULT
+from extensions.blob_init import blob_positions
+from extensions.roosting import dusk_factor, roost_force, is_roosting_time
+from extensions.critical_mass import (
+    coherence_factor, has_critical_mass, gated_weight, CRITICAL_MASS,
+)
+from extensions.themes import THEMES, Theme, get_theme, cycle_theme
+from extensions.pilot_state import SimulationPilot
 
 __all__ = [
     # Boid inheritance chain
@@ -65,4 +73,10 @@ __all__ = [
     "LeaderAnchor", "LeaderConfig", "attractor_force", "leader_force",
     "VacuoleAgent", "VacuoleConfig", "vacuole_force",
     "ShellConfig", "assign_shells", "shell_force",
+    "blend_inertia", "turn_rate", "INERTIA_DEFAULT",
+    "blob_positions",
+    "dusk_factor", "roost_force", "is_roosting_time",
+    "coherence_factor", "has_critical_mass", "gated_weight", "CRITICAL_MASS",
+    "THEMES", "Theme", "get_theme", "cycle_theme",
+    "SimulationPilot",
 ]

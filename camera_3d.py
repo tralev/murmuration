@@ -27,16 +27,41 @@ import glm
 class OrbitCamera:
     """Perspective orbit camera. Drag mouse to rotate, scroll to zoom."""
 
+    # Default view, captured so reset() can restore it exactly.
+    _DEFAULT_AZIMUTH = math.radians(45)
+    _DEFAULT_ELEVATION = math.radians(30)
+    _DEFAULT_DISTANCE = 1200.0
+    AUTO_ROTATE_SPEED = 0.45   # rad/s — companion auto-rotate rate
+
     def __init__(self, target=(500, 350, 200)):
         self.target = glm.vec3(*target)
-        self.azimuth = math.radians(45)
-        self.elevation = math.radians(30)
-        self.distance = 1200.0
+        self.azimuth = self._DEFAULT_AZIMUTH
+        self.elevation = self._DEFAULT_ELEVATION
+        self.distance = self._DEFAULT_DISTANCE
         self.min_distance = 200.0
         self.max_distance = 4000.0
         self.fov = math.radians(50)
         self.near = 1.0
         self.far = 10000.0
+        self.auto_rotate = False   # toggled by the O key
+
+    def reset(self):
+        """Snap the camera back to its default orbit (R-for-view / V key).
+        Leaves auto-rotate state unchanged."""
+        self.azimuth = self._DEFAULT_AZIMUTH
+        self.elevation = self._DEFAULT_ELEVATION
+        self.distance = self._DEFAULT_DISTANCE
+
+    def toggle_auto_rotate(self):
+        """Enable/disable unattended auto-rotation; returns new state."""
+        self.auto_rotate = not self.auto_rotate
+        return self.auto_rotate
+
+    def step_auto_rotate(self, dt):
+        """Advance the azimuth for auto-rotate mode (no-op when off).
+        *dt* is seconds since the last frame."""
+        if self.auto_rotate:
+            self.azimuth += self.AUTO_ROTATE_SPEED * dt
 
     def rotate(self, d_azimuth, d_elevation):
         self.azimuth += d_azimuth
