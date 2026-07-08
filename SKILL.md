@@ -11,10 +11,14 @@ license: GPL-3.0
 compatibility: "Python 3.7+, GNU Octave 4.0+, Scilab 6.0+"
 metadata:
   keywords: ["scientific computing", "code modernization", "multi-language porting",
-             "educational refactoring", "research-to-code", "documentation"]
+             "educational refactoring", "research-to-code", "documentation",
+             "docker", "ci/cd", "jupyter", "3d visualization"]
   estimated-duration: "Multi-session (hours)"
-  output-files: ["Python modules", "GNU Octave script", "Scilab script",
-                 "README files", "User guide", "Unit tests", "Agent skill"]
+  output-files: ["Python modules (modular, extension system)",
+                 "GNU Octave + Scilab scripts", "Dockerfile + compose",
+                 "Jupyter notebook", "README + ARCHITECTURE + USER_GUIDE",
+                 "CITATION.cff", "Unit tests (600+)", "CI workflow",
+                 "Educational examples (9 iterations)", "Agent skill"]
 ---
 
 # Scientific Code Modernization
@@ -35,6 +39,11 @@ and refactor everything for use as educational material.
 - The user needs **multi-language ports** (Python + GNU Octave + Scilab)
 - The user wants **comprehensive documentation**: paper audits, roadmaps,
   user guides, and per-language READMEs
+- The user wants **Docker reproducibility**: single-command builds with all
+  language runtimes, CI-ready container images
+- The user wants **headless analysis** via Jupyter notebooks for offline
+  data exploration and paper-style figure generation
+- The user wants **3D visualization** (ModernGL) with GPU acceleration
 
 ---
 
@@ -457,6 +466,9 @@ project/
   For optional display-only functions, use inline imports inside the method.
 - **Research papers in the directory are reference material, not source code.**
   Add them to `.gitignore`.
+- **Generated binary assets (GIFs, .gif) and large output directories should be
+  excluded from Docker builds.** Add `*.gif`, `output/`, and other build artifacts
+  to `.dockerignore` to keep images lean.
 - **CSV logging must be crash-safe.** Call `flush()` after every write so
   data survives even if the simulation is killed.
 - **Greek letters in comments need no special encoding** — they're just
