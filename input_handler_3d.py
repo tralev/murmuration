@@ -15,7 +15,6 @@
    • simulation:  SPACE pause, R reset flock, M mode toggle, ESC quit
    • camera:      mouse-drag orbit, scroll zoom, O auto-rotate, V reset
    • parameters:  ↑/↓ φp, ←/→ φa, [ / ] σ, +/- flock size, G grid
-   • presets:     a–h, w → 3D scenario presets
 
  (The 3D build does not use the 2D extension key toggles — those belong
  to the Pygame-CPU 2D stack and its `extensions/input_ext.py`.)
@@ -30,7 +29,6 @@ import pygame
 from pygame.locals import *
 
 from flock_core import MODE_NAMES
-from scenario_presets import apply_preset_3d
 
 
 def handle_input(config, flock, running, paused, camera, pending_remove,
@@ -101,12 +99,6 @@ def handle_input(config, flock, running, paused, camera, pending_remove,
             elif key == K_MINUS:
                 pending_remove += 10
 
-            # ── 3D scenario presets (keys a–h, w) ────────────────
-            #  Excludes G (K_g), handled above as the grid toggle.
-            elif (K_a <= key <= K_h and key != K_g) or key == K_w:
-                label = apply_preset_3d(config, chr(key))
-                if label:
-                    print(label)
 
         # ── Mouse: left-drag orbits the camera ───────────────────
         elif event.type == MOUSEBUTTONDOWN:

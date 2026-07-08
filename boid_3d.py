@@ -20,11 +20,15 @@ import math
 import numpy as np
 
 from flock_core import (
-    WIDTH, HEIGHT, V0, MAX_FORCE,
+    WIDTH, HEIGHT, DEPTH, V0, MAX_FORCE,
     MODE_PROJECTION, MODE_SPATIAL,
-    MARGIN_BOUNDARY, BOUNDARY_MARGIN, BOUNDARY_TURN_FACTOR,
 )
-from spatial_3d import DEPTH, BOUNDARY_MARGIN_Z, flock_projection_3d, flock_spatial_3d
+from spatial_3d import BOUNDARY_MARGIN_Z, flock_projection_3d, flock_spatial_3d
+
+# ── Boundary mode constants (local) ────────────────────────────────
+MARGIN_BOUNDARY     = False
+BOUNDARY_MARGIN     = 200
+BOUNDARY_TURN_FACTOR = 1
 
 
 class Boid3D:

@@ -23,17 +23,20 @@ from occlusion_geom import (
     _merge_interval,
 )
 from flock_core import (
-    WIDTH, HEIGHT, V0, BOID_SIZE, MAX_FORCE,
+    WIDTH, HEIGHT, DEPTH, V0, BOID_SIZE, MAX_FORCE,
     MODE_PROJECTION, MODE_SPATIAL,
-    VISUAL_RANGE, MARGIN_BOUNDARY, BOUNDARY_MARGIN, BOUNDARY_TURN_FACTOR,
-    Config,
+    VISUAL_RANGE, Config,
 )
 
 # ── 3D-specific constants ──────────────────────────────────────────
-DEPTH = 400                           # Z-axis extent
 BOUNDARY_MARGIN_Z = 120               # Z margin for boundary nudge
 MAX_VISIBILITY_RANGE = 200            # Max distance for projection occlusion (performance)
 _CELL_SIZE_3D = 80                    # 3D grid cell size
+
+# ── Boundary mode constants (local) ────────────────────────────────
+MARGIN_BOUNDARY     = False
+BOUNDARY_MARGIN     = 200
+BOUNDARY_TURN_FACTOR = 1
 
 
 # ══════════════════════════════════════════════════════════════════════

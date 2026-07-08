@@ -29,20 +29,11 @@
 
 import sys
 
-import features
-
-# ── Modularity guard — set features.ENABLE_3D = False to disable ──
-if not features.ENABLE_3D:
-    raise ImportError(
-        "3D simulation is disabled. "
-        "Set features.ENABLE_3D = True before importing main_3d."
-    )
-
 import pygame
 from pygame.locals import *
 
 from flock_core import (
-    WIDTH, HEIGHT, V0, NUM_BOIDS,
+    WIDTH, HEIGHT, DEPTH, V0, NUM_BOIDS,
     DEFAULT_PHI_P, DEFAULT_PHI_A, DEFAULT_SIGMA,
     MODE_PROJECTION, MODE_SPATIAL,
     MODE_NAMES, Config,
@@ -55,7 +46,6 @@ from input_handler_3d import handle_input
 
 
 # ── 3D-specific constants ──────────────────────────────────────────
-DEPTH = 400
 FPS = 60
 WINDOW_WIDTH = 1200
 WINDOW_HEIGHT = 800
@@ -104,7 +94,7 @@ def main():
     print(f"Mode: {MODE_NAMES[config.mode]}")
     print("Press M to toggle mode | Space to pause | ESC to quit")
     print("Mouse drag to orbit | Scroll to zoom")
-    print("Presets: a=Default b=Ball c=Cloud d=Stream e=Column f=Acro w=Vortex h=Void")
+    print("O key: auto-rotate | V key: reset camera view")
 
     # ── Main loop ────────────────────────────────────────────
     while running:

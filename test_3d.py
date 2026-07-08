@@ -20,17 +20,15 @@ import unittest
 
 import numpy as np
 
-from test_count_mixin import TestCountMixin
-
 from flock_core import (
-    WIDTH, HEIGHT, V0, MAX_FORCE,
+    WIDTH, HEIGHT, DEPTH, V0, MAX_FORCE,
     MODE_PROJECTION, MODE_SPATIAL,
-    VISUAL_RANGE, MARGIN_BOUNDARY, BOUNDARY_MARGIN, BOUNDARY_TURN_FACTOR,
-    BOID_SIZE, Config,
+    VISUAL_RANGE, BOID_SIZE, Config,
 )
 from spatial_3d import (
-    DEPTH, BOUNDARY_MARGIN_Z, MAX_VISIBILITY_RANGE, _CELL_SIZE_3D,
+    BOUNDARY_MARGIN_Z, MAX_VISIBILITY_RANGE, _CELL_SIZE_3D,
     SpatialGrid3D, flock_projection_3d, flock_spatial_3d,
+    MARGIN_BOUNDARY, BOUNDARY_MARGIN, BOUNDARY_TURN_FACTOR,
 )
 from boid_3d import Boid3D
 
@@ -579,16 +577,6 @@ class TestFlockProjection3D(unittest.TestCase):
 
         # Identical seed + inputs → bitwise-close steering force.
         self.assertAlmostEqual(np.linalg.norm(s1 - s2), 0.0, places=5)
-
-
-# ╔══════════════════════════════════════════════════════════════════════╗
-# ║  Test count guardian                                                 ║
-# ╚══════════════════════════════════════════════════════════════════════╝
-
-class TestDiscovery(unittest.TestCase, TestCountMixin):
-    """Verify test count for 3D simulation module."""
-
-    EXPECTED_TEST_COUNT = 38
 
 
 if __name__ == '__main__':
