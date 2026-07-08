@@ -2,7 +2,7 @@
 #
 # Runs on every push and pull request to main.
 # Three-stage pipeline: syntax check → test-count gate → full test suite.
-# Blocks merge unless all 457 tests pass.
+# Blocks merge unless all 600 tests pass.
 
 name: Test Suite
 

@@ -24,7 +24,7 @@ python3 -m extensions.extended_simulation_3d
 #  or from Octave console: run extensions/alg2_extended.m
 
 # Run all tests (original + extension tests)
-python3 -m unittest test_alg2 extensions.test_extensions -v
+python3 -m unittest discover -p 'test_*.py' -v
 
 # Or use the convenience scripts:
 ./run.sh tests              # Native: 159 tests
@@ -55,7 +55,7 @@ python3 -m unittest test_alg2 extensions.test_extensions -v
 | — | `medium_presets.py` | **Ambient atmosphere presets** — four media (air, dust, starlight, grid) tuning turbulence, drift, density, opacity, and colour blend. Per-bird turbulence acceleration and global wind bias. Grid is the reference (no perturbation). |
 | — | `extended_simulation.py` | **Full 2D simulation entry point** — all 8 extensions active. Press `f` to spawn/remove the predator. Extended help overlay, CSV logging, τᵨ display, and density readout. |
 | — | `extended_simulation_3d.py` | **Full 3D simulation entry point** — Fibonacci sphere occlusion, perspective rendering, CSV logging. Run with `python -m extensions.extended_simulation_3d`. |
-| — | `test_extensions.py` | **159 unit tests** — 2D: pure functions, convex hull, correlation time, multi-viewpoint opacity, anisotropic visibility, spatial chunker, predator dynamics, blind-angle pipeline, inheritance chain. 3D: Fibonacci sphere, spherical cap occlusion, 3D physics. Wander, threat, adaptive quality, H₂ robustness, seasonal, flock shape, and medium preset tests. |
+| — | `test_extensions.py` | **216 unit tests** — 2D: pure functions, convex hull, correlation time, multi-viewpoint opacity, anisotropic visibility, spatial chunker, predator dynamics, blind-angle pipeline, inheritance chain. 3D: Fibonacci sphere, spherical cap occlusion, 3D physics. Wander, threat, adaptive quality, H₂ robustness, seasonal, flock shape, and medium preset tests. |
 | — | `data_loader.py` | **Real-world 3D trajectory ingestion** — parses CSV data (frame, bird_id, x, y, z, vx, vy, vz), computes Θ/Θ′/α using the project's angular-interval merging algorithms. Supports simple count-per-frame format. |
 | — | `alg2_extended.sce` | **Full Scilab port of all 9 priorities** — standalone extended Scilab simulation with feature flags (ENABLE_1a..3b). 1650 lines. Run with `exec("extensions/alg2_extended.sce");`. |
 | — | `alg2_extended.m` | **Full GNU Octave port of all 9 priorities** — standalone extended Octave simulation with feature flags (ENABLE_1a..3b). 1870 lines. Includes 2D projection with steric repulsion, blind angles, anisotropic bodies, spatial chunker, Graham scan τᵨ, multi-viewpoint Θ′, predator agent, and 3D Fibonacci sphere occlusion. Run with `octave extensions/alg2_extended.m`. |
@@ -197,8 +197,8 @@ New columns:
 # Extension tests only (159 tests)
 python3 -m unittest extensions.test_extensions -v
 
-# All tests (206 tests: 47 original + 159 extension)
-python3 -m unittest test_alg2 extensions.test_extensions -v
+# All tests (600 tests across 12 test files)
+python3 -m unittest discover -p 'test_*.py' -v
 
 # Docker
 ./run-docker.sh tests

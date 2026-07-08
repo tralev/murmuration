@@ -1335,7 +1335,7 @@ The codebase is split into focused modules so students can read them one at a ti
 
 | File | Lines | Imports from | What's inside |
 |------|-------|-------------|---------------|
-| `alg2.py` | ~265 | all modules above + `pygame`, `sys` | `main()` — the simulation loop. Handles input (keyboard + mouse), orchestrates the update/render cycle, CSV logging, focal bird debug view, and shutdown. This is where presets, pause, reset, and boid count changes are applied. |
+| `alg2.py` | ~195 | all modules above + `pygame`, `sys` | `main()` — the simulation loop. Delegates input to `input_handler.py`, update to `simulation.py`, and rendering to individual modules. This is where presets, pause, reset, and boid count changes are applied. |
 
 ### 3D Simulation modules
 
@@ -1351,10 +1351,10 @@ The codebase is split into focused modules so students can read them one at a ti
 | File | Purpose |
 |------|---------|
 | `alg.py` | Original classic Reynolds boids — metric neighbourhood, Russian comments. Kept for historical comparison. |
-| `test_alg2.py` | 47 unit tests for `occlusion_geom.py`. No Pygame needed. |
-| `test_3d.py` | 39 unit tests for 3D physics and spatial grid (`Boid3D.update()` wrap/speed/clamp, `SpatialGrid3D` query/rebuild, `flock_spatial_3d`, `flock_projection_3d`). Uses MockBoid duck-typing. |
-| `extensions/test_extensions.py` | 159 unit tests for all extension modules (wander, threat, adaptive_quality, H₂ robustness, seasonal, flock_shape, medium_presets, and more). |
-| `extensions/` | 22 extension modules implementing roadmap priorities (direct velocity, steric repulsion, blind angles, 3D, anisotropic bodies, predator, spatial opt, wander, threat, adaptive quality, H₂, seasonal, flock shape, medium presets, leader, vacuole, shell formation, flow field, and more). See [extensions/README.md](extensions/README.md). |
+| `test_alg2.py` | — | Test suite aggregator (600 tests across 12 test files). |
+| `test_3d.py` | 38 unit tests for 3D physics and spatial grid (`Boid3D.update()` wrap/speed/clamp, `SpatialGrid3D` query/rebuild, `flock_spatial_3d`, `flock_projection_3d`). Uses MockBoid duck-typing. |
+| `extensions/test_extensions.py` | 216 extension unit tests covering all priority implementations. |
+| `extensions/` | 28 extension modules implementing roadmap priorities (direct velocity, steric repulsion, blind angles, 3D, anisotropic bodies, predator, spatial opt, wander, threat, adaptive quality, H₂, seasonal, flock shape, medium presets, leader, vacuole, shell formation, flow field, and more). Plus orchestration, input handling, and 2 extended simulation entry points. See [extensions/README.md](extensions/README.md). |
 | `medium_presets.py` | Ambient atmosphere presets (air, dust, starlight, grid) with turbulence and drift. |
 | `README.md` | This file — scientific background, paper audit, implementation roadmap. |
 | `USER_GUIDE.md` | Practical guide — installation, controls, tuning, FAQ. |
@@ -1432,7 +1432,7 @@ Every numbered section in the codebase maps to a specific file and line range. T
 | 9c | Boid count changes (+/− keys) | `alg2.py` `main()` |
 | 9d | Grid rebuild (spatial hash) | `alg2.py` `main()` |
 | 10 | Help overlay | `metrics.py` |
-| 11 | Input handling (keyboard + mouse) | `alg2.py` `main()` |
+| 11 | Input handling (keyboard + mouse) | `input_handler.py` |
 | 12 | Main simulation loop | `alg2.py` |
 | 13 | Shutdown (close CSV, quit Pygame) | `alg2.py` (end) |
 
