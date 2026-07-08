@@ -14,12 +14,17 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 HOOK=".git/hooks/pre-commit"
+FORCE="${1:-}"
 
 if [ -f "$HOOK" ]; then
-    echo "⚠  $HOOK already exists."
-    echo "   Overwriting it. Your previous hook will be lost."
-    echo "   To cancel: press Ctrl-C. To proceed: press Enter."
-    read -r
+    if [ "$FORCE" = "--force" ]; then
+        echo "⚠  $HOOK already exists — overwriting (--force)."
+    else
+        echo "⚠  $HOOK already exists."
+        echo "   Overwriting it. Your previous hook will be lost."
+        echo "   To cancel: press Ctrl-C. To proceed: press Enter."
+        read -r
+    fi
 fi
 
 cat > "$HOOK" << 'EOF'

@@ -27,6 +27,13 @@ if [ -z "${VIRTUAL_ENV:-}" ]; then
     source venv/bin/activate
 fi
 
+# ── Install git hooks (once, on first use) ───────────────────────────
+if [ ! -f ".git/hooks/pre-commit" ]; then
+    echo "→ Installing pre-commit hook..."
+    bash scripts/install-hooks.sh --force
+    echo ""
+fi
+
 # ── Install dependencies ─────────────────────────────────────────────
 if ! python3 -c "import pygame" 2>/dev/null; then
     echo "→ Installing pygame..."
