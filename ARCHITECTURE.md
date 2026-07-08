@@ -148,17 +148,17 @@ from main_3d import main     # 3D guard passes
 | `ENABLE_HELP_OVERLAY` | `True` | `alg2.py` (import + render), `input_handler.py` (H key) | `help_overlay.py` never imported; H key does nothing |
 | `ENABLE_3D` | `True` | `main_3d.py` (import guard) | `import main_3d` raises `ImportError` — 3D modules never loaded |
 | `ENABLE_CSV_LOGGING` | `True` | `alg2.py` (file open), `simulation.py` (row writes) | No CSV file created; no rows written |
-| `ENABLE_THREAT` | `True` | `alg2.py` (import + render), `simulation.py` (force), `input_handler.py` (T key) | T key does nothing; `extensions/threat.py` never imported |
-| `ENABLE_WANDER` | `True` | `alg2.py` (import), `simulation.py` (force), `input_handler.py` (W key) | W key does nothing; `extensions/wander.py` never imported (force-only, no render) |
-| `ENABLE_LEADER` | `True` | `alg2.py` (import + render), `simulation.py` (force), `input_handler.py` (O key) | O key does nothing; `extensions/leader.py` never imported |
-| `ENABLE_VACUOLE` | `True` | `alg2.py` (import + render), `simulation.py` (force), `input_handler.py` (E key) | E key does nothing; `extensions/vacuole.py` never imported |
-| `ENABLE_SHELL` | `True` | `alg2.py` (import + render), `simulation.py` (force), `input_handler.py` (P key) | P key does nothing; `extensions/shell_formation.py` never imported |
-| `ENABLE_FLOW_FIELD` | `True` | `alg2.py` (import + render), `simulation.py` (force), `input_handler.py` (D key) | D key does nothing; `extensions/flow_field.py` never imported |
-| `ENABLE_ADAPTIVE_QUALITY` | `False` | `simulation.py` (frame skip), `input_handler.py` (A key) | A key does nothing; dynamic quality never applied |
-| `ENABLE_H2_ROBUSTNESS` | `False` | `input_handler.py` (J key) | J key does nothing; H₂ norm never computed |
-| `ENABLE_SEASONAL` | `False` | `input_handler.py` (C key) | C key does nothing; seasonal day never advanced |
-| `ENABLE_FLOCK_SHAPE` | `False` | `input_handler.py` (Y key) | Y key does nothing; flock shape never analysed |
-| `ENABLE_MEDIUM_PRESETS` | `False` | `input_handler.py` (N key) | N key does nothing; medium presets never cycled |
+| `ENABLE_THREAT` | `True` | `orchestration.py` (import + init + force + render), `input_ext.py` (T key) | T key does nothing; `extensions/threat.py` never imported |
+| `ENABLE_WANDER` | `True` | `orchestration.py` (import + init + force), `input_ext.py` (W key) | W key does nothing; `extensions/wander.py` never imported |
+| `ENABLE_LEADER` | `True` | `orchestration.py` (import + init + force + render), `input_ext.py` (O key) | O key does nothing; `extensions/leader.py` never imported |
+| `ENABLE_VACUOLE` | `True` | `orchestration.py` (import + init + force + render), `input_ext.py` (E key) | E key does nothing; `extensions/vacuole.py` never imported |
+| `ENABLE_SHELL` | `True` | `orchestration.py` (import + init + force + render), `input_ext.py` (P key) | P key does nothing; `extensions/shell_formation.py` never imported |
+| `ENABLE_FLOW_FIELD` | `True` | `orchestration.py` (import + init + force + render), `input_ext.py` (D key) | D key does nothing; `extensions/flow_field.py` never imported |
+| `ENABLE_ADAPTIVE_QUALITY` | `False` | `orchestration.py` (import + init + force + render), `input_ext.py` (A key) | A key does nothing; dynamic quality never applied |
+| `ENABLE_H2_ROBUSTNESS` | `False` | `input_ext.py` (J key) | J key does nothing; H₂ norm never computed |
+| `ENABLE_SEASONAL` | `False` | `input_ext.py` (C key) | C key does nothing; seasonal day never advanced |
+| `ENABLE_FLOCK_SHAPE` | `False` | `orchestration.py` (import + init + per-frame analysis), `input_ext.py` (Y key) | Y key does nothing; flock shape never analysed |
+| `ENABLE_MEDIUM_PRESETS` | `False` | `input_ext.py` (N key) | N key does nothing; medium presets never cycled |
 
 ### Complete flag declarations
 
@@ -194,20 +194,19 @@ ENABLE_CSV_LOGGING   = True    # write metrics to CSV every N frames
 
 # ── Extensions  (affect alg2.py, simulation.py, input_handler.py) ───
 
-ENABLE_THREAT            = True    # predator agent (T key)
-ENABLE_WANDER            = True    # random-walk perturbation (W key)
-ENABLE_LEADER            = True    # attractor / leader system — sinusoidal
-                                   #   Lissajous orbits (O key)
-ENABLE_VACUOLE           = True    # vacuole cavity — orbiting repulsor that
-                                   #   pushes birds outward (E key)
-ENABLE_SHELL             = True    # shell formation / piloting — birds orbit
-                                   #   leaders in concentric rings (P key)
-ENABLE_FLOW_FIELD        = True    # environmental wind / drift field (D key)
-ENABLE_ADAPTIVE_QUALITY  = False   # dynamic quality scaling (A key)
-ENABLE_H2_ROBUSTNESS     = False   # H₂ robustness norm (J key)
-ENABLE_SEASONAL          = False   # seasonal / ecological realism (C key)
-ENABLE_FLOCK_SHAPE       = False   # flock shape analysis (Y key)
-ENABLE_MEDIUM_PRESETS    = False   # medium preset cycling (N key)
+ENABLE_THREAT            = True    # T-key threat agent (approach/egress +
+                               #   escape-wave propagation)
+ENABLE_WANDER            = True    # W-key flock wander behaviour
+ENABLE_ADAPTIVE_QUALITY  = False   # A-key three-tier FPS degradation
+ENABLE_MEDIUM_PRESETS    = False   # N-key ambient medium presets
+                               #   (air/dust/starlight/grid)
+ENABLE_H2_ROBUSTNESS     = False   # H₂ consensus robustness metric
+ENABLE_SEASONAL          = False   # seasonal flock size variation
+ENABLE_FLOCK_SHAPE       = False   # PCA flock shape analysis
+ENABLE_LEADER            = True    # O-key leader / attractor system
+ENABLE_VACUOLE           = True    # E-key vacuole formation (orbiting cavity)
+ENABLE_FLOW_FIELD        = True    # D-key environmental wind / drift field
+ENABLE_SHELL             = True    # P-key shell formation / piloting
 ```
 
 A disabled feature's module is **never imported** — running
@@ -473,7 +472,7 @@ if ext_state.get('leader_active'):
 | `h2_robustness.py` | `J` | `ENABLE_H2_ROBUSTNESS` | `False` | H₂ robustness norm computation |
 | `seasonal.py` | `C` | `ENABLE_SEASONAL` | `False` | Seasonal / ecological realism (day-length, temperature) |
 | `flock_shape.py` | `Y` | `ENABLE_FLOCK_SHAPE` | `False` | Flock shape analysis |
-| `medium_presets.py` | `N` | `ENABLE_MEDIUM_PRESETS` | `False` | Medium preset cycling (grid → air → water → vacuum) |
+| `medium_presets.py` | `N` | `ENABLE_MEDIUM_PRESETS` | `False` | Ambient medium cycling (air, dust, starlight, grid) |
 
 #### Library modules (pure helpers — no key/flag, imported where needed)
 
@@ -528,7 +527,7 @@ one `TestCase` class per module (e.g., `TestLeaderAnchor`, `TestVacuoleAgent`,
 | `test_help_overlay.py` | Flag-aware help overlay line assembly + draw | `pygame`, `features` |
 | `test_3d.py` | 3D physics, grid, flocking (39 tests) | `boid_3d`, `spatial_3d`, `flock_core` |
 | `test_count_mixin.py` | *(helper, contributes no tests)* — shared `TestCountMixin` for the per-module test-count discovery gates | None |
-| `extensions/test_extensions.py` | Extension modules (217 tests) — leader, vacuole, shell formation, flow field, wander, threat, adaptive quality, H₂, seasonal, flock shape, medium presets, inertia, blob init, roosting, critical mass, themes, pilot state, predator, steric, blind angles, 3D, anisotropic, spatial opt, direct velocity, multi-viewpoint, correlation time | Various |
+| `extensions/test_extensions.py` | Extension modules (216 tests) — leader, vacuole, shell formation, flow field, wander, threat, adaptive quality, H₂, seasonal, flock shape, medium presets, inertia, blob init, roosting, critical mass, themes, pilot state, predator, steric, blind angles, 3D, anisotropic, spatial opt, direct velocity, multi-viewpoint, correlation time | Various |
 
 The full suite is **600 tests** (via the CI module list or `unittest discover`,
 which recurses into the `extensions` package). Run all tests:
