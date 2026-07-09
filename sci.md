@@ -585,3 +585,96 @@ medium rather than the flocking rule itself.
     points; the render hints feed GLSL uniforms (alpha, `gl_PointSize`, colour
     blend) in `renderer_3d`. Overlaps with the flow field (§6.1) — `drift` is the
     steady component, `flow_field` the gusting one; a 3D build could unify them.
+
+---
+
+## 7. Scaling, rendering & validation ideas (roadmap / companion project)
+
+These come from the **non-code** files at the pre-removal state — the README
+"Implementation Roadmap" and the companion TypeScript/Three.js project it
+references, plus the analysis notebook. They were prose specifications with *no*
+2D code module, so they are preserved here (3D-adapted, with math) for the 3D
+build to pick up. Recover the originals with `git show c948b22:README.md` and
+`git show c948b22:notebooks/murmuration.ipynb`.
+
+### 7.1 Large-flock scaling — field-based O(N) simulation
+
+*(README Priority 11, companion `CpuMurmurationSimulation.ts`.)* Above a
+threshold (~11k birds) the boids neighbour query (O(N·m)) dominates. The
+companion switches to a **field / slot** method with no neighbour queries — O(N):
+
+- **Slot assignment.** Birds are spread over A anchors: `numSlots = ⌈N/A⌉`,
+  `slot_i = i mod numSlots`; each slot's target is `anchor + slotOffset(slot_i)`,
+  where `slotOffset` places points by the **golden ratio** `ϕ=(1+√5)/2` for even
+  spacing.
+  - *3D:* the 2D "stratified offset on concentric rings" is exactly the
+    **Fibonacci sphere** already in `occlusion_3d.fibonacci_sphere` — golden-angle
+    points on nested spherical shells of radius `R_k`, so
+    `slotOffset(i) = R_{k(i)}·fib_dir(i)`.
+- **Slot repulsion** (replaces separation): for birds sharing a slot,
+  `F_rep += r̂_{i←j}·(s_min − d)` when `d < s_min` (`r̂` a 3-vector in 3D).
+- **Ripple propagation:** `ripple_i = A·sin(ωt + k·r_i + φ_i)` — a travelling wave
+  with wave-vector `k`, per-bird phase `φ_i`; `k·r_i` is a 3-vector dot product in
+  3D. Produces wave deformations with **no neighbour communication**.
+- **Field velocity update:**
+  `v_{t+1} = inertia·v_t + (1−inertia)·[ chase·slotPull + coh·blobAttract + align·headingBias + flow·field(r) + noise·η̂ ]`,
+  with `slotPull = normalize(target − r)·shellError`. There is **no local
+  separation/alignment** — cohesion and alignment become global biases; slot
+  repulsion handles spacing.
+- *3D switch:* add a `FIELD` mode beside `PROJECTION`/`SPATIAL`, auto-selected
+  when `N > threshold`. Everything is already 3-vector-friendly and the slot
+  shells reuse `fibonacci_sphere`.
+
+### 7.2 GPU compute offload
+
+*(README Priority 9, companion WebGL/WebGPU.)* Move the per-bird force
+integration onto the GPU for 30k–50k+ birds.
+
+- **Texture-state / ping-pong (WebGL2 / GLES):** state stored as textures
+  `pos[slot]=(x,y,z,1)`, `vel[slot]=(vx,vy,vz,1)`; slot→uv by `w=⌈√N⌉`,
+  `uv=((slot%w+0.5)/w, (⌊slot/w⌋+0.5)/h)`; a fragment shader reads neighbours from
+  the read texture and writes new state to the write texture, swapping read/write
+  each frame. Already 3D (RGBA carries z).
+- **Compute shaders (WebGPU / GL 4.3):** in/out `array<Particle>` storage buffers,
+  `@workgroup_size(256)`, no texture round-trip.
+- *3D fit:* the state layout is dimension-agnostic; the **hard part is the
+  projection occlusion** — `occlusion_3d`'s per-bird cap sort is not a fixed-size
+  loop, so a GPU port would either (a) build a bounded neighbour list on the CPU
+  and only integrate on the GPU, or (b) approximate occlusion with a capped
+  neighbour set. `renderer_3d` already streams pos+vel per instance, so only the
+  integration moves to the GPU; ModernGL exposes compute shaders on GL 4.3 hosts.
+
+### 7.3 Trail rendering
+
+*(README Priority 14, companion `TrailLines.ts` / `accumulation.ts`.)* Two ways to
+give the flock motion history; both feed the adaptive-quality tier-1 toggle (§6.4).
+
+- **Geometric trails:** each bird draws `S` segments behind it. For segment
+  `s∈[0,S)`, `t=s/(S−1)`, `trailPos = r − v̂·(t·L)` (`L` the trail length). A
+  sinusoidal **wave offset** `A·sin(|v|·waviness + seed)` displaces each point
+  perpendicular to `v` so the trail reads as an organic ribbon.
+  - *3D:* store a per-bird position ring buffer (§6.3); the perpendicular is any
+    unit vector ⟂ `v̂` — e.g. `normalize(v̂ × ê_up)`, falling back to `ê_x` when
+    parallel (the same guard `renderer_3d`'s `lookAtRotation` already uses).
+    Render the segments as GL lines in one batched draw.
+- **Frame accumulation (ghosting):** don't clear the framebuffer; each frame blend
+  a translucent background-coloured full-screen quad over it, so old positions
+  fade geometrically (`α_n = (1−β)^n` after n frames). In ModernGL: disable the
+  clear and draw a fullscreen quad with alpha `β` before the birds.
+
+### 7.4 Headless validation & analysis
+
+*(`notebooks/murmuration.ipynb`.)* The notebook ran the sim headless (~600 frames)
+and plotted the **three Pearce predictions** — emergent marginal opacity Θ in the
+0.25–0.6 band, the order parameter α, and the density autocorrelation time τρ. In
+the 3D stack these observables already exist (`metrics_3d`, `correlation_time`,
+`density_scaling`), so a 3D notebook is a thin wrapper: run the update loop
+headless (`SDL_VIDEODRIVER=dummy`), collect `FlockMetrics3D` each frame, and plot
+Θ(t) against the marginal band, α(t), and the fitted density exponent (§4.9). The
+gated integration tests in `run_tests.sh` already exercise this programmatically.
+
+**Already done:** README Priority 13 (companion `cpuSpatialHash.ts` — a
+string-keyed 3D hash with 27-cell queries) is implemented by
+`spatial_3d.SpatialGrid3D` (tuple keys, 3×3×3 queries); the only companion variant
+not adopted — *no toroidal wrap + boundary push-back* — is partially provided by
+the `OPEN_BOUNDARY` free-flight flag (§4.9).
