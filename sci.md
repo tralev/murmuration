@@ -455,28 +455,79 @@ temperature), `predator_3d`, `scenario_presets_3d`, `density_scaling`.
 ### 6.1 Behaviour / interaction extensions (still to do)
 
 Each was a pure 2D force function (`pygame.Vector2` → force); the 3D rewrite
-accepts/returns numpy 3-vectors and adds the z term. Wire into `spatial_3d`
-force accumulation or the `main_3d` loop.
+accepts/returns numpy 3-vectors and adds the z term. Formulas below give the 2D
+original and its 3D generalisation. Domain centre `c = (W/2, H/2, D/2)`; `r̂`
+denotes a unit direction; `s` a strength gain.
 
-| Feature | What it does | 3D rewrite notes | Effort |
-|---------|--------------|------------------|--------|
-| **Threat + escape wave** (`threat.py`) | Scripted attacker dives at swarm centre then egresses; flee response propagates neighbour-to-neighbour as a relaxation wave | `ThreatAgent` pos/vel → 3-vector; `escape_wave` is graph-based (dimension-agnostic). **Recommended richer predator model** — supersedes the basic chase in `predator_3d` | Medium, high payoff |
-| **Vacuole** (`vacuole.py`) | Orbiting repulsor carves a moving cavity in the flock (`1/d²` radial push) | Agent orbits swarm centre with a z component; force is a clean 3-vector; render as a translucent sphere/ring. More striking in 3D | Medium |
-| **Shared wander** (`wander.py`) | Deterministic moving "wander centre" (composite-trig noise + breathing radius) all birds drift toward | Add a third composite-trig axis → `(cx,cy,cz)` scaled by `DEPTH` | Low |
-| **Leader anchors** (`leader.py`) | N anchor points on Lissajous orbits; birds drawn to the nearest in range | Add z Lissajous term; 3D distance; draw 3D markers | Low/med |
-| **Flow field** (`flow_field.py`) | Ambient wind with gusts + slowly wandering direction | Wind direction → 3-vector (azimuth + elevation) | Low |
-| **Shell formation** (`shell_formation.py`) | Birds orbit a leader in concentric shells | Becomes **spherical shells** (radius bands); orbit along a 3D tangent — more natural in 3D | Medium |
-| **Inertia / turn smoothing** (`inertia.py`) | `blend_inertia(vel, desired, 0.84)` + turn-rate limit | Works on 3-vectors as-is once the `_xy` helper is generalised | Trivial |
-| **Blob init** (`blob_init.py`) | Clustered start positions | Already supports `dims=3`; just call it from `main_3d` init | Trivial |
-| **Direct-velocity policy** (`direct_velocity.py`) | Set `v = φp·δ̂+φa·⟨v̂⟩+φn·η̂` directly (Pearce Eq. 3) instead of Reynolds steering | A policy toggle on `flock_projection_3d` (assign `boid.vel` vs `apply_force`) | Small |
+- **Threat + escape wave** (`threat.py`) — a scripted attacker dives at the swarm
+  centre then egresses (approach→egress state machine, `|v_threat| ≤ 2v₀`); each
+  bird flees with a linear-falloff force, and the alarm propagates neighbour-to-
+  neighbour as a relaxation wave.
+  - *Flee:* `F_flee = s·(1 − d/R_threat)·r̂_{i←threat}` for `d < R_threat`.
+  - *Escape wave:* over the neighbour graph, sweep `a_i ← max(a_i, γ·max_{j∈N(i)} a_j)`
+    (`sweeps≈4`), then scale each bird's flee gain by `a_i`.
+  - *3D:* `r̂` and `v_threat` become 3-vectors; the wave is graph-based
+    (dimension-agnostic). **Recommended richer predator** — supersedes the basic
+    chase in `predator_3d`. Medium effort, high payoff.
+- **Vacuole** (`vacuole.py`) — an orbiting repulsor carves a moving cavity.
+  - *2D:* agent at `c + R_orbit·(cos φ, sin φ)`; `F = s·(1 − d/R_vac)·r̂_away`,
+    `d < R_vac` (linear falloff, full at `d=0`).
+  - *3D:* orbit on a (tilted) circle `c + R_orbit·(cos φ, sin φ, h·sin φ)`; `r̂_away`
+    a 3-vector; render as a translucent sphere. More striking in 3D.
+- **Shared wander** (`wander.py`) — a deterministic moving "wander centre" all
+  birds drift toward.
+  - *2D:* `dx = cos(0.53t + cos 0.37t)·0.84`, `dy = sin(0.47t + sin 0.41t)·0.72`,
+    `û = (dx,dy)/|·|`, `centre = c + û·R·pulse(t)` with a breathing `pulse(t)`;
+    `F = s·r̂_{i→centre}`.
+  - *3D:* add a third composite-trig axis `dz = cos(0.61t + sin 0.29t)·0.7`, so
+    `û ∈ S²` and `centre = c + û·R·pulse(t)`.
+- **Leader anchors** (`leader.py`) — N anchors on Lissajous orbits; birds are
+  drawn to the nearest within range.
+  - *2D:* `anchor_i(t) = c + A·(sin(ω_i t + φ_x), cos(ω_i t + φ_y))`;
+    `F = s·r̂_{i→anchor}` for the nearest anchor in range.
+  - *3D:* a 3D Lissajous `anchor_i(t) = c + A·(sin(ω_i t+φ_x), cos(ω_i t+φ_y), sin(κω_i t+φ_z))`.
+- **Flow field** (`flow_field.py`) — ambient wind with gusts and a slowly
+  wandering direction.
+  - *2D:* `ψ(t) = ψ₀ + 0.4 sin ωt + 0.25 cos 0.7ωt`; `F = strength·(cos ψ, sin ψ)`.
+  - *3D:* azimuth `ψ(t)` and elevation `θ(t)`, each a wandering trig, give
+    `F = strength·(cos θ cos ψ, cos θ sin ψ, sin θ)`.
+- **Shell formation** (`shell_formation.py`) — birds orbit in concentric shells.
+  - *2D:* radius bands `R_k`; `target = c + R_k·(cos α, sin α)`, `α` the orbit
+    angle; `F = s·r̂_{i→target}`.
+  - *3D:* **spherical shells** — `target = c + R_k·(sin φ cos α, sin φ sin α, cos φ)`;
+    birds occupy nested spheres of radius `R_k`. More natural in 3D.
+- **Inertia / turn smoothing** (`inertia.py`) — limits the per-frame heading
+  change (`inertia ≈ 0.84`).
+  - *2D:* blend headings `a₀ = atan2(v)`, `a₁ = atan2(desired)`, clamp `Δa` to a
+    max turn rate.
+  - *3D:* slerp the unit vectors — `v̂_new = normalize((1−k)v̂ + k d̂)`, or rotate
+    `v̂` toward `d̂` by `min(∠(v̂,d̂), Δθ_max)`; `k` from the inertia constant.
+- **Blob init** (`blob_init.py`) — clustered start positions, `p = c + σ·𝒩(0, I)`.
+  Already supports `dims=3` (use `I₃`); just call it from `main_3d` init. Trivial.
+- **Direct-velocity policy** (`direct_velocity.py`) — set the velocity directly
+  from Pearce Eq. 3, `v_{t+1} = v₀·normalize(φp δ̂ + φa ⟨v̂⟩ + φn η̂)`, instead of
+  Reynolds steering `a = clamp(v_desired − v, F_max)`. A policy toggle on
+  `flock_projection_3d` (assign `boid.vel` vs `apply_force`). Small.
 
 ### 6.2 Metrics / analysis extensions (still to do)
 
-| Feature | What it does | 3D rewrite notes |
-|---------|--------------|------------------|
-| **Multi-viewpoint Θ′** (`multi_viewpoint_opacity.py`) | External opacity averaged over K observer viewpoints (2D: circle) | Viewpoints become points on a **sphere** around the flock, each casting the 3D occlusion; builds on `metrics_3d.external_opacity` |
-| **Empirical trajectory loader** (`data_loader.py`) | Loads recorded bird trajectories, computes opacity from real data (experiment validation) | Loader is format-only (dimension-agnostic); `compute_opacity` must call the 3D occlusion. Low priority unless validating against 3D datasets |
-| **Far-field conservative occluder** (`spatial_optimization.py`) | Distant chunks contribute one bounding-circle occluder → `O(N_near + C)` | Only if true 3D occlusion is too slow at large N: bounding **sphere** per far chunk. Otherwise skip (the 27-cell hash already bounds cost) |
+- **Multi-viewpoint Θ′** (`multi_viewpoint_opacity.py`) — external opacity
+  averaged over K observer viewpoints.
+  - *2D:* viewpoints on a circle, `viewpoint_k = R_ext·(cos θ_k, sin θ_k)`,
+    `θ_k = 2πk/K`; `Θ′ = (1/K) Σ_k` occluded-angle-fraction of the flock seen from
+    `viewpoint_k`.
+  - *3D:* viewpoints on a **sphere** of radius `R_ext` (Fibonacci lattice of K
+    points); each rasterises the flock silhouette along its axis
+    (`metrics_3d.external_opacity`); `Θ′ = mean` over the K viewpoints.
+- **Empirical trajectory loader** (`data_loader.py`) — loads recorded bird
+  trajectories and computes opacity from real data (experiment validation). The
+  loader is format-only (dimension-agnostic); `compute_opacity` must call the 3D
+  occlusion. Low priority unless validating against 3D datasets.
+- **Far-field conservative occluder** (`spatial_optimization.py`) — a 10×7 chunk
+  grid where near cells give exact per-bird occlusion and each far chunk
+  contributes one bounding-circle occluder → `O(N_near + C)`. In 3D, only worth
+  it if the analytic occlusion is too slow at large N: use a bounding **sphere**
+  per far chunk. Otherwise skip — the 27-cell hash already bounds candidate cost.
 
 ### 6.3 UI / rendering / framework (still to do, optional)
 
@@ -500,4 +551,37 @@ force accumulation or the `main_3d` loop.
   did. Low priority.
 - **Margin-boundary mode & velocity trails in 3D** — `Boid3D` has only toroidal
   wrap (plus the `OPEN_BOUNDARY` free-flight flag) and no trail history; add a
-  reflective/margin boundary and a position ring-buffer if wanted.
+  reflective/margin boundary and a position ring-buffer if wanted. Trails also
+  feed the adaptive-quality tier-1 toggle (§6.4).
+
+### 6.4 Rendering / environment (still to do)
+
+Two companion-derived (`*.ts`) systems that touch rendering and the ambient
+medium rather than the flocking rule itself.
+
+- **Adaptive quality** (`adaptive_quality.py`) — keeps the frame rate near a
+  target by degrading rendering in progressive tiers, with hysteresis to prevent
+  oscillation. Pure logic (no GL): fed the measured FPS + bird count each frame,
+  returns the quality state.
+  - *Math:* EMA `fps̄ ← fps̄ + α(fps − fps̄)` (`α = 0.1`). **Degrade** a tier when
+    `fps̄ < target·0.78` (cooldown 1800 ms); **recover** when `fps̄ > target·0.92`
+    (cooldown 3000 ms). The asymmetric thresholds (0.78 < 0.92) are the
+    hysteresis. Tiers: **1** disable trails; **2** render scale −0.15 (floor
+    0.75×); **3** bird count ×0.82 (floor 512).
+  - *3D:* the decision logic ports unchanged; only the *actuators* change — tier
+    2 → the ModernGL framebuffer/viewport resolution scale, tier 3 → the instance
+    count uploaded to `renderer_3d`, tier 1 → the trail pass (see §6.3). Stays
+    unit-testable with a synthetic FPS trace.
+- **Medium presets** (`medium_presets.py`) — tune the *atmosphere* the flock
+  moves through (independent of φp/φa/σ). Four media — **air**, **dust**,
+  **starlight**, **grid** (reference: no perturbation) — each carrying
+  turbulence, drift, particle density, jitter, and rendering hints.
+  - *Math (per bird per frame):* turbulence `a_turb = c_turb · turbulence · η̂`
+    (random unit vector `η̂`, `c_turb ≈ 0.15`); ambient drift `v += drift · d̂_wind`
+    (a global "wind" bias). Plus `density` passive medium particles with random
+    positional `jitter`, and render hints (`opacity`, point scale, colour mix).
+  - *3D:* `η̂` is drawn uniformly on `S²` (as the projection-mode noise already
+    is), `d̂_wind` is a 3-vector (azimuth + elevation); medium particles become 3D
+    points; the render hints feed GLSL uniforms (alpha, `gl_PointSize`, colour
+    blend) in `renderer_3d`. Overlaps with the flow field (§6.1) — `drift` is the
+    steady component, `flow_field` the gusting one; a 3D build could unify them.
