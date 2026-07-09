@@ -33,7 +33,7 @@ import pygame
 from pygame.locals import *
 
 from flock_core import (
-    WIDTH, HEIGHT, DEPTH, V0, NUM_BOIDS,
+    WIDTH, HEIGHT, DEPTH, V0, NUM_BOIDS, MAX_FORCE,
     DEFAULT_PHI_P, DEFAULT_PHI_A, DEFAULT_SIGMA,
     MODE_PROJECTION, MODE_SPATIAL,
     MODE_NAMES, Config,
@@ -45,6 +45,8 @@ from renderer_3d import Renderer3D
 from input_handler_3d import handle_input
 from metrics_3d import FlockMetrics3D
 from correlation_time import CorrelationTimeTracker
+from predator_3d import apply_predator
+from ecology import roost_force
 
 
 # ── 3D-specific constants ──────────────────────────────────────────
@@ -94,11 +96,23 @@ def main():
     pending_reset = False
     show_grid = False
 
+    # ── Behavioural-dynamics state (Goodenough): predator + roosting ──
+    #  A ground roost near the bottom of the volume; a fast 24h clock so the
+    #  dusk cycle is visible in seconds when roosting is toggled on.
+    ext = {
+        "predator": None,          # Predator3D when spawned (T key)
+        "roosting": False,         # day/night roost cycle (K key)
+        "hour": 12.0,              # time of day, 0–24
+        "day": 15,                 # day-of-year (mid-January)
+        "roost": (WIDTH * 0.5, HEIGHT * 0.5, DEPTH * 0.1),
+    }
+
     print(f"Murmuration 3D — {config.num_boids} birds")
     print(f"Mode: {MODE_NAMES[config.mode]}")
     print("Press M to toggle mode | Space to pause | ESC to quit")
     print("Mouse drag to orbit | Scroll to zoom")
     print("O key: auto-rotate | V key: reset camera view")
+    print("T: predator | K: roosting cycle | U: SI refinements (on)")
 
     # ── Main loop ────────────────────────────────────────────
     while running:
@@ -108,7 +122,7 @@ def main():
         (running, paused, pending_remove, pending_add,
          pending_reset, show_grid) = handle_input(
             config, flock, running, paused, renderer.camera,
-            pending_remove, pending_add, pending_reset, show_grid)
+            pending_remove, pending_add, pending_reset, show_grid, ext)
 
         # ── Auto-rotate the camera for unattended demos (O key) ──
         renderer.camera.step_auto_rotate(dt)
@@ -147,6 +161,17 @@ def main():
             # Per-bird flocking
             for boid in flock:
                 boid.flock(flock, config, grid)
+
+            # ── Behavioural dynamics (Goodenough) ────────────
+            #  Applied as extra steering forces before integration.
+            if ext["predator"] is not None:            # anti-predator flight
+                apply_predator(flock, ext["predator"])
+            if ext["roosting"]:                        # dusk descent to roost
+                ext["hour"] = (ext["hour"] + dt) % 24.0   # fast day clock
+                for boid in flock:
+                    boid.apply_force(roost_force(
+                        boid.pos, ext["hour"], ext["roost"],
+                        ext["day"], strength=MAX_FORCE))
 
             # Per-bird physics
             for boid in flock:

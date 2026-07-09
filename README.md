@@ -84,6 +84,9 @@ Mouse drag to orbit camera, scroll to zoom, **`M`** to toggle mode.
 | `[` / `]` | σ ±1 |
 | `+` / `-` | Add / remove 10 birds |
 | `a`–`h`, `w` | 3D scenario presets (see `scenario_presets_3d.py`) |
+| `T` | Spawn / remove a **predator** (flock takes flight) |
+| `K` | Toggle the **roosting** day/night cycle (dusk descent) |
+| `U` | Toggle Pearce **SI refinements** (steric + blind angles + anisotropy; on by default) |
 | `G` | Toggle grid overlay |
 | `O` | Toggle camera auto-rotate (0.45 rad/s) |
 | `V` | Reset camera view |
@@ -112,8 +115,14 @@ of the render loop:
 | `correlation_time.py` | Pearce et al. 2014 (Fig 2f) | density autocorrelation time τρ — density ρ = N / convex-hull **volume** (scipy Qhull), autocorrelated over a ring buffer |
 | `h2_robustness.py` | Young et al. 2013 | consensus-network robustness — k-NN Laplacian H₂ norm, per-neighbour efficiency η(m), and `cost_optimal_m()` that reproduces the paper's optimal **m\* ≈ 6–7** cohesion-vs-effort trade-off |
 | `flock_shape.py` | Young et al. 2013 | 3D PCA shape analysis — aspect/thickness ratio → shape-driven optimal **m\*** (thin flocks ≈6, round ≈9.8), the paper's "optimum depends on shape, not size" result |
-| `ecology.py` | Goodenough et al. 2017 | seasonal flock-size curve (mid-winter peak), ~500-bird critical-mass onset gate, ~29.6% predator-presence rate |
+| `steric_3d.py` | Pearce et al. 2014 (SI) | short-range 1/d² **steric repulsion** (part of the SI refinements, `U` key) |
+| `predator_3d.py` | Goodenough et al. 2017 | a hunting **predator** (≈2× speed, chases the swarm centre) + per-bird **flight response** — anti-predator behaviour (`T` key) |
+| `ecology.py` | Goodenough et al. 2017 | seasonal flock-size curve, ~500-bird critical-mass gate, ~29.6% predator rate, plus **roosting** (dusk descent), **day-length**, and **temperature** models (`K` key) |
 | `scenario_presets_3d.py` | — | eight one-key 3D regimes (Pearce Default, Ball of Birds, Storm Cloud, 3D Stream, Vertical Column, 3D Acro, Spiral Vortex, 3D Void) |
+
+The Pearce **SI refinements** — blind rear cone + anisotropic (ellipsoid) bodies
+in `occlusion_3d.py`, and steric repulsion in `steric_3d.py` — are on by default
+and toggle together with `U`.
 
 The projection model (`M` → PROJECTION mode) now uses genuine 3D geometry:
 a neighbour directly above or below the observer is occluded and steered

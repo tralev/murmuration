@@ -119,6 +119,90 @@ def predator_present(day_of_year: int, rng=None) -> bool:
     return frac < PREDATOR_RATE
 
 
+# ══════════════════════════════════════════════════════════════════════
+#  Daylight, dusk & roosting  (Goodenough §3: pre-roost, sunset descent)
+# ══════════════════════════════════════════════════════════════════════
+#  Murmurations are a *pre-roost* phenomenon: they build up before sunset
+#  and end with the flock descending en masse to a roost. Duration
+#  correlates positively with day length and (weakly, negatively) with
+#  temperature. We model a UK-latitude daylight curve to place sunset, a
+#  logistic dusk ramp that pulls the flock down to the roost, and a
+#  seasonal temperature proxy with its small duration effect.
+
+DAY_LENGTH_MEAN = 12.0      # hours — annual mean day length
+DAY_LENGTH_AMP  = 4.5       # ±hours seasonal swing (~UK latitude)
+SOLSTICE_DAY    = 172       # ~21 June, longest day
+DUSK_WIDTH      = 1.0       # hours over which the dusk ramp rises
+
+TEMP_MEAN = 9.0             # °C annual mean (temperate)
+TEMP_AMP  = 8.0             # ±°C seasonal swing (coldest ~late Jan)
+
+
+def day_length(day_of_year: int) -> float:
+    """Approximate day length (hours) for the day-of-year, sinusoidal about
+    the summer solstice. Longer days → later sunset → longer displays."""
+    phase = 2 * math.pi * (day_of_year - SOLSTICE_DAY) / _DAYS
+    return DAY_LENGTH_MEAN + DAY_LENGTH_AMP * math.cos(phase)
+
+
+def sunset_hour(day_of_year: int) -> float:
+    """Hour of sunset (24h clock), from day length centred on solar noon."""
+    return 12.0 + day_length(day_of_year) / 2.0
+
+
+def dusk_factor(hour: float, day_of_year: int = 15) -> float:
+    """Smooth 0→1 roosting drive as the day approaches and passes sunset.
+
+    ~0 well before sunset, 0.5 at sunset, ~1 after — a logistic ramp of
+    width DUSK_WIDTH hours centred on the day's sunset.
+    """
+    scale = max(1e-6, DUSK_WIDTH / 4.0)     # width ≈ 10–90% span
+    z = (hour - sunset_hour(day_of_year)) / scale
+    if z < -60:
+        return 0.0
+    if z > 60:
+        return 1.0
+    return 1.0 / (1.0 + math.exp(-z))
+
+
+def temperature(day_of_year: int) -> float:
+    """Seasonal temperature proxy (°C), coldest in late January."""
+    phase = 2 * math.pi * (day_of_year - 20) / _DAYS   # min near day 20
+    return TEMP_MEAN - TEMP_AMP * math.cos(phase)
+
+
+def roost_strength(hour: float, day_of_year: int = 15,
+                   base: float = 1.0) -> float:
+    """Roost-attraction strength at a given time. Rises with the dusk ramp;
+    colder days give a slightly stronger/longer pull (temperature is
+    negatively correlated with duration, per Goodenough — colder → the
+    flock lingers and roosts more decisively)."""
+    temp_boost = 1.0 + 0.2 * (TEMP_MEAN - temperature(day_of_year)) / TEMP_AMP
+    return base * dusk_factor(hour, day_of_year) * max(0.0, temp_boost)
+
+
+def roost_force(bird_pos, hour, roost, day_of_year: int = 15,
+                strength: float = 1.0):
+    """Attraction (numpy Vec3) pulling a bird toward the roost site, scaled
+    by the dusk/temperature roost strength — zero by day, strongest after
+    sunset, producing the en-masse descent. *roost* is an (x, y, z) point
+    (a low z models the ground roost).
+    """
+    import numpy as np
+    diff = np.asarray(roost, dtype=float) - np.asarray(bird_pos, dtype=float)
+    d = float(np.linalg.norm(diff))
+    if d < 1e-9:
+        return np.zeros(3)
+    return (diff / d) * roost_strength(hour, day_of_year, strength)
+
+
+def is_roosting_time(hour: float, day_of_year: int = 15,
+                     threshold: float = 0.5) -> bool:
+    """True once the dusk ramp crosses *threshold* — the flock is being
+    pulled to roost rather than freely displaying."""
+    return dusk_factor(hour, day_of_year) >= threshold
+
+
 # ── helpers ─────────────────────────────────────────────────────────
 
 def _day_to_month(day_of_year: int) -> int:

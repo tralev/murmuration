@@ -59,12 +59,18 @@ class MockGrid:
 
 
 def _make_config(sigma=4, phi_p=0.03, phi_a=0.80, mode=MODE_PROJECTION):
-    """Build a minimal Config for testing."""
+    """Build a minimal Config for testing the *base* projection geometry.
+
+    Pearce SI refinements (blind angles, anisotropy, steric) default on in
+    the live sim but are disabled here so these tests isolate the base
+    model; the refinement tests in test_science_3d.py enable them.
+    """
     c = Config()
     c.sigma = sigma
     c.phi_p = phi_p
     c.phi_a = phi_a
     c.mode = mode
+    c.refinements = False
     return c
 
 

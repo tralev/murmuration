@@ -88,8 +88,11 @@ So the model has only **two free parameters** (`φp`, `φa`); `φn` follows. Swe
 
 ### 1.4 SI-Appendix generalisations
 
-- **Anisotropic bodies** — elliptical birds; projected size depends on viewing
-  angle.
+All three are **implemented for 3D** (see §4.7) and default on, toggled together
+with the `U` key:
+
+- **Anisotropic bodies** — elliptical/ellipsoid birds; projected size depends on
+  viewing angle.
 - **Steric repulsion** — short-range `1/r²` to prevent overlap ("phantom" birds
   in the base model have none).
 - **Blind angles** — an incomplete rear angular field (a blind cone behind each
@@ -170,6 +173,10 @@ flock descending *en masse* to roost.
   (dilution / detection / confusion — "safer together"), rather than recruiting
   birds for a warmer roost. A **critical mass** (~hundreds of birds) is implied
   for a coherent display to form.
+
+These behavioural dynamics — a **hunting predator + flight response**, the
+**dusk roosting descent**, and the **day-length / temperature** envelope that
+sets the roost schedule — are implemented for 3D (see §4.8).
 
 ---
 
@@ -309,17 +316,51 @@ The position update `p ← p + v` (Eq. 2), the weight constraint (Eq. 4, via
 `Config.phi_n = max(0, 1 − φp − φa)`), and every quantity in §4.1–§4.5 are
 implemented exactly as written.
 
+### 4.7 Pearce SI refinements in 3D (`U` key; on by default)
+
+- **Steric repulsion** — a short-range push away from every neighbour inside a
+  steric radius `r_s` (a few body radii):
+  `F_steric = φ_s · Σ_{d<r_s} r̂_{i←j} / d²`.
+- **Blind angles** — a rear blind cone of full angle `β` (default 60°). With
+  heading `ĥ`, a neighbour direction `d̂` is invisible when it lies in the cone
+  behind the bird: `d̂ · (−ĥ) ≥ cos(β/2)`; such neighbours are dropped before
+  occlusion.
+- **Anisotropic bodies** — each neighbour is a prolate spheroid, semi-major
+  `a = b·(a/b)` along its heading `ĥ_j`, semi-minor `b`. Viewed from direction
+  `d̂` (angle `ψ`, `cos ψ = |d̂·ĥ_j|`) its silhouette radius is
+  `b_eff = √((a·sin ψ)² + (b·cos ψ)²)` — large broadside, small end-on — and this
+  `b_eff` replaces `b` in the cap radius `α = asin(b_eff/d)`.
+
+### 4.8 Goodenough behavioural dynamics in 3D
+
+- **Predator + flight response.** A raptor at `r_p` flies ~`2·v₀` toward the
+  swarm centre `r_com`: `v_p ← clamp(v_p + a·unit(r_com − r_p), 2v₀)`,
+  `r_p ← r_p + v_p`. Each bird within the danger radius `R_d` flees away from it,
+  harder when nearer: `F_flee = φ_flee · (1 − d/R_d) · unit(r_i − r_p)`. The
+  dilution/confusion "safer together" behaviour then emerges from the flock's
+  collective flight.
+- **Roosting + day length.** A UK-latitude day-length model
+  `L(day) = L̄ + A·cos(2π(day − solstice)/365)` sets the sunset hour
+  `= 12 + L/2`. A logistic **dusk factor** rises 0→1 across sunset, driving a pull
+  toward a ground **roost** point `p_r` (low `z`):
+  `F_roost = φ_r · dusk(hour) · unit(p_r − r_i)` — zero by day, strongest after
+  sunset, producing the en-masse descent. A seasonal **temperature** proxy
+  (coldest late January) slightly strengthens/prolongs the roost pull, matching
+  the paper's weak negative temperature–duration correlation.
+
 ---
 
 ## 5. Where each idea lives in the code
 
 | Idea | Paper | Module |
 |------|-------|--------|
-| Spherical-cap occlusion, δ̂, Θ | Pearce §1–2, SI 3D | `occlusion_3d.py` |
+| Spherical-cap occlusion (+ blind angles, anisotropy), δ̂, Θ | Pearce §1–2, SI §4.7 | `occlusion_3d.py` |
 | Projection / spatial flocking modes | Pearce Eq. 3 | `spatial_3d.py` |
+| Steric repulsion | Pearce SI §4.7 | `steric_3d.py` |
 | Order param, Θ, Θ′, L, dispersion | Pearce §1.3 | `metrics_3d.py` |
 | Density autocorrelation time τρ | Pearce Fig. 2F | `correlation_time.py` |
 | H₂ consensus robustness, cost-optimal m\* | Young | `h2_robustness.py` |
 | Flock shape → m\* | Young | `flock_shape.py` |
-| Seasonal size, critical mass, predators | Goodenough | `ecology.py` |
+| Predator agent + flight response | Goodenough §4.8 | `predator_3d.py` |
+| Seasonal size, critical mass, predator rate, roosting, day-length, temperature | Goodenough §4.8 | `ecology.py` |
 | Scenario presets (φp, φa, σ regimes) | — | `scenario_presets_3d.py` |

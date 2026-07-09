@@ -34,17 +34,20 @@ from scenario_presets_3d import apply_preset_3d
 
 
 def handle_input(config, flock, running, paused, camera, pending_remove,
-                 pending_add, pending_reset, show_grid):
+                 pending_add, pending_reset, show_grid, ext=None):
     """
     Process Pygame events for one frame of the 3D simulation.
 
-    Mutates *config* and the *camera* in place; returns the updated
-    immutable/loop-control values as a tuple.
+    Mutates *config*, the *camera*, and the *ext* dict in place; returns the
+    updated immutable/loop-control values as a tuple. *ext* carries the
+    behavioural-dynamics state (predator agent, roosting day/night cycle).
 
     Returns
     -------
     (running, paused, pending_remove, pending_add, pending_reset, show_grid)
     """
+    if ext is None:
+        ext = {}
     mouse_drag_sensitivity = 0.005
     prev_mouse = None
 
@@ -100,6 +103,23 @@ def handle_input(config, flock, running, paused, camera, pending_remove,
                 pending_add += 10
             elif key == K_MINUS:
                 pending_remove += 10
+
+            # ── Behavioural dynamics + refinements ───────────────
+            elif key == K_t:                       # T — predator on/off
+                if ext.get("predator") is None:
+                    from predator_3d import Predator3D
+                    ext["predator"] = Predator3D()
+                    print("Predator SPAWNED — flock will flee")
+                else:
+                    ext["predator"] = None
+                    print("Predator removed")
+            elif key == K_k:                       # K — roosting day/cycle
+                ext["roosting"] = not ext.get("roosting", False)
+                print(f"Roosting cycle {'ON' if ext['roosting'] else 'OFF'}")
+            elif key == K_u:                       # U — Pearce SI refinements
+                config.refinements = not config.refinements
+                print(f"SI refinements (steric/blind/anisotropy) "
+                      f"{'ON' if config.refinements else 'OFF'}")
 
             # ── 3D scenario presets (keys a–h, w) ────────────────
             #  Excludes G (K_g), handled above as the grid toggle.

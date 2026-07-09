@@ -97,6 +97,161 @@ class TestSphericalCapOcclusion(unittest.TestCase):
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Pearce SI refinements — steric, blind angles, anisotropic bodies     ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestStericRepulsion(unittest.TestCase):
+    def test_pushes_away_from_close_bird(self):
+        from steric_3d import steric_force
+        from flock_core import BOID_SIZE
+        f = steric_force(_StubBoid((0, 0, 0), (1, 0, 0)),
+                         [_StubBoid((BOID_SIZE * 2, 0, 0), (1, 0, 0))])
+        self.assertLess(f[0], 0.0)                 # pushed toward −X
+
+    def test_no_push_beyond_radius(self):
+        from steric_3d import steric_force, STERIC_RADIUS
+        f = steric_force(_StubBoid((0, 0, 0), (1, 0, 0)),
+                         [_StubBoid((STERIC_RADIUS + 50, 0, 0), (1, 0, 0))])
+        self.assertTrue(np.allclose(f, 0.0))
+
+    def test_closer_pushes_harder(self):
+        from steric_3d import steric_force
+        near = np.linalg.norm(steric_force(
+            _StubBoid((0, 0, 0), (1, 0, 0)), [_StubBoid((6, 0, 0), (1, 0, 0))]))
+        far = np.linalg.norm(steric_force(
+            _StubBoid((0, 0, 0), (1, 0, 0)), [_StubBoid((11, 0, 0), (1, 0, 0))]))
+        self.assertGreater(near, far)
+
+
+class TestBlindAngles(unittest.TestCase):
+    def test_bird_behind_is_invisible(self):
+        from occlusion_3d import spherical_cap_occlusion
+        obs = _StubBoid((0, 0, 0), (0, 1, 0))       # heading +Y
+        behind = _StubBoid((0, -40, 0), (1, 0, 0))  # directly behind
+        bc = math.cos(math.radians(60) / 2)
+        _, vis_no, _ = spherical_cap_occlusion(obs, [behind])
+        _, vis_blind, _ = spherical_cap_occlusion(obs, [behind], blind_cos=bc)
+        self.assertEqual(len(vis_no), 1)
+        self.assertEqual(len(vis_blind), 0)
+
+    def test_bird_ahead_still_visible_with_blind(self):
+        from occlusion_3d import spherical_cap_occlusion
+        obs = _StubBoid((0, 0, 0), (0, 1, 0))       # heading +Y
+        ahead = _StubBoid((0, 40, 0), (1, 0, 0))    # in front
+        bc = math.cos(math.radians(60) / 2)
+        _, vis, _ = spherical_cap_occlusion(obs, [ahead], blind_cos=bc)
+        self.assertEqual(len(vis), 1)
+
+
+class TestAnisotropicBodies(unittest.TestCase):
+    def test_broadside_bigger_than_end_on(self):
+        from occlusion_3d import spherical_cap_occlusion
+        obs = _StubBoid((0, 0, 0), (1, 0, 0))
+        end_on = _StubBoid((60, 0, 0), (1, 0, 0))   # heading along view ray
+        broad = _StubBoid((60, 0, 0), (0, 1, 0))    # heading across view ray
+        _, _, th_end = spherical_cap_occlusion(obs, [end_on], anisotropy=3.0)
+        _, _, th_broad = spherical_cap_occlusion(obs, [broad], anisotropy=3.0)
+        self.assertGreater(th_broad, th_end)
+
+    def test_isotropic_default_unchanged(self):
+        from occlusion_3d import spherical_cap_occlusion
+        obs = _StubBoid((0, 0, 0), (1, 0, 0))
+        b = _StubBoid((50, 0, 0), (0, 1, 0))
+        _, _, th1 = spherical_cap_occlusion(obs, [b])                 # default
+        _, _, th2 = spherical_cap_occlusion(obs, [b], anisotropy=1.0)  # explicit
+        self.assertAlmostEqual(th1, th2)
+
+
+class TestConfigRefinements(unittest.TestCase):
+    def test_blind_cos_off_when_disabled(self):
+        from flock_core import Config
+        c = Config()
+        c.refinements = False
+        self.assertIsNone(c.blind_cos)
+        self.assertEqual(c.anisotropy_eff, 1.0)
+
+    def test_blind_cos_on_by_default(self):
+        from flock_core import Config
+        c = Config()
+        self.assertIsNotNone(c.blind_cos)
+        self.assertGreater(c.anisotropy_eff, 1.0)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Goodenough dynamics — predator agent, roosting, day-length           ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestPredator3D(unittest.TestCase):
+    def test_predator_chases_swarm_centre(self):
+        from predator_3d import Predator3D
+        pred = Predator3D(pos=(0, 0, 0), vel=(0, 0, 0))
+        target = np.array([500.0, 350.0, 200.0])
+        d0 = np.linalg.norm(target - pred.pos)
+        for _ in range(30):
+            pred.update(target)
+        self.assertLess(np.linalg.norm(target - pred.pos), d0)
+
+    def test_flee_points_away_and_scales(self):
+        from predator_3d import flee_force, Predator3D, DANGER_RADIUS
+        pred = Predator3D(pos=(0, 0, 0), vel=(0, 0, 0))
+        near = flee_force(_StubBoid((20, 0, 0), (0, 0, 0)), pred)
+        far = flee_force(_StubBoid((DANGER_RADIUS - 5, 0, 0), (0, 0, 0)), pred)
+        self.assertGreater(near[0], 0.0)                # pushed +X, away
+        self.assertGreater(np.linalg.norm(near), np.linalg.norm(far))
+
+    def test_no_flee_outside_danger(self):
+        from predator_3d import flee_force, Predator3D, DANGER_RADIUS
+        pred = Predator3D(pos=(0, 0, 0), vel=(0, 0, 0))
+        f = flee_force(_StubBoid((DANGER_RADIUS + 100, 0, 0), (0, 0, 0)), pred)
+        self.assertTrue(np.allclose(f, 0.0))
+
+    def test_apply_predator_pushes_a_near_bird(self):
+        from predator_3d import Predator3D, apply_predator
+        pred = Predator3D(pos=(500, 350, 200), vel=(0, 0, 0))
+        b = _StubBoid((520, 350, 200), (0, 0, 0))
+        b._acc = np.zeros(3)
+        b.apply_force = lambda f: setattr(b, "_acc", b._acc + f)
+        apply_predator([b], pred)
+        self.assertTrue(np.linalg.norm(b._acc) > 0.0)
+
+
+class TestRoostingDaylight(unittest.TestCase):
+    def test_day_length_peaks_at_solstice(self):
+        from ecology import day_length, SOLSTICE_DAY, DAY_LENGTH_MEAN
+        self.assertGreater(day_length(SOLSTICE_DAY), DAY_LENGTH_MEAN)
+        self.assertLess(day_length(SOLSTICE_DAY + 182), DAY_LENGTH_MEAN)
+
+    def test_dusk_ramp_monotone(self):
+        from ecology import dusk_factor, sunset_hour
+        day = 15
+        s = sunset_hour(day)
+        self.assertLess(dusk_factor(s - 3, day), 0.5)
+        self.assertAlmostEqual(dusk_factor(s, day), 0.5, places=2)
+        self.assertGreater(dusk_factor(s + 3, day), 0.5)
+
+    def test_roost_force_zero_by_day_pulls_at_dusk(self):
+        from ecology import roost_force, sunset_hour
+        day = 15
+        roost = (500, 350, 40)
+        pos = (500, 350, 300)                       # high above the roost
+        day_f = roost_force(pos, sunset_hour(day) - 4, roost, day)
+        night_f = roost_force(pos, sunset_hour(day) + 4, roost, day)
+        self.assertAlmostEqual(np.linalg.norm(day_f), 0.0, places=3)
+        self.assertLess(night_f[2], 0.0)            # roost is below → pulled down
+        self.assertGreater(np.linalg.norm(night_f), np.linalg.norm(day_f))
+
+    def test_temperature_coldest_in_winter(self):
+        from ecology import temperature
+        self.assertLess(temperature(20), temperature(200))   # Jan < Jul
+
+    def test_is_roosting_time(self):
+        from ecology import is_roosting_time, sunset_hour
+        day = 15
+        self.assertFalse(is_roosting_time(sunset_hour(day) - 3, day))
+        self.assertTrue(is_roosting_time(sunset_hour(day) + 3, day))
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
 # ║  metrics_3d — Pearce observables                                      ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 

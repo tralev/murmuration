@@ -18,6 +18,7 @@ from collections import defaultdict
 import numpy as np
 
 from occlusion_3d import spherical_cap_occlusion
+from steric_3d import steric_force
 from flock_core import (
     WIDTH, HEIGHT, DEPTH, V0, BOID_SIZE, MAX_FORCE,
     MODE_PROJECTION, MODE_SPATIAL,
@@ -125,9 +126,17 @@ def flock_projection_3d(boid, all_boids, config, grid):
         return  # nobody in view → no projection or alignment force
 
     # ── 2. True 3D projection: δ̂, visible neighbours, opacity Θ ─────
-    delta, visible, theta = spherical_cap_occlusion(boid, candidates)
+    #  Pearce SI refinements: blind rear cone + anisotropic bodies are
+    #  applied inside the occlusion (config supplies them, or no-ops when
+    #  refinements are off).
+    delta, visible, theta = spherical_cap_occlusion(
+        boid, candidates,
+        blind_cos=config.blind_cos, anisotropy=config.anisotropy_eff)
     boid.last_theta = theta
     if not visible:
+        # Still apply steric repulsion even with an empty projected view.
+        if config.refinements and config.steric > 0:
+            boid.apply_force(steric_force(boid, candidates, config.steric))
         return
 
     # ── 3. Alignment with the σ nearest visible neighbours ──────────
@@ -168,6 +177,10 @@ def flock_projection_3d(boid, all_boids, config, grid):
     if steer_len > MAX_FORCE:
         steer = (steer / steer_len) * MAX_FORCE
     boid.apply_force(steer)
+
+    # ── 7. Steric repulsion (Pearce SI) — short-range 1/d² push ─────
+    if config.refinements and config.steric > 0:
+        boid.apply_force(steric_force(boid, visible, config.steric))
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -256,3 +269,7 @@ def flock_spatial_3d(boid, all_boids, config, grid):
     boid.apply_force(alignment * config.phi_a * 1.2)
     boid.apply_force(coh_dir * config.phi_n * 1.5)
     boid.apply_force(noise)
+
+    # ── Steric repulsion (Pearce SI) — short-range 1/d² push ────────
+    if config.refinements and config.steric > 0:
+        boid.apply_force(steric_force(boid, neighbours, config.steric))

@@ -78,14 +78,31 @@ def _as_pos(p):
     return np.asarray(pos if pos is not None else p, dtype=float)
 
 
-def spherical_cap_occlusion(observer, neighbours):
+def _heading(bird):
+    """Unit heading of a bird from its velocity; +X if (near-)stationary."""
+    v = getattr(bird, "vel", None)
+    if v is None:
+        return np.array([1.0, 0.0, 0.0])
+    v = np.asarray(v, dtype=float)
+    n = np.linalg.norm(v)
+    return v / n if n > 1e-9 else np.array([1.0, 0.0, 0.0])
+
+
+def spherical_cap_occlusion(observer, neighbours, blind_cos=None, anisotropy=1.0):
     """Compute the 3D projection quantities for one observer bird.
 
     Parameters
     ----------
-    observer   : the viewing bird (needs numpy length-3 ``.pos``)
-    neighbours : iterable of candidate birds (each with ``.pos``); the
-                 observer itself is ignored if present.
+    observer   : the viewing bird (numpy length-3 ``.pos``, ``.vel``)
+    neighbours : iterable of candidate birds (each with ``.pos``/``.vel``);
+                 the observer itself is ignored if present.
+    blind_cos  : if not None, cos of the blind half-angle — a neighbour whose
+                 direction lies within the rear cone (`d̂·(−ĥ) ≥ blind_cos`,
+                 ĥ = observer heading) is invisible (Pearce SI "blind angles").
+    anisotropy : axis ratio `a/b ≥ 1` of a prolate spheroid body elongated
+                 along each neighbour's heading (Pearce SI "anisotropic
+                 bodies"). 1.0 = isotropic (the default). The projected
+                 silhouette radius then depends on the viewing angle.
 
     Returns
     -------
@@ -98,9 +115,10 @@ def spherical_cap_occlusion(observer, neighbours):
       theta   : float — internal opacity Θ ∈ [0, 1].
     """
     obs_pos = _as_pos(observer)
+    neg_heading = -_heading(observer) if blind_cos is not None else None
 
     # ── Gather neighbour displacements (vectorised) ─────────────────
-    others, diffs = [], []
+    others, diffs, headings = [], [], []
     for other in neighbours:
         if other is observer:
             continue
@@ -108,8 +126,13 @@ def spherical_cap_occlusion(observer, neighbours):
         d = float(np.linalg.norm(diff))
         if d < 1e-6:
             continue
+        # Blind-angle filter: a bird directly behind the observer is unseen.
+        if blind_cos is not None and float((diff / d) @ neg_heading) >= blind_cos:
+            continue
         others.append(other)
         diffs.append(diff)
+        if anisotropy != 1.0:
+            headings.append(_heading(other))
 
     if not others:
         return np.zeros(3), [], 0.0
@@ -117,7 +140,22 @@ def spherical_cap_occlusion(observer, neighbours):
     diffs = np.asarray(diffs)                                # (K, 3)
     dists = np.linalg.norm(diffs, axis=1)                    # (K,)
     dirs = diffs / dists[:, None]                            # unit directions
-    alphas = np.arcsin(np.minimum(BOID_SIZE / dists, 1.0))
+
+    # ── Effective body radius (anisotropic bodies) ──────────────────
+    #  A prolate spheroid with semi-major a = b·anisotropy along the
+    #  neighbour's heading and semi-minor b: seen broadside it spans a
+    #  (large), end-on it spans b (small). b_eff = √((a·sinψ)²+(b·cosψ)²)
+    #  with ψ the angle between the view direction and the neighbour axis.
+    if anisotropy != 1.0:
+        hd = np.asarray(headings)                           # (K, 3)
+        cos_psi = np.abs(np.sum(dirs * hd, axis=1))         # |d̂·ĥ_j|
+        sin_psi = np.sqrt(np.maximum(0.0, 1.0 - cos_psi ** 2))
+        a = BOID_SIZE * anisotropy
+        b_eff = np.sqrt((a * sin_psi) ** 2 + (BOID_SIZE * cos_psi) ** 2)
+    else:
+        b_eff = BOID_SIZE
+
+    alphas = np.arcsin(np.minimum(b_eff / dists, 1.0))
     cos_a = np.cos(alphas)
     sin_a = np.sin(alphas)
     omega = 2.0 * math.pi * (1.0 - cos_a)                   # cap solid angles
