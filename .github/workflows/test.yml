@@ -43,6 +43,8 @@ jobs:
           echo "✓ syntax OK"
 
       - name: Run the test suite
+        env:
+          RUN_SLOW_TESTS: "1"   # include the ~25s marginal-opacity integration test
         run: |
           python -m unittest test_3d test_science_3d -v
           echo "✓ tests passed"

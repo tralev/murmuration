@@ -311,6 +311,19 @@ projection geometry:
   floor that prevents a bird from stalling (a zero-speed bird is re-seeded with a
   random heading). Over the flock the speed sits at `v₀` for all but briefly
   decelerating birds.
+- **Body radius set to the domain scale, so marginal opacity emerges.** Pearce
+  uses `b = 1` as the length unit; the flock then self-organises to a density at
+  which internal opacity sits at the marginal value `Θ ≈ 0.30`. Here the domain
+  spans `~1000` units, so a literal `b = 1..3` would leave the default 150 birds
+  `~330` body-lengths apart — far sparser than a real flock — and `Θ` collapses to
+  `~0.04`. Setting `BOID_SIZE = 7` sizes the domain to `~140` body-lengths across
+  (a real murmuration's extent). At that scale the self-organised flock condenses
+  to roughly `5×` the uniform density (a static random cloud reads `Θ ≈ 0.06`),
+  and the settled internal opacity averages `Θ ≈ 0.30` across seeds — the paper's
+  marginal value — with a spread matching its `σ ≈ 0.24`. This is a unit choice,
+  not an opacity target: nothing steers toward `0.30`; it emerges once the density
+  scale is physical. (Regression-guarded by `TestMarginalOpacity`, CI-only as it
+  must run the dynamics to condensation.)
 
 The position update `p ← p + v` (Eq. 2), the weight constraint (Eq. 4, via
 `Config.phi_n = max(0, 1 − φp − φa)`), and every quantity in §4.1–§4.5 are

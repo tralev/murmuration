@@ -333,6 +333,47 @@ class TestFlockMetrics3D(unittest.TestCase):
         self.assertIn("α=", m.summary())
 
 
+class TestMarginalOpacity(unittest.TestCase):
+    """Pearce's emergent 'marginal opacity': a self-organised flock at the
+    default density settles to internal opacity Θ≈0.30, not the ~0.04 seen
+    when the body radius b is far too small for the domain (regression guard
+    on BOID_SIZE, see flock_core). Full steady state (mean Θ≈0.30 across seeds)
+    is reached by ~500 frames; 350 frames already lifts Θ well clear of the
+    sparse-flock floor.
+
+    Running the dynamics to condensation costs ~25s, so this is gated behind
+    RUN_SLOW_TESTS (set in CI) and skipped by the fast pre-commit hook."""
+
+    @unittest.skipUnless(os.environ.get("RUN_SLOW_TESTS"),
+                         "slow integration test — set RUN_SLOW_TESTS=1")
+    def test_default_flock_reaches_marginal_band(self):
+        import random
+        from boid_3d import Boid3D
+        from spatial_3d import SpatialGrid3D
+        from metrics_3d import internal_opacity
+        from flock_core import Config, NUM_BOIDS
+
+        random.seed(1)
+        np.random.seed(1)
+        cfg = Config()
+        cfg.num_boids = NUM_BOIDS
+        grid = SpatialGrid3D()
+        flock = [Boid3D() for _ in range(NUM_BOIDS)]
+        tail = []
+        for f in range(350):
+            grid.rebuild(flock)
+            for b in flock:
+                b.flock(flock, cfg, grid)
+            for b in flock:
+                b.update()
+            if f >= 310:
+                tail.append(internal_opacity(flock))
+        theta = float(np.mean(tail))
+        # Comfortably above the sparse-flock collapse (~0.04) and physical.
+        self.assertGreater(theta, 0.10)
+        self.assertLess(theta, 0.60)
+
+
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  h2_robustness — Young consensus robustness (3D)                      ║
 # ╚══════════════════════════════════════════════════════════════════════╝
