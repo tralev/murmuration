@@ -178,7 +178,8 @@ docker compose up murmuration     # or: tests / shell
 A tracked pre-commit hook (`.githooks/pre-commit`, enabled with
 `git config core.hooksPath .githooks`) runs a syntax check plus the fast suite;
 CI (`.github/workflows/test.yml`) additionally runs the gated slow tests and a
-headless Docker smoke-launch.
+headless Docker smoke-launch. See **[tests.md](tests.md)** for what each test
+area asserts (with the math), and the testing patterns behind the suite.
 
 ---
 
