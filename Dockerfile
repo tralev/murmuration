@@ -47,13 +47,15 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 # ── Project files ───────────────────────────────────────────────────
-#  Copy every Python module (the whole 3D stack + tests) in one shot, so
-#  adding a module never requires touching this Dockerfile. The build
-#  context is trimmed by .dockerignore (papers, notebooks, VCS, etc.).
+#  Copy every Python module (the whole 3D stack + tests) plus the shell test
+#  runner in one shot, so adding a module never requires touching this
+#  Dockerfile. The build context is trimmed by .dockerignore (papers, VCS,
+#  etc.). run_tests.sh is the `tests` service's entrypoint; docker_test.sh is
+#  host-side only but harmless in the image.
 WORKDIR /app
-COPY *.py ./
+COPY *.py *.sh ./
 COPY LICENSE ./
-RUN mkdir -p /app/output
+RUN chmod +x *.sh && mkdir -p /app/output
 
 # ── Default: run the simulation headless on a virtual display ───────
 CMD ["xvfb-run", "-a", "python", "main_3d.py"]

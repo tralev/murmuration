@@ -20,10 +20,11 @@ services:
     tty: true
 
   # ── Test suite — pure numpy/scipy, no GPU or display needed ────────
+  #  Runs the shared gate (syntax check + unit tests) inside the image.
   tests:
     build: .
     image: murmuration:latest
-    command: python -m unittest test_3d test_science_3d -v
+    command: ./run_tests.sh -v
 
   # ── Interactive shell in the image ─────────────────────────────────
   shell:

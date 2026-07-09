@@ -36,18 +36,10 @@ jobs:
         # it imports none of the GL modules (renderer_3d, main_3d, moderngl).
         run: pip install "numpy>=1.21" "scipy>=1.7"
 
-      - name: Syntax check (compile every module)
-        run: |
-          find . -name '*.py' -not -path './.git/*' -not -path './sci/*' \
-            -print0 | xargs -0 -P 4 python -m py_compile
-          echo "✓ syntax OK"
-
-      - name: Run the test suite
+      - name: Run the Python test gate (run_tests.sh)
         env:
           RUN_SLOW_TESTS: "1"   # include the ~25s marginal-opacity integration test
-        run: |
-          python -m unittest test_3d test_science_3d -v
-          echo "✓ tests passed"
+        run: ./run_tests.sh -v
 
   docker:
     name: Docker image builds, tests, and the sim launches
@@ -55,20 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build the image
-        run: docker build -t murmuration:ci .
-
-      - name: Run the test suite inside the image
-        run: docker run --rm murmuration:ci python -m unittest test_3d test_science_3d
-
-      - name: Smoke-launch the 3D simulation headless
-        # Xvfb + Mesa software GL. The sim has no fixed exit, so run it for a
-        # few seconds and assert it reached the main loop (printed its banner)
-        # without crashing on the ModernGL context.
-        run: |
-          out=$(docker run --rm murmuration:ci \
-                  timeout 15 xvfb-run -a python -u main_3d.py 2>&1 || true)
-          echo "$out"
-          echo "$out" | grep -q "Murmuration 3D" \
-            && echo "✓ simulation launched" \
-            || (echo "✗ simulation did not start" && exit 1)
+      - name: Run the Docker test gate (docker_test.sh)
+        # Builds the image, runs the unit tests inside it, and smoke-launches
+        # the 3D simulation headless (Xvfb + Mesa software GL).
+        run: ./docker_test.sh murmuration:ci

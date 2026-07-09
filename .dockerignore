@@ -1,5 +1,5 @@
 # .dockerignore — keep the build context minimal.
-# The Dockerfile does `COPY *.py` + LICENSE; everything else is excluded so
+# The Dockerfile does `COPY *.py *.sh` + LICENSE; everything else is excluded so
 # it never reaches the build context.
 
 # ── Version control ─────────────────────────────────────────────────
