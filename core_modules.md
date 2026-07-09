@@ -4,11 +4,12 @@
 > implemented for the 3D stack: **`metrics_3d.py`** now provides the 3D
 > `FlockMetrics3D` (order parameter α, internal opacity Θ, external opacity Θ′,
 > angular momentum, dispersion), replacing the "needs a 3D metrics core" note
-> for `metrics.py` / `external_opacity.py`; and 3D scenario presets are
-> restored in **`scenario_presets_3d.py`** (wired into `input_handler_3d.py`).
-> The remaining high-value item is still **true 3D spherical-cap occlusion**
-> (from the removed `three_d.py`) to replace the projection XY-plane
-> approximation. See README → "3D Science Modules".
+> for `metrics.py` / `external_opacity.py`; 3D scenario presets are restored in
+> **`scenario_presets_3d.py`**; and — the former top item — **true 3D
+> spherical-cap occlusion is now done** in **`occlusion_3d.py`**, so
+> `spatial_3d.flock_projection_3d` no longer uses the XY-plane approximation or
+> the altitude-cohesion hack (the orphaned `occlusion_geom.py` was removed).
+> See README → "3D Science Modules".
 
 ## Purpose of this document
 

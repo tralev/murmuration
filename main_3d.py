@@ -44,6 +44,7 @@ from spatial_3d import SpatialGrid3D
 from renderer_3d import Renderer3D
 from input_handler_3d import handle_input
 from metrics_3d import FlockMetrics3D
+from correlation_time import CorrelationTimeTracker
 
 
 # ── 3D-specific constants ──────────────────────────────────────────
@@ -81,6 +82,7 @@ def main():
     renderer = Renderer3D(WINDOW_WIDTH, WINDOW_HEIGHT)
     clock = pygame.time.Clock()
     metrics = FlockMetrics3D()      # Pearce-grounded 3D observables
+    corr = CorrelationTimeTracker()  # density autocorrelation time τρ
 
     flock = [Boid3D() for _ in range(config.num_boids)]
 
@@ -152,6 +154,7 @@ def main():
 
             # Scientific metrics (order param, opacity Θ/Θ', L, dispersion)
             metrics.update(flock, config)
+            corr.sample(flock)          # τρ density autocorrelation
 
             frame += 1
 
@@ -172,7 +175,8 @@ def main():
         pygame.display.set_caption(
             f"Murmuration 3D | {mode_name} | {n} birds | "
             f"φp={config.phi_p:.2f} φa={config.phi_a:.2f} "
-            f"σ={config.sigma} | {metrics.summary()} | {fps_val:.0f} FPS"
+            f"σ={config.sigma} | {metrics.summary()} τρ={corr.tau:.0f} | "
+            f"{fps_val:.0f} FPS"
             + (" | PAUSED" if paused else "")
         )
 

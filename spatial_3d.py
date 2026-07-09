@@ -4,10 +4,10 @@
 ╚══════════════════════════════════════════════════════════════════════╝
 
  3D spatial hash grid (27-cell queries) and both flocking mode functions
- for the 3D simulation. Reuses occlusion_geom.py for PROJECTION mode
- (XY-plane projection of angular intervals).
+ for the 3D simulation. PROJECTION mode uses true 3D spherical-cap
+ occlusion (occlusion_3d.py) — not an XY-plane approximation.
 
- Dependencies:  numpy, occlusion_geom, flock_core
+ Dependencies:  numpy, occlusion_3d, flock_core
 ──────────────────────────────────────────────────────────────────────
 """
 
@@ -17,11 +17,7 @@ from collections import defaultdict
 
 import numpy as np
 
-from occlusion_geom import (
-    _normalise_interval,
-    _interval_covered,
-    _merge_interval,
-)
+from occlusion_3d import spherical_cap_occlusion
 from flock_core import (
     WIDTH, HEIGHT, DEPTH, V0, BOID_SIZE, MAX_FORCE,
     MODE_PROJECTION, MODE_SPATIAL,
@@ -94,151 +90,79 @@ class SpatialGrid3D:
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  PROJECTION MODE (MODE 0) — 3D Extension
+#  PROJECTION MODE (MODE 0) — true 3D spherical-cap occlusion
 # ══════════════════════════════════════════════════════════════════════
 #
-#  Strategy for 3D:
-#   1. Project all birds onto the horizontal (XY) plane.
-#   2. Use the existing 2D angular-interval occlusion code to compute
-#      δ̂_xy (delta vector on horizontal plane).
-#   3. Add an altitude cohesion term for the Z-axis:
-#      dz = mean_z_of_visible - self.pos[2], scaled to nudge toward
-#      the flock's altitude.
-#   4. The 3D noise vector has both XY and Z components.
+#  Pearce et al. (2014), extended to 3D exactly as the SI Appendix
+#  describes: each neighbour is a circular cap on the observer's view
+#  sphere, and the light–dark boundaries are curves on that sphere. The
+#  cap geometry, occlusion, δ̂ (from the boundaries) and internal opacity
+#  Θ are computed analytically in occlusion_3d.spherical_cap_occlusion —
+#  no XY-plane projection, and no altitude-cohesion hack (δ̂ is a genuine
+#  3-vector, so cohesion in Z falls out for free).
 #
-#  Performance: limited by MAX_VISIBILITY_RANGE to keep O(K) per bird
-#  rather than O(N²). At 5000 birds with range 200, each bird sees
-#  only ~100-200 others in the visibility range.
+#  Performance: candidate set limited by MAX_VISIBILITY_RANGE via the
+#  spatial grid, so occlusion stays roughly O(K) per bird rather than
+#  O(N²) over the whole flock.
 
 
 def flock_projection_3d(boid, all_boids, config, grid):
     """
-    3D hybrid projection model update for one bird.
-
-    XY-plane occlusion (Pearce et al. 2014) + Z-axis altitude cohesion.
+    3D hybrid projection-model update for one bird, using true spherical-
+    cap occlusion (Pearce et al. 2014, SI Appendix — 3D extension).
 
     Parameters
     ----------
     boid       : Boid3D — the observer bird
-    all_boids  : list[Boid3D] — all birds in the flock
+    all_boids  : list[Boid3D] — all birds in the flock (unused; kept for a
+                 uniform signature with flock_spatial_3d)
     config     : Config — simulation parameters
     grid       : SpatialGrid3D — for candidate filtering
     """
-    # ── 1. Gather visible neighbours via spatial grid filtering ──
+    # ── 1. Candidate neighbours (grid-limited for performance) ──────
     candidates = grid.get_nearby(boid.pos, MAX_VISIBILITY_RANGE)
+    if not candidates or (len(candidates) == 1 and candidates[0] is boid):
+        return  # nobody in view → no projection or alignment force
 
-    # Build angular intervals on XY plane
-    entries = []  # (boid, dist_xy, centre_angle, half_width)
-    for other in candidates:
-        if other is boid:
-            continue
-        dx = other.pos[0] - boid.pos[0]
-        dy = other.pos[1] - boid.pos[1]
-        dist_xy = math.sqrt(dx * dx + dy * dy)
-        if dist_xy < 0.001:
-            continue
-        centre = math.atan2(dy, dx)
-        if centre < 0:
-            centre += 2 * math.pi
-        half = math.asin(min(BOID_SIZE / dist_xy, 1.0))
-        entries.append((other, dist_xy, centre, half))
-
-    if not entries:
-        # No visible birds → no projection or alignment force
+    # ── 2. True 3D projection: δ̂, visible neighbours, opacity Θ ─────
+    delta, visible, theta = spherical_cap_occlusion(boid, candidates)
+    boid.last_theta = theta
+    if not visible:
         return
 
-    # Closest-first processing for correct occlusion
-    entries.sort(key=lambda x: x[1])
-
-    merged = []
-    visible = []  # [(boid, dist_xy), ...]
-
-    for other, dist_xy, centre, half in entries:
-        start = centre - half
-        end = centre + half
-        segments = _normalise_interval(start, end)
-        is_visible = any(
-            not _interval_covered(s, e, merged) for s, e in segments
-        )
-        if is_visible:
-            visible.append((other, dist_xy))
-            for s, e in segments:
-                _merge_interval(s, e, merged)
-
-    # ── 2. δ̂ on XY plane from domain boundaries ──────────────
-    delta_xy = np.zeros(3, dtype=np.float32)
-    for s, e in merged:
-        delta_xy[0] += math.cos(s)
-        delta_xy[1] += math.sin(s)
-        delta_xy[0] += math.cos(e)
-        delta_xy[1] += math.sin(e)
-
-    # Fully surrounded → no projection information
-    if (len(merged) == 1 and
-            merged[0][0] < 1e-9 and
-            merged[0][1] > 2 * math.pi - 1e-9):
-        delta_xy[0] = 0.0
-        delta_xy[1] = 0.0
-
-    delta_len = math.sqrt(delta_xy[0]**2 + delta_xy[1]**2)
-    if delta_len > 0:
-        delta_xy[0] /= delta_len
-        delta_xy[1] /= delta_len
-
-    # ── 3. Internal opacity Θ (cached on boid) ──────────────
-    occluded = sum(e - s for s, e in merged)
-    boid.last_theta = min(occluded / (2 * math.pi), 1.0)
-
-    # ── 4. Alignment with σ nearest visible neighbours ──────
+    # ── 3. Alignment with the σ nearest visible neighbours ──────────
     align = np.zeros(3, dtype=np.float32)
-    if visible:
-        # Take σ nearest (already sorted closest-first in entries, but
-        # visible list may be in a different order — re-sort by distance)
-        visible.sort(key=lambda x: x[1])
-        nearest = visible[:config.sigma]
-        for nb, _ in nearest:
-            align += nb.vel
-        align /= len(nearest)
+    nearest = visible[:config.sigma]              # visible is closest-first
+    for nb, _ in nearest:
+        align += nb.vel
+    align /= len(nearest)
 
-    # ── 5. Altitude cohesion: nudge toward mean Z of visible ─
-    altitude_cohesion = 0.0
-    if visible:
-        mean_z = sum(nb.pos[2] for nb, _ in visible[:config.sigma]) / min(config.sigma, len(visible))
-        altitude_cohesion = (mean_z - boid.pos[2]) * 0.01
-
-    # ── 6. Noise (3D) ──────────────────────────────────────
-    theta = random.uniform(0, 2 * math.pi)
-    phi = random.uniform(0, math.pi)
+    # ── 4. Noise — a uniform random unit vector on the sphere ───────
+    ntheta = random.uniform(0, 2 * math.pi)
+    nphi = random.uniform(0, math.pi)
     noise = np.array([
-        math.cos(theta) * math.sin(phi),
-        math.sin(theta) * math.sin(phi),
-        math.cos(phi),
+        math.cos(ntheta) * math.sin(nphi),
+        math.sin(ntheta) * math.sin(nphi),
+        math.cos(nphi),
     ], dtype=np.float32)
 
-    # ── 7. Desired direction (Eq. 3 from Pearce, 3D extended) ──
-    desired = delta_xy * config.phi_p
+    # ── 5. Desired velocity  v = φp·δ̂ + φa·⟨v̂⟩ + φn·η̂  (Pearce Eq. 3)
+    #  δ̂ is already a full 3-vector, so it drives cohesion in all axes.
+    desired = delta.astype(np.float32) * config.phi_p
     align_len = np.linalg.norm(align)
     if align_len > 0.001:
         desired += (align / align_len) * config.phi_a
     elif np.linalg.norm(boid.vel) > 0.001:
         desired += (boid.vel / np.linalg.norm(boid.vel)) * config.phi_a
-    desired[2] += altitude_cohesion * config.phi_n
     desired += noise * config.phi_n
 
     desired_len = np.linalg.norm(desired)
     if desired_len < 0.001:
-        theta = random.uniform(0, 2 * math.pi)
-        phi = random.uniform(0, math.pi)
-        desired = np.array([
-            math.cos(theta) * math.sin(phi),
-            math.sin(theta) * math.sin(phi),
-            math.cos(phi),
-        ], dtype=np.float32)
-
-    # Normalise to V0
+        desired = noise
+        desired_len = 1.0
     desired = (desired / desired_len) * V0
 
-    # ── 8. Reynolds steering ────────────────────────────────
+    # ── 6. Reynolds steering toward the desired velocity ────────────
     steer = desired - boid.vel
     steer_len = np.linalg.norm(steer)
     if steer_len > MAX_FORCE:

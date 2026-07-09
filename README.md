@@ -105,10 +105,19 @@ papers (PDFs in `sci/`). These are standalone, unit-tested modules
 
 | Module | Paper | What it provides |
 |--------|-------|------------------|
+| `occlusion_3d.py` | Pearce et al. 2014 (SI) | **true 3D spherical-cap occlusion** — each neighbour subtends a circular cap on the view sphere; δ̂ is the resolved vector sum of the light–dark *domain boundaries* (cohesive, and the source of marginal opacity), Θ is the union of the caps. Analytic (not a lattice z-buffer), so it resolves the sim's sparse caps at any density. Replaces the old XY-plane approximation + altitude-cohesion hack |
 | `metrics_3d.py` | Pearce et al. 2014 | `FlockMetrics3D` — order parameter α = \|Σv̂\|/N, internal opacity Θ (marginally-opaque flocks sit near μ≈0.30), external opacity Θ′ (rasterised silhouette coverage from a distant observer), angular momentum L, dispersion σ_r |
+| `correlation_time.py` | Pearce et al. 2014 (Fig 2f) | density autocorrelation time τρ — density ρ = N / convex-hull **volume** (scipy Qhull), autocorrelated over a ring buffer |
 | `h2_robustness.py` | Young et al. 2013 | consensus-network robustness — k-NN Laplacian H₂ norm, per-neighbour efficiency η(m), and `cost_optimal_m()` that reproduces the paper's optimal **m\* ≈ 6–7** cohesion-vs-effort trade-off |
+| `flock_shape.py` | Young et al. 2013 | 3D PCA shape analysis — aspect/thickness ratio → shape-driven optimal **m\*** (thin flocks ≈6, round ≈9.8), the paper's "optimum depends on shape, not size" result |
 | `ecology.py` | Goodenough et al. 2017 | seasonal flock-size curve (mid-winter peak), ~500-bird critical-mass onset gate, ~29.6% predator-presence rate |
 | `scenario_presets_3d.py` | — | eight one-key 3D regimes (Pearce Default, Ball of Birds, Storm Cloud, 3D Stream, Vertical Column, 3D Acro, Spiral Vortex, 3D Void) |
+
+The projection model (`M` → PROJECTION mode) now uses genuine 3D geometry:
+a neighbour directly above or below the observer is occluded and steered
+toward correctly — something the previous XY-plane projection (which flattened
+every neighbour onto the horizontal plane and bolted on an ad-hoc altitude
+nudge) could not represent.
 
 ---
 

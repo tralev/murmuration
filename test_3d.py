@@ -491,49 +491,39 @@ class TestFlockProjection3D(unittest.TestCase):
         # With two visible birds at different angles, theta > 0
         self.assertGreater(boid.last_theta, 0.0)
 
-    # ── Altitude cohesion ──────────────────────────────────────────
+    # ── 3D cohesion via the genuine 3-vector δ̂ ─────────────────────
+    #  (Replaces the old "altitude cohesion" hack — the true 3D
+    #   spherical-cap δ̂ carries a Z component on its own.  These use a
+    #   projection-dominant weighting + a fixed RNG seed so the small,
+    #   physically-honest δ̂ term isn't swamped by the noise term.)
 
-    def test_altitude_nudge_when_visible_bird_different_z(self):
-        """Visible bird at different Z → altitude cohesion applied."""
+    def test_delta_has_z_component_when_bird_above(self):
+        """A visible bird at higher Z → δ̂ steers with +Z (drawn upward
+        toward the flock) — the XY-plane approximation could never do this."""
+        random.seed(7)
         boid = MockBoid(500, 350, 200, V0, 0, 0)
-        other = MockBoid(600, 350, 300, V0, 0, 0)  # higher Z
-        config = _make_config(mode=MODE_PROJECTION)
+        other = MockBoid(600, 350, 320, V0, 0, 0)  # higher Z
+        config = _make_config(phi_p=0.9, phi_a=0.05, mode=MODE_PROJECTION)
         grid = MockGrid([boid, other])
 
         flock_projection_3d(boid, [boid, other], config, grid)
 
-        steer = boid._forces[0]
-        # Steer should have positive Z component (nudge toward higher altitude)
-        self.assertGreater(steer[2], 0.0,
-                           f"Steer Z should be positive (nudge up), got z={steer[2]:.5f}")
+        self.assertGreater(boid._forces[0][2], 0.0,
+                           f"Steer Z should be positive (toward higher bird), "
+                           f"got z={boid._forces[0][2]:.5f}")
 
-    def test_altitude_nudge_up_when_visible_above(self):
-        """Visible bird above → altitude cohesion pushes upward (positive Z)."""
-        boid = MockBoid(500, 350, 200, 0, V0, 0)
-        other = MockBoid(600, 350, 300, V0, 0, 0)  # higher Z
-        config = _make_config(sigma=1, mode=MODE_PROJECTION)
+    def test_cohesion_down_when_visible_below(self):
+        """Visible bird below → δ̂ steers with −Z (drawn downward)."""
+        random.seed(7)
+        boid = MockBoid(500, 350, 200, V0, 0, 0)
+        other = MockBoid(600, 350, 80, V0, 0, 0)   # lower Z
+        config = _make_config(phi_p=0.9, phi_a=0.05, mode=MODE_PROJECTION)
         grid = MockGrid([boid, other])
 
         flock_projection_3d(boid, [boid, other], config, grid)
 
-        steer = boid._forces[0]
-        # Visible bird at higher Z → altitude cohesion pushes up (positive Z)
-        self.assertGreater(steer[2], -0.01,
-            f"Altitude should push up (Z ≥ ~0), got z={steer[2]:.5f}")
-
-    def test_altitude_nudge_down_when_visible_below(self):
-        """Visible bird below → altitude cohesion pushes downward (negative Z)."""
-        boid = MockBoid(500, 350, 200, 0, V0, 0)
-        other = MockBoid(600, 350, 100, V0, 0, 0)  # lower Z
-        config = _make_config(sigma=1, mode=MODE_PROJECTION)
-        grid = MockGrid([boid, other])
-
-        flock_projection_3d(boid, [boid, other], config, grid)
-
-        steer = boid._forces[0]
-        # Visible bird at lower Z → altitude cohesion pushes down (negative Z)
-        self.assertLess(steer[2], 0.01,
-            f"Altitude should push down (Z ≤ ~0), got z={steer[2]:.5f}")
+        self.assertLess(boid._forces[0][2], 0.0,
+            f"δ̂ should draw down (negative Z), got z={boid._forces[0][2]:.5f}")
 
     # ── Steer clamping ─────────────────────────────────────────────
 

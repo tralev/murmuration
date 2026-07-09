@@ -30,6 +30,73 @@ class _StubBoid:
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
+# ║  occlusion_3d — true 3D spherical-cap projection (Pearce)             ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestSphericalCapOcclusion(unittest.TestCase):
+    """Analytic 3D spherical-cap occlusion: δ̂ from domain boundaries, Θ,
+    closest-first visibility."""
+
+    def test_fibonacci_sphere_is_unit_vectors(self):
+        from occlusion_3d import fibonacci_sphere
+        pts = fibonacci_sphere(200)
+        self.assertEqual(pts.shape, (200, 3))
+        self.assertTrue(np.allclose(np.linalg.norm(pts, axis=1), 1.0))
+
+    def test_empty_returns_zero(self):
+        from occlusion_3d import spherical_cap_occlusion
+        d, vis, th = spherical_cap_occlusion(_StubBoid((0, 0, 0), (1, 0, 0)), [])
+        self.assertEqual(list(d), [0, 0, 0])
+        self.assertEqual(vis, [])
+        self.assertEqual(th, 0.0)
+
+    def test_delta_points_toward_single_neighbour(self):
+        """δ̂ resolves toward a lone neighbour's silhouette (cohesion),
+        even at a distance the old lattice method could not resolve."""
+        from occlusion_3d import spherical_cap_occlusion
+        obs = _StubBoid((0, 0, 0), (0, 1, 0))
+        d, vis, th = spherical_cap_occlusion(obs, [_StubBoid((100, 0, 0), (1, 0, 0))])
+        self.assertGreater(d[0], 0.9)          # toward +X (the bird)
+        self.assertGreater(th, 0.0)            # non-zero opacity
+        self.assertEqual(len(vis), 1)
+
+    def test_delta_is_genuinely_3d(self):
+        """A neighbour purely above → δ̂ has the Z component the old
+        XY-plane approximation could never produce."""
+        from occlusion_3d import spherical_cap_occlusion
+        d, _, _ = spherical_cap_occlusion(_StubBoid((0, 0, 0), (1, 0, 0)),
+                                          [_StubBoid((0, 0, 80), (1, 0, 0))])
+        self.assertGreater(d[2], 0.9)
+
+    def test_closest_first_occlusion(self):
+        """A nearer bird hides a farther one directly behind it."""
+        from occlusion_3d import spherical_cap_occlusion
+        obs = _StubBoid((0, 0, 0), (1, 0, 0))
+        d, vis, th = spherical_cap_occlusion(
+            obs, [_StubBoid((30, 0, 0), (1, 0, 0)),
+                  _StubBoid((60, 0, 0), (1, 0, 0))])  # same +X ray, behind
+        self.assertEqual(len(vis), 1)
+
+    def test_angularly_separated_both_visible(self):
+        from occlusion_3d import spherical_cap_occlusion
+        obs = _StubBoid((0, 0, 0), (1, 0, 0))
+        _, vis, _ = spherical_cap_occlusion(
+            obs, [_StubBoid((50, 0, 0), (1, 0, 0)),
+                  _StubBoid((0, 50, 0), (1, 0, 0))])   # +X and +Y
+        self.assertEqual(len(vis), 2)
+
+    def test_theta_rises_with_more_neighbours(self):
+        from occlusion_3d import spherical_cap_occlusion
+        obs = _StubBoid((0, 0, 0), (1, 0, 0))
+        _, _, th1 = spherical_cap_occlusion(obs, [_StubBoid((40, 0, 0), (1, 0, 0))])
+        many = [_StubBoid((40 * math.cos(a), 40 * math.sin(a), 0), (1, 0, 0))
+                for a in np.linspace(0, 2 * math.pi, 12, endpoint=False)]
+        _, _, th_many = spherical_cap_occlusion(obs, many)
+        self.assertGreater(th_many, th1)
+        self.assertLessEqual(th_many, 1.0)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
 # ║  metrics_3d — Pearce observables                                      ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
@@ -196,6 +263,88 @@ class TestEcology(unittest.TestCase):
     def test_predator_deterministic_per_day(self):
         from ecology import predator_present
         self.assertEqual(predator_present(42), predator_present(42))
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  flock_shape — Young shape → optimal m* (3D)                          ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestFlockShape3D(unittest.TestCase):
+    def test_thin_flock_low_m(self):
+        from flock_shape import analyze_shape
+        thin = [_StubBoid((x, 0.0, 0.0), (0, 0, 0)) for x in range(0, 600, 15)]
+        rep = analyze_shape(thin)
+        self.assertGreater(rep.aspect_ratio, 3.0)
+        self.assertLessEqual(rep.suggested_m, 7.0)
+
+    def test_round_flock_high_m(self):
+        from flock_shape import analyze_shape
+        random.seed(3)
+        rnd = [_StubBoid((random.uniform(-50, 50), random.uniform(-50, 50),
+                          random.uniform(-50, 50)), (0, 0, 0)) for _ in range(80)]
+        rep = analyze_shape(rnd)
+        self.assertLess(rep.aspect_ratio, 1.8)
+        self.assertGreater(rep.suggested_m, 8.0)
+
+    def test_thickness_ratio_bounds(self):
+        from flock_shape import analyze_shape
+        random.seed(4)
+        rnd = [_StubBoid((random.uniform(-40, 40), random.uniform(-40, 40),
+                          random.uniform(-40, 40)), (0, 0, 0)) for _ in range(50)]
+        rep = analyze_shape(rnd)
+        self.assertGreater(rep.thickness_ratio, 0.0)
+        self.assertLessEqual(rep.thickness_ratio, 1.0)
+
+    def test_m_star_monotone(self):
+        from flock_shape import suggested_m_star
+        self.assertGreater(suggested_m_star(1.0), suggested_m_star(3.0))
+
+    def test_degenerate_few_points(self):
+        from flock_shape import analyze_shape
+        rep = analyze_shape([_StubBoid((0, 0, 0), (0, 0, 0)),
+                             _StubBoid((1, 1, 1), (0, 0, 0))])
+        self.assertEqual(rep.count, 2)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  correlation_time — Pearce τρ (3D hull volume)                        ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestCorrelationTime3D(unittest.TestCase):
+    def test_cube_volume(self):
+        from correlation_time import convex_hull_volume
+        cube = [_StubBoid(p, (0, 0, 0)) for p in
+                [(0, 0, 0), (10, 0, 0), (0, 10, 0), (0, 0, 10),
+                 (10, 10, 10), (10, 10, 0), (10, 0, 10), (0, 10, 10)]]
+        self.assertAlmostEqual(convex_hull_volume(cube), 1000.0, places=3)
+
+    def test_degenerate_returns_zero(self):
+        from correlation_time import convex_hull_volume
+        # Fewer than 4 points, and coplanar points, have no 3D volume.
+        self.assertEqual(convex_hull_volume(
+            [_StubBoid((0, 0, 0), (0, 0, 0)), _StubBoid((1, 1, 1), (0, 0, 0))]),
+            0.0)
+        coplanar = [_StubBoid((x, y, 0), (0, 0, 0))
+                    for x in (0, 1) for y in (0, 1)]
+        self.assertEqual(convex_hull_volume(coplanar), 0.0)
+
+    def test_tracker_accumulates_samples(self):
+        from correlation_time import CorrelationTimeTracker, SAMPLE_INTERVAL
+        random.seed(5)
+        t = CorrelationTimeTracker()
+        for _ in range(SAMPLE_INTERVAL * 20):
+            flock = [_StubBoid((random.uniform(0, 100), random.uniform(0, 100),
+                                random.uniform(0, 100)), (0, 0, 0))
+                     for _ in range(20)]
+            t.sample(flock)
+        self.assertEqual(t.n_samples, 20)
+        self.assertGreaterEqual(t.tau, 0.0)
+
+    def test_tau_zero_before_enough_samples(self):
+        from correlation_time import CorrelationTimeTracker
+        t = CorrelationTimeTracker()
+        t.sample([_StubBoid((0, 0, 0), (0, 0, 0))])
+        self.assertEqual(t.tau, 0.0)
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗

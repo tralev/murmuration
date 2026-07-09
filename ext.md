@@ -1,14 +1,21 @@
 # Extensions — Reference for Re-implementation in the 3D Stack
 
-> **Status update:** the paper-grounded analysis extensions have since been
-> ported to the 3D stack as standalone, unit-tested modules (tests in
-> `test_science_3d.py`): **`h2_robustness.py`** (Young et al. consensus H₂ +
-> cost-optimal m*, verified to land at m*≈6–7 in 3D) and **`ecology.py`**
-> (Goodenough seasonal flock-size curve, ~500-bird critical-mass gate, predator
-> presence — merging the former `seasonal.py` + `critical_mass.py`). The
-> behaviour/agent extensions below (threat, wander, leader, vacuole, …) and the
-> **true 3D spherical-cap occlusion** from `three_d.py` are still to do; the
-> port notes here remain the spec for them.
+> **Status update:** several paper-grounded modules have since been ported to
+> the 3D stack as standalone, unit-tested modules (tests in `test_science_3d.py`):
+> **`occlusion_3d.py`** — true 3D spherical-cap occlusion (the `three_d.py`
+> item), now driving `spatial_3d.flock_projection_3d` instead of the XY-plane
+> approximation; **`h2_robustness.py`** (Young consensus H₂ + cost-optimal m*,
+> m*≈6–7 in 3D); **`flock_shape.py`** (Young 3D shape→m*); **`correlation_time.py`**
+> (Pearce τρ via 3D convex-hull volume); and **`ecology.py`** (Goodenough
+> seasonal + critical mass + predator, merging the former `seasonal.py` +
+> `critical_mass.py`). The behaviour/agent extensions below (threat, wander,
+> leader, vacuole, …) are still to do; the port notes here remain their spec.
+>
+> Note: the analytic cap algebra in `occlusion_3d.py` supersedes `three_d.py`'s
+> Fibonacci-lattice z-buffer, which under-resolves at this sim's density (a
+> distant bird's cap covers < 1 lattice point). It also fixes `three_d.py`'s δ̂
+> sign: Pearce's δ̂ points to the light–dark *boundaries* (cohesion), not to the
+> unoccluded open sky (separation) as `three_d.py` computed.
 
 ## Purpose of this document
 

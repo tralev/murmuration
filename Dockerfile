@@ -37,10 +37,12 @@ RUN pip install --no-cache-dir \
 WORKDIR /app
 COPY main_3d.py boid_3d.py spatial_3d.py renderer_3d.py ./
 COPY camera_3d.py shaders_3d.py capture_3d.py ./
-COPY input_handler_3d.py occlusion_geom.py flock_core.py features.py ./
-# Paper-grounded 3D science modules (Pearce metrics, Young H₂, Goodenough
-# ecology) + restored 3D scenario presets, and their tests.
-COPY metrics_3d.py h2_robustness.py ecology.py scenario_presets_3d.py ./
+COPY input_handler_3d.py flock_core.py features.py ./
+# Paper-grounded 3D science modules: Pearce (true spherical-cap occlusion,
+# metrics, correlation time τρ), Young (H₂ robustness, shape→m*), Goodenough
+# (ecology) + restored 3D scenario presets, and their tests.
+COPY occlusion_3d.py metrics_3d.py correlation_time.py flock_shape.py ./
+COPY h2_robustness.py ecology.py scenario_presets_3d.py ./
 COPY test_3d.py test_science_3d.py ./
 COPY LICENSE ./
 
