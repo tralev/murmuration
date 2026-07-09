@@ -3,7 +3,7 @@
 ║  FLOCK SHAPE ANALYSIS (3D) — shape-dependent optimal neighbours     ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Source (see sci/): Young, Scardovi, Cavagna, Giardina & Leonard (2013),
+ Source (see sci.md): Young, Scardovi, Cavagna, Giardina & Leonard (2013),
  "Starling Flock Networks Manage Uncertainty in Consensus at Low Cost"
  (arXiv:1302.3195). The paper's key structural result is that the optimal
  number of interaction neighbours does **not** depend on flock size but on

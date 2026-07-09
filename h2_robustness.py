@@ -3,7 +3,7 @@
 ║  H₂ ROBUSTNESS — consensus-network robustness (3D)                  ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Source (see sci/): Young, Scardovi, Cavagna, Giardina & Leonard (2013),
+ Source (see sci.md): Young, Scardovi, Cavagna, Giardina & Leonard (2013),
  "Starling Flock Networks Manage Uncertainty in Consensus at Low Cost"
  (arXiv:1302.3195 / PLoS Comput Biol 9(1): e1002894).
 

@@ -100,8 +100,10 @@ angular momentum L, dispersion σ_r) are shown in the window title bar — see
 ### 3D Science Modules
 
 The 3D stack implements the observables and models from the three founding
-papers (PDFs in `sci/`). These are standalone, unit-tested modules
-(`test_science_3d.py`) usable independently of the render loop:
+papers — Pearce et al. (2014), Young et al. (2013), Goodenough et al. (2017) —
+distilled with their equations and the 3D math in **[sci.md](sci.md)**. These
+are standalone, unit-tested modules (`test_science_3d.py`) usable independently
+of the render loop:
 
 | Module | Paper | What it provides |
 |--------|-------|------------------|

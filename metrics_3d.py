@@ -4,7 +4,7 @@
 ╚══════════════════════════════════════════════════════════════════════╝
 
  Ports the 2D metrics core to the 3D (numpy Vec3) stack, implementing the
- observables the founding papers actually measure. Sources (see sci/):
+ observables the founding papers actually measure. Sources (see sci.md):
 
    • Pearce, Miller, Rowlands & Turner (2014), "The Role of Projection in
      the Control of Bird Flocks" (arXiv:1407.2414):

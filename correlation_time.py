@@ -3,7 +3,7 @@
 ║  CORRELATION TIME τρ (3D) — density-fluctuation timescale           ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Source (see sci/): Pearce, Miller, Rowlands & Turner (2014), "The Role of
+ Source (see sci.md): Pearce, Miller, Rowlands & Turner (2014), "The Role of
  Projection in the Control of Bird Flocks" (arXiv:1407.2414). Fig. 2f
  reports the "swarm density autocorrelation time τρ" — how long density
  fluctuations persist, a characteristic timescale of the flock's internal

@@ -3,7 +3,7 @@
 ║  3D SPHERICAL-CAP OCCLUSION — physically-correct projection model    ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Source (see sci/): Pearce, Miller, Rowlands & Turner (2014), "The Role of
+ Source (see sci.md): Pearce, Miller, Rowlands & Turner (2014), "The Role of
  Projection in the Control of Bird Flocks" (arXiv:1407.2414). The SI
  Appendix states the model "easily can be extended to 3D flocks, in which
  the light–dark [boundaries] become curves on the surface of a sphere."
