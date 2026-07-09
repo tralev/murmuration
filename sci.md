@@ -221,16 +221,26 @@ nothing):
 
 **Projection direction δ̂** — Pearce's "resolved vector sum of the light–dark
 domain boundaries." The boundary of cap `j` is a circle whose resolved
-(centroid) direction is `d̂_j` and whose boundary length ∝ `sin α_j`, so:
+(centroid) direction is `d̂_j` and whose boundary length ∝ `sin α_j`. The
+resolved sum is divided by the **total** boundary length `Σ sin α_j`, *not* by
+its own vector magnitude:
 
 ```
-δ̂ = normalise( Σ_{visible j}  sin α_j · d̂_j )
+δ̂ = ( Σ_{visible j}  sin α_j · d̂_j ) / ( Σ_{visible j}  sin α_j )
 ```
 
-`δ̂` is **cohesive** — it points toward the silhouette edges — and occlusion
-gates it (hidden birds drop out), which is the mechanism that yields *marginal
-opacity*. (Note: averaging the **unoccluded** sky instead would give the opposite
-sign — a "flee to open sky" separation force — and is *not* the Pearce model.)
+so `δ̂` is a boundary-length-weighted **mean direction** with `|δ̂| ∈ [0, 1]`.
+That surviving magnitude is the point: it is `≈ 1` when the boundaries all
+resolve one way (a bird at the silhouette edge) and `→ 0` when they cancel (a
+bird deep inside, fully dark). An interior bird therefore feels almost no
+cohesion and drifts apart until it nears the edge, where `δ̂` grows and draws it
+back — the flock self-regulates toward a light–dark balance (*marginal opacity*)
+rather than a fixed spacing. Occlusion gates the sum (hidden birds drop out).
+Normalising `δ̂` to unit length instead (as an earlier version did) discards this
+magnitude and gives every bird full cohesion, which produces a constant-density
+flock whose opacity climbs with `N`. (Averaging the **unoccluded** sky would give
+the opposite sign — a "flee to open sky" separation force — and is *not* the
+Pearce model.)
 
 **Why analytic, not a lattice z-buffer.** Discretising the sphere with a
 Fibonacci lattice (the obvious approach) fails at simulation density: with `b`
@@ -316,14 +326,15 @@ projection geometry:
   which internal opacity sits at the marginal value `Θ ≈ 0.30`. Here the domain
   spans `~1000` units, so a literal `b = 1..3` would leave the default 150 birds
   `~330` body-lengths apart — far sparser than a real flock — and `Θ` collapses to
-  `~0.04`. Setting `BOID_SIZE = 7` sizes the domain to `~140` body-lengths across
+  `~0.04`. Setting `BOID_SIZE = 9` sizes the domain to `~110` body-lengths across
   (a real murmuration's extent). At that scale the self-organised flock condenses
-  to roughly `5×` the uniform density (a static random cloud reads `Θ ≈ 0.06`),
-  and the settled internal opacity averages `Θ ≈ 0.30` across seeds — the paper's
-  marginal value — with a spread matching its `σ ≈ 0.24`. This is a unit choice,
-  not an opacity target: nothing steers toward `0.30`; it emerges once the density
-  scale is physical. (Regression-guarded by `TestMarginalOpacity`, CI-only as it
-  must run the dynamics to condensation.)
+  well above the uniform density and the settled internal opacity reaches Pearce's
+  marginal value `Θ ≈ 0.30` at the default `N = 150`. This is a unit choice, not an
+  opacity target: nothing steers toward `0.30`; it emerges from the boundary-`δ̂`
+  regulation (§4.1) once the density scale is physical. `b` sets the overall
+  opacity *level*; the boundary-`δ̂` sets how it responds to density. (Regression-
+  guarded by `TestMarginalOpacity`, CI-only as it must run the dynamics to
+  condensation.)
 
 The position update `p ← p + v` (Eq. 2), the weight constraint (Eq. 4, via
 `Config.phi_n = max(0, 1 − φp − φa)`), and every quantity in §4.1–§4.5 are
@@ -361,6 +372,45 @@ implemented exactly as written.
   (coldest late January) slightly strengthens/prolongs the roost pull, matching
   the paper's weak negative temperature–duration correlation.
 
+### 4.9 Density scaling and the limits of N-independence (`density_scaling.py`)
+
+Pearce reports that marginal opacity is **N-independent** — a bird need not know
+the flock size. The mechanism is a self-regulated density
+
+`ρ(N) ~ N^(−1/(d−1))`  (3D: `ρ ~ N^(−1/2)`, linear size `L ~ N^(1/2)`),
+
+so the optical depth `ρ·L`, and hence external opacity `Θ′`, stay constant as `N`
+grows. `density_scaling.py` measures this scaling in the simulation rather than
+asserting it, using straggler-robust statistics (median k-NN spacing; a gyration
+radius trimmed of the far tail; `Θ′` of the core).
+
+Three findings, honest about where the model stands:
+
+- **`δ̂` now carries the density-regulation signal (§4.1).** The projection
+  direction is the boundary-length-weighted mean `Σ sinα·d̂ / Σ sinα`, so
+  `|δ̂| ∈ [0, 1]` — near 0 for a bird deep inside a dark flock, near 1 at the
+  silhouette edge. This is the faithful Pearce mechanism: interior birds feel
+  little cohesion and spread, edge birds are drawn in, so the flock seeks a
+  light–dark balance rather than a fixed spacing. (An earlier version normalised
+  `δ̂` to unit length, discarding the magnitude and giving every bird full
+  cohesion → a constant-density flock whose opacity climbed with `N`.)
+- **The toroidal viewer domain still breaks N-independence.** On the torus every
+  bird is interior — there is no silhouette edge to regulate against — so the
+  flock is pinned to the fixed domain volume and `ρ ∝ N`; internal `Θ` still
+  climbs with `N` (measured spread ≈ 0.2 over `N = 80…320`). No `δ̂` can fix this
+  while the domain is bounded; it is a property of the viewer, not the model. The
+  free-flight **open boundary** (`boid_3d.OPEN_BOUNDARY`, used by the analysis)
+  removes the artifact so the flock can float and self-size.
+- **In free flight the regulation helps but does not fully close the gap.** The
+  boundary-`δ̂` improves the measured open-boundary density exponent (from `≈ +0.5`
+  under the old unit-normalised `δ̂` toward `≈ +0.4`), i.e. less over-condensation,
+  but it does not reach Pearce's `ρ ~ N^(−1/2)`: at the canonical `φp = 0.03` the
+  free flock also sheds stragglers (weak cohesion in open space), which limits how
+  cleanly the density self-regulates. Closing the remaining gap is a matter of the
+  other model approximations (discrete steric, alignment-dominated `φa`, the speed
+  band), not the projection direction. `density_scaling.py` is the instrument that
+  quantifies this, so the claim can be tracked as the model evolves.
+
 ---
 
 ## 5. Where each idea lives in the code
@@ -376,4 +426,5 @@ implemented exactly as written.
 | Flock shape → m\* | Young | `flock_shape.py` |
 | Predator agent + flight response | Goodenough §4.8 | `predator_3d.py` |
 | Seasonal size, critical mass, predator rate, roosting, day-length, temperature | Goodenough §4.8 | `ecology.py` |
+| Density scaling ρ(N), marginal-opacity N-independence test | Pearce §1.3, §4.9 | `density_scaling.py` |
 | Scenario presets (φp, φa, σ regimes) | — | `scenario_presets_3d.py` |

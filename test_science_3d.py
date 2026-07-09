@@ -375,6 +375,78 @@ class TestMarginalOpacity(unittest.TestCase):
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
+# ║  density_scaling — is marginal opacity N-independent? (Pearce)        ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestDensityEstimators(unittest.TestCase):
+    """Fast, deterministic checks of the straggler-robust geometry estimators
+    that the density-scaling analysis is built on."""
+
+    def test_local_spacing_on_a_line(self):
+        from density_scaling import local_spacing
+        pts = [(10.0 * i, 0.0, 0.0) for i in range(12)]   # 1-D lattice, step 10
+        self.assertAlmostEqual(local_spacing(pts, k=1), 10.0, places=6)
+
+    def test_local_spacing_too_few_points(self):
+        from density_scaling import local_spacing
+        self.assertEqual(local_spacing([(0, 0, 0), (1, 0, 0)], k=7), 0.0)
+
+    def test_gyration_radius_of_a_shell(self):
+        from density_scaling import gyration_radius
+        rng = np.random.default_rng(0)
+        v = rng.normal(size=(400, 3))
+        v /= np.linalg.norm(v, axis=1, keepdims=True)     # unit sphere, R=50
+        pts = v * 50.0
+        self.assertAlmostEqual(gyration_radius(pts, keep=1.0), 50.0, delta=1.0)
+
+    def test_gyration_trims_stragglers(self):
+        from density_scaling import gyration_radius
+        pts = [(1.0, 0, 0), (-1.0, 0, 0), (0, 1.0, 0), (0, -1.0, 0),
+               (10000.0, 0, 0)]                            # one far outlier
+        # Trimming the top 20% drops the outlier, so Rg stays O(1).
+        self.assertLess(gyration_radius(pts, keep=0.8), 5.0)
+
+    def test_number_density_positive_and_scales(self):
+        from density_scaling import number_density
+        rng = np.random.default_rng(1)
+        loose = rng.normal(0, 100, (200, 3))
+        tight = rng.normal(0, 30, (200, 3))
+        self.assertGreater(number_density(tight), number_density(loose))
+
+
+class TestDensityScaling(unittest.TestCase):
+    """Marginal opacity is N-independent only if density ~ N^(−1/2). This runs
+    the open-boundary sweep and checks the analysis pipeline is well-formed and
+    honest (finite fitted exponents, positive densities). It deliberately does
+    *not* assert the ideal exponent — the current cohesion+steric δ̂ does not
+    reach it (see sci.md §4.9); the tool exists to measure that gap, not to
+    paper over it. Gated behind RUN_SLOW_TESTS as it runs the dynamics."""
+
+    @unittest.skipUnless(os.environ.get("RUN_SLOW_TESTS"),
+                         "slow integration test — set RUN_SLOW_TESTS=1")
+    def test_scaling_sweep_is_well_formed(self):
+        import math
+        from density_scaling import measure_scaling, IDEAL_DENSITY_EXPONENT
+        res = measure_scaling(n_values=(40, 80, 160), frames=250, seeds=(0,))
+        self.assertEqual([p["n"] for p in res["points"]], [40, 80, 160])
+        for p in res["points"]:
+            self.assertGreater(p["density"], 0.0)
+            self.assertGreater(p["spacing"], 0.0)
+            self.assertGreaterEqual(p["theta_ext"], 0.0)
+        self.assertTrue(math.isfinite(res["density_exponent"]))
+        self.assertTrue(math.isfinite(res["size_exponent"]))
+        self.assertEqual(res["ideal_density_exponent"], IDEAL_DENSITY_EXPONENT)
+
+    def test_open_boundary_context_restores(self):
+        import boid_3d
+        from density_scaling import open_boundary
+        before = boid_3d.OPEN_BOUNDARY
+        with open_boundary(True):
+            self.assertTrue(boid_3d.OPEN_BOUNDARY)
+        self.assertEqual(boid_3d.OPEN_BOUNDARY, before)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
 # ║  h2_robustness — Young consensus robustness (3D)                      ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 

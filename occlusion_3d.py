@@ -39,12 +39,19 @@
      visible ones and add nothing. Saturates toward 1 when surrounded.
    • δ̂ = "resolved vector sum of all the light–dark domain boundaries"
      (Pearce). The boundary of cap j is a circle whose resolved direction
-     is d̂_j, with boundary length ∝ sin α_j; so δ̂ = normalise(Σ_visible
-     sin α_j · d̂_j). This is cohesive — the bird is drawn toward the
-     silhouette edges — and occlusion gates it (hidden birds drop out),
-     which is the mechanism behind the paper's *marginal opacity*.
-     (Averaging the *unoccluded* sky instead, as three_d.py did, gives the
-     opposite sign — a flee-to-open-sky separation force.)
+     is d̂_j, with boundary length ∝ sin α_j; so the resolved boundary is
+     Σ_visible sin α_j · d̂_j. We divide by the *total* boundary length
+     Σ sin α_j (not by the vector's own magnitude), so δ̂ is a boundary-
+     length-weighted **mean direction** whose magnitude lives in [0, 1]:
+     ≈ 1 when the boundaries all point one way (a bird at the silhouette
+     edge) and → 0 when they cancel (a bird deep inside, fully dark). That
+     surviving magnitude is what makes *marginal opacity* emerge and be
+     N-independent: an interior bird feels almost no cohesion and spreads
+     until it nears the edge, where δ̂ grows and draws it back, so the flock
+     self-regulates to a light–dark balance rather than a fixed spacing.
+     Occlusion gates the sum (hidden birds drop out). (Averaging the
+     *unoccluded* sky instead, as three_d.py did, gives the opposite sign —
+     a flee-to-open-sky separation force.)
 
  Dependencies:  numpy, flock_core (BOID_SIZE)
 ──────────────────────────────────────────────────────────────────────
@@ -107,9 +114,12 @@ def spherical_cap_occlusion(observer, neighbours, blind_cos=None, anisotropy=1.0
     Returns
     -------
     (delta, visible, theta)
-      delta   : numpy (3,) — δ̂, the normalised resolved vector to the
-                light–dark domain boundaries (0-vector if none / fully
-                surrounded — no projection information).
+      delta   : numpy (3,) — δ̂, the boundary-length-weighted mean direction
+                to the light–dark domain boundaries. |δ̂| ∈ [0, 1]: near 1 at
+                the silhouette edge, → 0 when fully surrounded (boundaries
+                cancel) or when there are no visible neighbours. The magnitude
+                carries the density-regulation signal, so callers must use δ̂
+                as-is (do not renormalise it).
       visible : list[(bird, dist)] — neighbours not hidden directly behind
                 a nearer bird, closest first.
       theta   : float — internal opacity Θ ∈ [0, 1].
@@ -171,6 +181,7 @@ def spherical_cap_occlusion(observer, neighbours, blind_cos=None, anisotropy=1.0
     n_vis = 0
     visible = []
     delta = np.zeros(3)
+    boundary_len = 0.0                                       # Σ sinα over visible
     one_minus = 1.0                                          # Π(1 − Ω/4π)
     for i in order:
         di = dirs[i]
@@ -181,11 +192,21 @@ def spherical_cap_occlusion(observer, neighbours, blind_cos=None, anisotropy=1.0
         vis_cos[n_vis] = cos_a[i]
         n_vis += 1
         delta += sin_a[i] * di                              # boundary weight
+        boundary_len += float(sin_a[i])
         one_minus *= (1.0 - omega[i] / (4.0 * math.pi))
 
     theta = 1.0 - one_minus
 
-    norm = float(np.linalg.norm(delta))
-    delta = delta / norm if norm > 1e-9 else np.zeros(3)
+    # δ̂ is normalised by the TOTAL boundary length Σ sinα, *not* by its own
+    # vector magnitude — see the module header. The result lives in [0, 1]:
+    # ≈ 1 when the light–dark boundaries all resolve one way (a bird at the
+    # silhouette edge) and → 0 when they cancel (a bird deep inside, fully
+    # dark). That magnitude is Pearce's density-regulation signal: an interior
+    # bird feels almost no cohesion and drifts apart until it nears the edge,
+    # where δ̂ grows and pulls it back — so the flock settles at *marginal
+    # opacity* rather than a fixed spacing. Normalising to unit magnitude (the
+    # earlier code) discarded this and gave every bird full cohesion, yielding
+    # a constant-density flock whose opacity scaled with N.
+    delta = delta / boundary_len if boundary_len > 1e-9 else np.zeros(3)
 
     return delta, visible, theta

@@ -30,6 +30,15 @@ MARGIN_BOUNDARY     = False
 BOUNDARY_MARGIN     = 200
 BOUNDARY_TURN_FACTOR = 1
 
+# Open (free-flight) boundary: no toroidal wrap and no wall clamp, so the
+# flock floats in unbounded space and self-sizes to a real light–dark
+# silhouette edge. This is what makes Pearce's marginal opacity N-independent
+# (density ρ ~ N^(−1/2) in 3D); on a torus every bird is interior, there is no
+# edge, and the flock is forced to the fixed domain volume so ρ ∝ N instead.
+# The interactive viewer keeps the torus (birds stay on screen); the
+# density-scaling analysis flips this on. See density_scaling.py.
+OPEN_BOUNDARY       = False
+
 
 class Boid3D:
     """
@@ -115,7 +124,11 @@ class Boid3D:
         self.acc = np.zeros(3, dtype=np.float32)
 
         # ── Position boundary handling ───────────────────────
-        if MARGIN_BOUNDARY:
+        if OPEN_BOUNDARY:
+            # Free flight: leave the position untouched so the flock can
+            # float and self-size (marginal opacity becomes N-independent).
+            pass
+        elif MARGIN_BOUNDARY:
             self.pos[0] = max(0.0, min(float(WIDTH), self.pos[0]))
             self.pos[1] = max(0.0, min(float(HEIGHT), self.pos[1]))
             self.pos[2] = max(0.0, min(float(DEPTH), self.pos[2]))
