@@ -18,6 +18,7 @@
 """
 
 import math
+import os
 import sys
 
 import numpy as np
@@ -33,12 +34,18 @@ from spatial_3d import SpatialGrid3D
 from renderer_3d import Renderer3D
 
 # ── Capture settings ──────────────────────────────────────────────
-CAPTURE_W, CAPTURE_H = 800, 600
+#  Overridable via environment variables so the same script serves both a
+#  full-quality GPU capture (the defaults) and a smaller, quick capture on
+#  a software GL renderer (llvmpipe is slow — the docker-compose `capture`
+#  service sets CAPTURE_* to modest values so it finishes in a minute or two).
+CAPTURE_W = int(os.environ.get("CAPTURE_W", 800))
+CAPTURE_H = int(os.environ.get("CAPTURE_H", 600))
 FPS = 60
-TOTAL_FRAMES = 240          # 4 seconds total
-CAPTURE_EVERY = 3           # every 3rd frame → ~80 frames @ 20 fps GIF
+TOTAL_FRAMES = int(os.environ.get("CAPTURE_FRAMES", 240))
+CAPTURE_EVERY = 3           # every 3rd frame → ~N/3 frames @ 20 fps GIF
 GIF_DURATION_MS = 50        # 20 fps playback
-OUTPUT_FILE = "murmuration_3d.gif"
+# Written into ./output so it persists via the docker-compose volume mount.
+OUTPUT_FILE = os.environ.get("CAPTURE_OUT", os.path.join("output", "murmuration_3d.gif"))
 
 
 def _auto_orbit(camera, frame: int, total: int):
@@ -105,6 +112,7 @@ def main():
             sys.stdout.flush()
 
     print(f"\nAssembling GIF ({len(frames)} frames)...")
+    os.makedirs(os.path.dirname(OUTPUT_FILE) or ".", exist_ok=True)
     frames[0].save(
         OUTPUT_FILE,
         save_all=True,

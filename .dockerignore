@@ -1,68 +1,46 @@
-# Docker — don't send these to the build context
+# .dockerignore — keep the build context minimal.
+# The Dockerfile does `COPY *.py` + LICENSE; everything else is excluded so
+# it never reaches the build context.
+
+# ── Version control ─────────────────────────────────────────────────
 .git/
 .gitignore
 .gitattributes
 
-# Research papers (not source code, large files)
+# ── Research papers & sources (large, not needed in the image) ──────
+sci/
 *.pdf
 *.html
-Role of projection in the control of bird flocks
+*.zip
 
-# Compressed archives
-sci.zip
-
-# Data output (generated at runtime, not part of the image)
-*.csv
+# ── Runtime output (generated in the container, not baked in) ───────
 output/
+*.csv
+*.gif
 
-# Python artifacts (regenerated in the image)
+# ── Python artifacts / environments ─────────────────────────────────
 __pycache__/
 *.py[cod]
 *.egg-info/
+venv/
+.venv/
 
-# IDE / OS
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-
-# Octave/Scilab algorithm files are now needed — Docker image includes
-# GNU Octave and Scilab CLI for cross-language validation.
-
-# Session notes (local file, not source code)
-SESSION_NOTES.md
-BOUNDARY_MODES.md
-
-# CI/CD workflows (not needed in Docker image)
-.github/
-
-# Helper scripts (used outside the container)
-scripts/
-run.sh
-run-docker.sh
+# ── Docs & metadata not needed at runtime ───────────────────────────
+*.md
+CITATION.cff
 requirements.txt
 
-# Jupyter notebooks (development-only)
-notebooks/
-
-# Octave workspace files (auto-generated)
-octave-workspace
-octave-core
-*.oct-workspace
-
-# Docker files themselves
+# ── CI / Docker meta (not needed inside the image) ──────────────────
+.github/
 Dockerfile
 docker-compose.yml
 .dockerignore
 
-# Python virtual environment (not source code)
-venv/
+# ── Notebooks (development only) ────────────────────────────────────
+notebooks/
 
-# Citation metadata (not needed in image)
-CITATION.cff
-
-# Binary / generated assets (not source code)
-*.gif
-
-# Educational iteration examples (not needed for Docker validation)
-examples/
+# ── IDE / OS cruft ──────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

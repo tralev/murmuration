@@ -3,29 +3,29 @@
 # Quick start:
 #   1. Install Docker:  https://docs.docker.com/get-docker/
 #   2. Clone the repo:  git clone https://github.com/tralev/murmuration.git
-#   3. Run:             docker compose run murmuration
+#   3. Run the tests:   docker compose run --rm tests
+#      Run the sim:     docker compose run --rm murmuration
 #
+# All services share one image (murmuration:latest) — the first `build`
+# produces it and the rest reuse it.
 # ──────────────────────────────────────────────────────────────────────
 
 services:
-  # ── 3D simulation (headless via xvfb) ──────────────────────────────
+  # ── 3D simulation, headless on a virtual X display (Xvfb + Mesa) ───
   murmuration:
     build: .
     image: murmuration:latest
-    command: xvfb-run python -u main_3d.py
+    command: xvfb-run -a python -u main_3d.py
     stdin_open: true
     tty: true
 
-  # ── Unit tests — run with:  docker compose run tests ───────────────
-  #  test_3d.py does pure numpy math — no GPU, no display needed.
+  # ── Test suite — pure numpy/scipy, no GPU or display needed ────────
   tests:
     build: .
     image: murmuration:latest
     command: python -m unittest test_3d test_science_3d -v
-    stdin_open: true
-    tty: true
 
-  # ── Interactive shell — run with:  docker compose run shell ────────
+  # ── Interactive shell in the image ─────────────────────────────────
   shell:
     build: .
     image: murmuration:latest

@@ -1,7 +1,10 @@
 # .github/workflows/test.yml — Continuous Integration
 #
-# Runs on every push and pull request to main.
-# Two stages: syntax check → full test suite (3D-only stack).
+# Two independent jobs:
+#   • tests  — fast unit tests across Python versions (numpy + scipy only;
+#              the suite is pure math and imports no GL/pygame modules).
+#   • docker — build the image and prove it both passes the tests and
+#              launches the 3D simulation headless (Xvfb + Mesa).
 
 name: Test Suite
 
@@ -12,47 +15,58 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  tests:
+    name: Unit tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          # Test-critical numerical + 3D deps (also in requirements.txt;
-          # listed explicitly so the set is obvious). numpy + scipy back the
-          # 3D physics and the metrics/H2 science modules; moderngl/PyGLM let
-          # main_3d import (GPU-context tests are skipped headlessly).
-          pip install numpy scipy moderngl PyGLM
+      - name: Install test dependencies
+        # The test suite (test_3d, test_science_3d) is pure numpy/scipy —
+        # it imports none of the GL modules (renderer_3d, main_3d, moderngl).
+        run: pip install "numpy>=1.21" "scipy>=1.7"
 
-      - name: Stage 1/2 — Syntax check (fast fail)
+      - name: Syntax check (compile every module)
         run: |
-          echo "::group::Compiling all .py files"
-          find . -name '*.py' \
-            -not -path './.git/*' \
-            -not -path './__pycache__/*' \
+          find . -name '*.py' -not -path './.git/*' -not -path './sci/*' \
             -print0 | xargs -0 -P 4 python -m py_compile
-          echo "::endgroup::"
           echo "✓ syntax OK"
 
-      - name: Stage 2/2 — Test suite
+      - name: Run the test suite
         run: |
-          echo "::group::Running the 3D test suite"
-          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python -m unittest \
-            test_3d \
-            test_science_3d \
-            -v
-          echo "::endgroup::"
-          echo "✓ all tests passed"
+          python -m unittest test_3d test_science_3d -v
+          echo "✓ tests passed"
+
+  docker:
+    name: Docker image builds, tests, and the sim launches
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t murmuration:ci .
+
+      - name: Run the test suite inside the image
+        run: docker run --rm murmuration:ci python -m unittest test_3d test_science_3d
+
+      - name: Smoke-launch the 3D simulation headless
+        # Xvfb + Mesa software GL. The sim has no fixed exit, so run it for a
+        # few seconds and assert it reached the main loop (printed its banner)
+        # without crashing on the ModernGL context.
+        run: |
+          out=$(docker run --rm murmuration:ci \
+                  timeout 15 xvfb-run -a python -u main_3d.py 2>&1 || true)
+          echo "$out"
+          echo "$out" | grep -q "Murmuration 3D" \
+            && echo "✓ simulation launched" \
+            || (echo "✗ simulation did not start" && exit 1)
