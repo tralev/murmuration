@@ -237,10 +237,11 @@ is continuous; the 2-D analogue on a sphere is the analytic cap union.
 "altitude" term):
 
 ```
-v_i(t+1) ∝ φp·δ̂_i + φa·⟨v̂_k⟩_{σ vis. n.n.} + φn·η̂_i ,   |v| = v₀
+v_desired ∝ φp·δ̂_i + φa·⟨v̂_k⟩_{σ vis. n.n.} + φn·η̂_i ,   |v_desired| = v₀
 ```
 
-with `η̂` a uniform random unit vector on the sphere
+The simulation reaches `v_desired` by steering, not by setting it instantly —
+see §4.6. With `η̂` a uniform random unit vector on the sphere
 `(cosθ sinφ, sinθ sinφ, cosφ)`, `θ∈[0,2π)`, `φ∈[0,π]`.
 
 ### 4.2 3D observables
@@ -285,6 +286,28 @@ Interpolate `m*` between the empirical endpoints: thin/longitudinal flocks
 C_ρρ(Δt) = ⟨ρ(t)·ρ(t+Δt)⟩ − ⟨ρ⟩²
 τρ       = Σ_{Δt≥0} C_ρρ(Δt)/C_ρρ(0)      (to the first zero crossing)
 ```
+
+### 4.6 Implementation notes — where the code refines the idealised model
+
+Two practical choices in the simulation depart from the bare Pearce equations
+above; both are common in agent-based flocking and neither changes the
+projection geometry:
+
+- **Smooth turning (Reynolds steering).** Eq. 3 sets the new velocity directly
+  (renormalised to `v₀`). The code instead computes that desired velocity and
+  then *steers* toward it, limiting the per-frame change to `MAX_FORCE`:
+  `a = clamp(v_desired − v, MAX_FORCE)`, `v ← v + a`. This gives birds inertia
+  (they cannot reverse instantly) and a smoother trajectory, at the cost of the
+  velocity not being exactly `v_desired` on any single frame.
+- **Speed band, not a fixed speed.** Rather than holding `|v| = v₀` exactly, the
+  integrator clamps speed to `[0.3·v₀, v₀]` — a ceiling at the cruise speed and a
+  floor that prevents a bird from stalling (a zero-speed bird is re-seeded with a
+  random heading). Over the flock the speed sits at `v₀` for all but briefly
+  decelerating birds.
+
+The position update `p ← p + v` (Eq. 2), the weight constraint (Eq. 4, via
+`Config.phi_n = max(0, 1 − φp − φa)`), and every quantity in §4.1–§4.5 are
+implemented exactly as written.
 
 ---
 
