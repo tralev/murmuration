@@ -3,9 +3,10 @@
 ║  FLOCK SHAPE ANALYSIS (3D) — shape-dependent optimal neighbours     ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Source (see sci.md): Young, Scardovi, Cavagna, Giardina & Leonard (2013),
- "Starling Flock Networks Manage Uncertainty in Consensus at Low Cost"
- (arXiv:1302.3195). The paper's key structural result is that the optimal
+ Source (see sci.md §2.3 for the result and §4.4 for the 3D port): Young,
+ Scardovi, Cavagna, Giardina & Leonard (2013), "Starling Flock Networks
+ Manage Uncertainty in Consensus at Low Cost" (arXiv:1302.3195). The
+ paper's key structural result is that the optimal
  number of interaction neighbours does **not** depend on flock size but on
  the flock's **shape — notably its thickness**: thin (longitudinal) flocks
  need fewer neighbours (m* ≈ 6) than thick (transverse) ones (m* ≈ 9.8).
@@ -37,6 +38,8 @@ M_STAR_TRANSVERSE   = 9.78    # thick / round flocks
 _ASPECT_THIN  = 3.0           # aspect ratio anchoring the "thin" endpoint
 _ASPECT_ROUND = 1.0           # aspect ratio anchoring the "round" endpoint
 
+
+# ── Shape → optimal-m* mapping (Young's thin/thick endpoints) ───────
 
 class ShapeReport:
     """Bundle of 3D flock-shape descriptors."""
@@ -75,6 +78,10 @@ def _as_xyz(p):
         return (float(pos[0]), float(pos[1]), float(pos[2]))
     return (p[0], p[1], p[2])
 
+
+# ══════════════════════════════════════════════════════════════════════
+#  PCA SHAPE ANALYSIS — 3×3 position-covariance eigendecomposition
+# ══════════════════════════════════════════════════════════════════════
 
 def analyze_shape(flock) -> ShapeReport:
     """Compute 3D shape descriptors for a flock (birds with ``.pos`` or

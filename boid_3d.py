@@ -6,9 +6,12 @@
  A single bird agent with 3D position, velocity, and acceleration.
  Uses numpy arrays for efficient math and VBO packing.
 
- Physics (shared by both modes):
-   Euler integration with speed clamping to [0.3·V₀, V₀] and
-   toroidal position wrap in all 3 dimensions.
+ Physics (shared by both modes; see sci.md §4.6 for why these depart from
+ the bare Pearce equations):
+   Euler integration with speed clamping to the band [0.3·V₀, V₀] (a floor
+   that prevents stalling, not a strict constant speed) and toroidal
+   position wrap in all 3 dimensions. The OPEN_BOUNDARY flag (§4.9) swaps
+   the wrap for free flight so the flock can self-size.
 
  Dependencies:  numpy, flock_core, spatial_3d
 ──────────────────────────────────────────────────────────────────────

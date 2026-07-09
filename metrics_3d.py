@@ -4,7 +4,8 @@
 ╚══════════════════════════════════════════════════════════════════════╝
 
  Ports the 2D metrics core to the 3D (numpy Vec3) stack, implementing the
- observables the founding papers actually measure. Sources (see sci.md):
+ observables the founding papers actually measure. Sources (see sci.md §1.3
+ for the observables and §4.2 for their 3D forms):
 
    • Pearce, Miller, Rowlands & Turner (2014), "The Role of Projection in
      the Control of Bird Flocks" (arXiv:1407.2414):
@@ -37,6 +38,10 @@ from flock_core import V0, BOID_SIZE, WIDTH, HEIGHT, DEPTH, MODE_PROJECTION
 # Gaussian) — used only as a documented target, not enforced.
 MARGINAL_OPACITY_MEAN = 0.30
 
+
+# ══════════════════════════════════════════════════════════════════════
+#  OBSERVABLES — polarisation & opacity  (Pearce §1.3, §4.2)
+# ══════════════════════════════════════════════════════════════════════
 
 def order_parameter(flock) -> float:
     """Polarisation α = |mean(v̂)| ∈ [0, 1].
@@ -130,6 +135,10 @@ def external_opacity(flock, observer_axis=0, grid=64) -> float:
     return float(canvas.sum()) / (grid * grid)
 
 
+# ══════════════════════════════════════════════════════════════════════
+#  KINEMATIC DIAGNOSTICS — momentum & spread
+# ══════════════════════════════════════════════════════════════════════
+
 def angular_momentum(flock) -> float:
     """Mean angular-momentum magnitude about the centre of mass,
     normalised by V0. Large for a milling vortex, ~0 for a straight
@@ -158,6 +167,10 @@ def dispersion(flock) -> float:
     com = pos.mean(axis=0)
     return float(np.linalg.norm(pos - com, axis=1).mean())
 
+
+# ══════════════════════════════════════════════════════════════════════
+#  REAL-TIME AGGREGATOR — EMA-smoothed readout for the HUD
+# ══════════════════════════════════════════════════════════════════════
 
 class FlockMetrics3D:
     """EMA-smoothed real-time metrics for the 3D flock.

@@ -3,7 +3,8 @@
 ║  PREDATOR AGENT (3D) — anti-predator flocking dynamics              ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Source (see sci.md §3): Goodenough et al. (2017). Birds of prey attended
+ Source (see sci.md §3 for the ecology and §4.8 for the 3D dynamics):
+ Goodenough et al. (2017). Birds of prey attended
  29.6% of murmurations and were positively correlated with display size
  and duration; the paper concludes murmurations are primarily an
  anti-predator adaptation (dilution / detection / confusion — "safer
@@ -70,6 +71,8 @@ class Predator3D:
         self.pos[1] %= HEIGHT
         self.pos[2] %= DEPTH
 
+
+# ── Flight response — per-bird flee force + per-frame driver ────────
 
 def flee_force(boid, predator, danger=DANGER_RADIUS, strength=FLIGHT_STRENGTH):
     """Flight-response steering force for one bird — away from the predator,

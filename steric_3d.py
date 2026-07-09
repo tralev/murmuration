@@ -3,7 +3,7 @@
 ║  STERIC REPULSION (3D) — Pearce SI Appendix generalisation          ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Source (see sci.md §1.4): Pearce et al. (2014) SI Appendix. The base
+ Source (see sci.md §1.4 and §4.7): Pearce et al. (2014) SI Appendix. The base
  hybrid-projection model treats birds as "phantoms" with no direct
  interaction. The SI adds an optional **steric / repulsive** term: a
  short-range force that keeps birds from overlapping, felt only within a

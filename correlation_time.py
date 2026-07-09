@@ -3,8 +3,8 @@
 ║  CORRELATION TIME τρ (3D) — density-fluctuation timescale           ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Source (see sci.md): Pearce, Miller, Rowlands & Turner (2014), "The Role of
- Projection in the Control of Bird Flocks" (arXiv:1407.2414). Fig. 2f
+ Source (see sci.md §4.5): Pearce, Miller, Rowlands & Turner (2014), "The Role
+ of Projection in the Control of Bird Flocks" (arXiv:1407.2414). Fig. 2f
  reports the "swarm density autocorrelation time τρ" — how long density
  fluctuations persist, a characteristic timescale of the flock's internal
  structural dynamics.
@@ -32,6 +32,8 @@ SAMPLE_INTERVAL      = 10     # sample density every N frames
 MAX_LAG_FRACTION     = 0.25   # integrate autocorrelation to 25% of buffer
 
 
+# ── 3D density  ρ = N / hull-volume ─────────────────────────────────
+
 def convex_hull_volume(flock) -> float:
     """Convex-hull volume of the 3D flock (birds with ``.pos`` or (x,y,z)).
 
@@ -47,6 +49,10 @@ def convex_hull_volume(flock) -> float:
     except QhullError:
         return 0.0                                   # coplanar / degenerate
 
+
+# ══════════════════════════════════════════════════════════════════════
+#  τρ ESTIMATOR — integrated normalised autocorrelation of ρ(t)
+# ══════════════════════════════════════════════════════════════════════
 
 class CorrelationTimeTracker:
     """Rolling estimator of the density autocorrelation time τρ.

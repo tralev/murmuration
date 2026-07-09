@@ -7,7 +7,12 @@
  for the 3D simulation. PROJECTION mode uses true 3D spherical-cap
  occlusion (occlusion_3d.py) — not an XY-plane approximation.
 
- Dependencies:  numpy, occlusion_3d, flock_core
+ Source (see sci.md §4.1 for the projection update v = φp·δ̂ + φa·⟨v̂⟩ + φn·η̂,
+ §4.6 for the Reynolds-steering/speed-band implementation choices, and §4.7
+ for the steric SI refinement). SPATIAL mode is the classic topological
+ Reynolds model (not paper-specific), included as a comparison regime.
+
+ Dependencies:  numpy, occlusion_3d, steric_3d, flock_core
 ──────────────────────────────────────────────────────────────────────
 """
 

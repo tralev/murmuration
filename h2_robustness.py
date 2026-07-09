@@ -3,9 +3,10 @@
 ║  H₂ ROBUSTNESS — consensus-network robustness (3D)                  ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Source (see sci.md): Young, Scardovi, Cavagna, Giardina & Leonard (2013),
- "Starling Flock Networks Manage Uncertainty in Consensus at Low Cost"
- (arXiv:1302.3195 / PLoS Comput Biol 9(1): e1002894).
+ Source (see sci.md §2 for the model and §4.3 for the 3D port): Young,
+ Scardovi, Cavagna, Giardina & Leonard (2013), "Starling Flock Networks
+ Manage Uncertainty in Consensus at Low Cost" (arXiv:1302.3195 / PLoS
+ Comput Biol 9(1): e1002894).
 
  The paper's central result: starlings track a *fixed* number of nearest
  neighbours, and interacting with **six or seven** optimises the trade-off
@@ -34,6 +35,8 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 
+# ── Linear-algebra & coercion helpers ──────────────────────────────
+
 def symmetric_eigenvalues(matrix):
     """Ascending eigenvalues of a real symmetric matrix (LAPACK eigvalsh)."""
     a = np.asarray(matrix, dtype=float)
@@ -51,6 +54,11 @@ def _as_xyz(p):
         return (p.x, p.y, getattr(p, "z", 0.0))
     return (p[0], p[1], p[2] if len(p) > 2 else 0.0)
 
+
+# ══════════════════════════════════════════════════════════════════════
+#  H₂ NORM — Laplacian spectrum of the m-nearest-neighbour graph
+#  H₂² = (1/2N) Σ_{i≥2} 1/λ_i   (smaller = more robust; +inf if disconnected)
+# ══════════════════════════════════════════════════════════════════════
 
 def knn_laplacian(positions, m):
     """Symmetric graph Laplacian L = D − A of the m-nearest-neighbour
@@ -92,6 +100,11 @@ def h2_norm(positions, m):
         acc += 1.0 / lam
     return math.sqrt(acc / (2.0 * n))
 
+
+# ══════════════════════════════════════════════════════════════════════
+#  COST-OPTIMAL NEIGHBOUR COUNT — η(m) and m* = argmin J(m)=H₂(m)+cost·m
+#  Young's headline result: the interior optimum lands at m* ≈ 6–7.
+# ══════════════════════════════════════════════════════════════════════
 
 def eta_of_m(positions, m, m0=None):
     """Marginal per-neighbour efficiency η(m) = [H₂(m−1) − H₂(m)] / 1 —

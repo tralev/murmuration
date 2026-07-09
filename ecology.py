@@ -3,8 +3,9 @@
 ║  ECOLOGY — seasonal, critical-mass & predator realism (3D)          ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Source (see sci.md): Goodenough, Little, Carpenter & Hart (2017), "Birds of
- a feather flock together: Insights into starling murmuration behaviour
+ Source (see sci.md §3 for the ecology and §4.8 for the roosting / day-length
+ / temperature dynamics): Goodenough, Little, Carpenter & Hart (2017), "Birds
+ of a feather flock together: Insights into starling murmuration behaviour
  revealed using citizen science" (PLoS ONE 12(6): e0179277).
 
  Citizen-science observations of UK starling murmurations give the

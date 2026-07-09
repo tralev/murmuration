@@ -8,9 +8,10 @@
  scenario_presets.py). Each preset is one keystroke that sets φp, φa, σ,
  and mode to demonstrate a distinctive 3D flocking regime.
 
- Tuned for the 1000 × 700 × 400 volume: PROJECTION-mode presets rely on
- the altitude-cohesion term in spatial_3d.flock_projection_3d, and
- SPATIAL-mode presets use full 3D separation/alignment/cohesion.
+ Tuned for the 1000 × 700 × 400 volume: PROJECTION-mode presets use the true
+ 3D spherical-cap occlusion in occlusion_3d (cohesion in all three axes falls
+ out of the geometry — there is no separate altitude term), and SPATIAL-mode
+ presets use full 3D separation/alignment/cohesion.
 
  Wired into input_handler_3d.py on keys a–h and w.
 
@@ -38,7 +39,7 @@ PRESETS_3D = {
           "description": "Strong 3D separation. Directional stream."},
     'e': {"label": "PRESET e — Vertical Column  (layered pancake)",
           "phi_p": 0.10, "phi_a": 0.75, "sigma": 6, "mode": MODE_PROJECTION,
-          "description": "Altitude cohesion -> vertical layering."},
+          "description": "Moderate projection cohesion -> layered formation."},
     'f': {"label": "PRESET f — 3D Acro  (rapid 3D turns)",
           "phi_p": 0.02, "phi_a": 0.85, "sigma": 3, "mode": MODE_PROJECTION,
           "description": "Light projection, few neighbours. Acrobatic flight."},

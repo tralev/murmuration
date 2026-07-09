@@ -7,7 +7,7 @@
    • Boid3D.update()  — toroidal wrap, speed clamp, boundary nudge
    • SpatialGrid3D    — rebuild, get_nearby, toroidal cell wrapping
    • flock_spatial_3d — 3D Reynolds steering (sep/align/cohesion/noise)
-   • flock_projection_3d — XY-plane occlusion + altitude cohesion
+   • flock_projection_3d — true 3D spherical-cap occlusion (occlusion_3d)
 
  Uses mock boids with numpy arrays. No Pygame, ModernGL, or rendering
  dependency — pure physics tests.

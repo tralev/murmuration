@@ -3,7 +3,8 @@
 ║  3D SPHERICAL-CAP OCCLUSION — physically-correct projection model    ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- Source (see sci.md): Pearce, Miller, Rowlands & Turner (2014), "The Role of
+ Source (see sci.md §4.1 for the 3D projection maths, §4.7 for the blind-cone
+ and anisotropy refinements): Pearce, Miller, Rowlands & Turner (2014), "The Role of
  Projection in the Control of Bird Flocks" (arXiv:1407.2414). The SI
  Appendix states the model "easily can be extended to 3D flocks, in which
  the light–dark [boundaries] become curves on the surface of a sphere."
@@ -64,6 +65,8 @@ import numpy as np
 from flock_core import BOID_SIZE
 
 
+# ── Geometry helpers (view-sphere sampling, position/heading coercion) ──
+
 def fibonacci_sphere(n: int = 256) -> np.ndarray:
     """*n* near-uniform unit vectors on the sphere via the Fibonacci
     (golden-angle) spiral. Kept as a utility (used for visualisation and
@@ -94,6 +97,10 @@ def _heading(bird):
     n = np.linalg.norm(v)
     return v / n if n > 1e-9 else np.array([1.0, 0.0, 0.0])
 
+
+# ══════════════════════════════════════════════════════════════════════
+#  SPHERICAL-CAP OCCLUSION — δ̂ (boundary-seeking), visibility, opacity Θ
+# ══════════════════════════════════════════════════════════════════════
 
 def spherical_cap_occlusion(observer, neighbours, blind_cos=None, anisotropy=1.0):
     """Compute the 3D projection quantities for one observer bird.
