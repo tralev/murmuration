@@ -428,3 +428,76 @@ Three findings, honest about where the model stands:
 | Seasonal size, critical mass, predator rate, roosting, day-length, temperature | Goodenough §4.8 | `ecology.py` |
 | Density scaling ρ(N), marginal-opacity N-independence test | Pearce §1.3, §4.9 | `density_scaling.py` |
 | Scenario presets (φp, φa, σ regimes) | — | `scenario_presets_3d.py` |
+
+---
+
+## 6. 2D features still to rewrite for 3D
+
+The repository is **3D-only**: all simulation code runs on `boid_3d.Boid3D` /
+`spatial_3d` / numpy Vec3 state. Commit `6b71b15` removed the 2D simulation, and
+the 2D-era design/port docs (`ext.md`, `core_modules.md`, `OCTAVE_README.md`,
+`SCILAB_README.md`, `BOUNDARY_MODES.md`, `ARCHITECTURE.md`) have now been removed
+too. This section preserves the still-unported **features and ideas** from them
+so they can be rebuilt against the 3D stack. The original 2D sources are
+recoverable from the last pre-removal commit:
+
+```bash
+git show c948b22:extensions/<name>.py      # extensions
+git show c948b22:<name>.py                 # core 2D modules
+```
+
+**Already ported (do not re-do):** true 3D spherical-cap occlusion + δ̂ + Θ
+(`occlusion_3d`), steric / blind-angle / anisotropic-body SI refinements,
+`metrics_3d` (α, Θ, Θ′, L, dispersion), `correlation_time`, `h2_robustness`,
+`flock_shape`, `ecology` (seasonal + critical mass + roosting + day-length +
+temperature), `predator_3d`, `scenario_presets_3d`, `density_scaling`.
+
+### 6.1 Behaviour / interaction extensions (still to do)
+
+Each was a pure 2D force function (`pygame.Vector2` → force); the 3D rewrite
+accepts/returns numpy 3-vectors and adds the z term. Wire into `spatial_3d`
+force accumulation or the `main_3d` loop.
+
+| Feature | What it does | 3D rewrite notes | Effort |
+|---------|--------------|------------------|--------|
+| **Threat + escape wave** (`threat.py`) | Scripted attacker dives at swarm centre then egresses; flee response propagates neighbour-to-neighbour as a relaxation wave | `ThreatAgent` pos/vel → 3-vector; `escape_wave` is graph-based (dimension-agnostic). **Recommended richer predator model** — supersedes the basic chase in `predator_3d` | Medium, high payoff |
+| **Vacuole** (`vacuole.py`) | Orbiting repulsor carves a moving cavity in the flock (`1/d²` radial push) | Agent orbits swarm centre with a z component; force is a clean 3-vector; render as a translucent sphere/ring. More striking in 3D | Medium |
+| **Shared wander** (`wander.py`) | Deterministic moving "wander centre" (composite-trig noise + breathing radius) all birds drift toward | Add a third composite-trig axis → `(cx,cy,cz)` scaled by `DEPTH` | Low |
+| **Leader anchors** (`leader.py`) | N anchor points on Lissajous orbits; birds drawn to the nearest in range | Add z Lissajous term; 3D distance; draw 3D markers | Low/med |
+| **Flow field** (`flow_field.py`) | Ambient wind with gusts + slowly wandering direction | Wind direction → 3-vector (azimuth + elevation) | Low |
+| **Shell formation** (`shell_formation.py`) | Birds orbit a leader in concentric shells | Becomes **spherical shells** (radius bands); orbit along a 3D tangent — more natural in 3D | Medium |
+| **Inertia / turn smoothing** (`inertia.py`) | `blend_inertia(vel, desired, 0.84)` + turn-rate limit | Works on 3-vectors as-is once the `_xy` helper is generalised | Trivial |
+| **Blob init** (`blob_init.py`) | Clustered start positions | Already supports `dims=3`; just call it from `main_3d` init | Trivial |
+| **Direct-velocity policy** (`direct_velocity.py`) | Set `v = φp·δ̂+φa·⟨v̂⟩+φn·η̂` directly (Pearce Eq. 3) instead of Reynolds steering | A policy toggle on `flock_projection_3d` (assign `boid.vel` vs `apply_force`) | Small |
+
+### 6.2 Metrics / analysis extensions (still to do)
+
+| Feature | What it does | 3D rewrite notes |
+|---------|--------------|------------------|
+| **Multi-viewpoint Θ′** (`multi_viewpoint_opacity.py`) | External opacity averaged over K observer viewpoints (2D: circle) | Viewpoints become points on a **sphere** around the flock, each casting the 3D occlusion; builds on `metrics_3d.external_opacity` |
+| **Empirical trajectory loader** (`data_loader.py`) | Loads recorded bird trajectories, computes opacity from real data (experiment validation) | Loader is format-only (dimension-agnostic); `compute_opacity` must call the 3D occlusion. Low priority unless validating against 3D datasets |
+| **Far-field conservative occluder** (`spatial_optimization.py`) | Distant chunks contribute one bounding-circle occluder → `O(N_near + C)` | Only if true 3D occlusion is too slow at large N: bounding **sphere** per far chunk. Otherwise skip (the 27-cell hash already bounds cost) |
+
+### 6.3 UI / rendering / framework (still to do, optional)
+
+- **`orchestration_3d` hub** — a flag-gated central place for extension state
+  init + per-frame forces + overlay render, so `main_3d`'s loop stays
+  extension-agnostic. Re-implement *after* a few 3D extensions exist (so the hub
+  reflects real needs); target `renderer_3d` overlays + numpy `apply_force`.
+- **In-frame HUD / help overlay** — the 3D build shows metrics in the window
+  title bar only; a proper text overlay in `renderer_3d` (metrics readout,
+  H-key controls panel) would fold in the removed `hud.py` / `help_overlay.py`.
+- **Focal-bird debug overlay** (`focal_debug.py`) — visualise one bird's
+  occlusion caps + δ̂ on a wireframe view sphere. Strong teaching aid; real work
+  in 3D. Defer.
+- **Themes** (`themes.py`) — palette concept survives but feeds GLSL uniforms /
+  clear colour in `renderer_3d`, not pygame draw calls. Re-target, don't port.
+- **Pilot state** (`pilot_state.py`) — scripted flock "pilot" (heading, radius,
+  roll); heading → 3D direction or quaternion. Only if a scripted-leader camera
+  is wanted.
+- **`simulation_3d.update_frame()` extract** — optional refactor pulling the
+  per-frame sequence out of `main_3d` for testability, as the 2D `simulation.py`
+  did. Low priority.
+- **Margin-boundary mode & velocity trails in 3D** — `Boid3D` has only toroidal
+  wrap (plus the `OPEN_BOUNDARY` free-flight flag) and no trail history; add a
+  reflective/margin boundary and a position ring-buffer if wanted.

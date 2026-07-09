@@ -1,17 +1,19 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata below."
-title: "Murmuration — Dual-Mode Bird Flock Simulation"
+title: "Murmuration — 3D Bird Flock Simulation"
 abstract: >
-  A Python simulation of starling murmurations implementing two distinct
-  flocking algorithms — the hybrid projection model from Pearce et al. (2014,
-  PNAS) and topological Reynolds boids — switchable at runtime. Features 21
-  modular feature flags, 16 scenario presets, real-time scientific metrics
-  (internal/external opacity Θ, Θ', order parameter α, power, angular momentum,
-  dispersion), 20+ extension modules (predator, threat, wander, leader, vacuole,
-  shell, flow field, H₂ robustness, seasonal, flock shape, adaptive quality,
-  and more), GPU-accelerated 3D rendering via ModernGL, multi-language ports
-  (Python, GNU Octave, Scilab), a Docker cross-language validation pipeline,
-  a Jupyter notebook for headless analysis, and 600 unit tests.
+  A Python simulation of starling murmurations in a full 3D volume,
+  implementing two runtime-switchable flocking models — the hybrid projection
+  model from Pearce et al. (2014, PNAS), with true 3D spherical-cap occlusion
+  and a boundary-seeking projection direction, and topological Reynolds boids.
+  It provides GPU-accelerated instanced rendering via ModernGL and standalone,
+  unit-tested science modules grounded in three papers: Pearce et al. (2014)
+  occlusion, opacity Θ/Θ', density scaling and correlation time; Young et al.
+  (2013) consensus robustness and cost-optimal neighbour count m*; and
+  Goodenough et al. (2017) ecological dynamics (seasonal size, critical mass,
+  predator flight response, roosting, day-length). Includes eight scenario
+  presets, real-time metrics (order parameter α, internal/external opacity,
+  angular momentum, dispersion), a Docker pipeline, and a unit-test suite.
 authors:
   - family-names: "tralev"
     given-names: ""
@@ -25,10 +27,9 @@ keywords:
   - "projection-model"
   - "boids"
   - "computational-biology"
-  - "multi-language"
+  - "3D"
+  - "ModernGL"
   - "Python"
-  - "GNU-Octave"
-  - "Scilab"
   - "educational"
 license: GPL-3.0-or-later
 version: "1.1.0"
