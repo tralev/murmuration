@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# pre-commit — syntax check → 3D test suite. Blocks the commit if either fails.
+#
+# This hook is tracked in the repo (unlike .git/hooks/). Enable it once per
+# clone with:
+#     git config core.hooksPath .githooks
+#
+# To bypass in an emergency:  git commit --no-verify
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+# ── 1/2  Syntax check — compile every module ────────────────────────
+echo "── pre-commit 1/2: syntax check ──"
+find . -name '*.py' \
+    -not -path './.git/*' \
+    -not -path './venv/*' \
+    -not -path './__pycache__/*' \
+    -not -path './sci/*' \
+    -print0 | xargs -0 -P 4 python3 -m py_compile || {
+    echo "  ✗ COMMIT BLOCKED — fix the syntax errors above."
+    exit 1
+}
+echo "  ✓ syntax OK"
+
+# ── 2/2  Test suite (pure numpy/scipy — no GPU or display) ──────────
+echo "── pre-commit 2/2: 3D test suite ──"
+SDL_VIDEODRIVER=dummy python3 -m unittest test_3d test_science_3d --quiet || {
+    echo "  ✗ COMMIT BLOCKED — tests failed (bypass with: git commit --no-verify)."
+    exit 1
+}
+echo "  ✓ all tests passed"
