@@ -417,6 +417,7 @@ Three findings, honest about where the model stands:
 
 | Idea | Paper | Module |
 |------|-------|--------|
+| Bird physics — Euler integration, speed band, toroidal wrap / open boundary | §4.6, §4.9 | `boid_3d.py` |
 | Spherical-cap occlusion (+ blind angles, anisotropy), δ̂, Θ | Pearce §1–2, SI §4.7 | `occlusion_3d.py` |
 | Projection / spatial flocking modes | Pearce Eq. 3 | `spatial_3d.py` |
 | Steric repulsion | Pearce SI §4.7 | `steric_3d.py` |
