@@ -27,7 +27,10 @@ find . -name '*.py' \
     -print0 | xargs -0 -P 4 python3 -m py_compile
 echo "  ✓ syntax OK"
 
-# ── 2/2  Unit tests (pure numpy/scipy — no GPU or display) ──────────
-echo "── run_tests 2/2: unit tests (test_3d, test_science_3d) ──"
-SDL_VIDEODRIVER=dummy python3 -m unittest test_3d test_science_3d "$@"
+# ── 2/2  Unit tests ─────────────────────────────────────────────────
+#  test_3d / test_science_3d are pure numpy/scipy; test_ui_3d also needs
+#  pygame + glm + moderngl importable, but no display or GL context (events
+#  are mocked, the camera is pure maths). None open a window.
+echo "── run_tests 2/2: unit tests (test_3d, test_science_3d, test_ui_3d) ──"
+SDL_VIDEODRIVER=dummy python3 -m unittest test_3d test_science_3d test_ui_3d "$@"
 echo "  ✓ tests passed"

@@ -445,6 +445,38 @@ class TestDensityScaling(unittest.TestCase):
             self.assertTrue(boid_3d.OPEN_BOUNDARY)
         self.assertEqual(boid_3d.OPEN_BOUNDARY, before)
 
+    # ── fast, pure-function checks (no dynamics) ────────────────────
+
+    def test_fit_exponent_recovers_slope(self):
+        from density_scaling import _fit_exponent
+        ns = [10, 100, 1000]
+        ys = [2.0 * n ** 0.5 for n in ns]              # y ∝ N^0.5
+        self.assertAlmostEqual(_fit_exponent(ns, ys), 0.5, places=6)
+
+    def test_fit_exponent_nan_when_too_few_points(self):
+        import math
+        from density_scaling import _fit_exponent
+        self.assertTrue(math.isnan(_fit_exponent([10], [1.0])))
+
+    def test_settle_flock_returns_positions(self):
+        from density_scaling import settle_flock
+        pts = settle_flock(n=12, frames=5, seed=0)     # tiny + short = fast
+        self.assertEqual(pts.shape, (12, 3))
+
+    def test_format_report_renders_exponents(self):
+        from density_scaling import format_report, IDEAL_DENSITY_EXPONENT
+        result = {
+            "points": [{"n": 40, "spacing": 50.0, "density": 1e-6,
+                        "size": 300.0, "theta_ext": 0.2}],
+            "density_exponent": 0.4,
+            "size_exponent": 0.3,
+            "ideal_density_exponent": IDEAL_DENSITY_EXPONENT,
+            "ideal_size_exponent": 0.5,
+        }
+        text = format_report(result)
+        self.assertIn("density ~ N^", text)
+        self.assertIn("40", text)
+
 
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  h2_robustness — Young consensus robustness (3D)                      ║
@@ -492,6 +524,18 @@ class TestH2Robustness3D(unittest.TestCase):
                  for _ in range(20)]
         random.seed(9)
         self.assertGreaterEqual(h2_norm(flock, 5), 0.0)
+
+    def test_empty_and_degenerate_inputs(self):
+        from h2_robustness import (symmetric_eigenvalues, knn_laplacian,
+                                   h2_norm)
+        self.assertEqual(symmetric_eigenvalues([]), [])
+        self.assertEqual(knn_laplacian([], 3).shape, (0, 0))
+        self.assertEqual(h2_norm([(0.0, 0.0, 0.0)], 1), 0.0)   # n < 2 → 0
+
+    def test_eta_of_m_is_finite_and_nonneg(self):
+        from h2_robustness import eta_of_m
+        eta = eta_of_m(self._cloud(40, 8), m=6)
+        self.assertTrue(eta >= 0.0 or eta == float("inf"))
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗

@@ -21,7 +21,7 @@ docker build -t "$IMAGE" .
 
 # ── 2/3  Unit tests inside the image ────────────────────────────────
 echo "── docker_test 2/3: unit tests inside the image ──"
-docker run --rm "$IMAGE" python -m unittest test_3d test_science_3d
+docker run --rm "$IMAGE" python -m unittest test_3d test_science_3d test_ui_3d
 
 # ── 3/3  Headless smoke-launch of the 3D simulation ─────────────────
 #  The sim has no fixed exit, so run it for a few seconds and assert it reached

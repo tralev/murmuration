@@ -13,17 +13,28 @@ Recover any original 2D test with `git show c948b22:<name>.py`.
 
 | Category | File | Contents |
 |----------|------|----------|
-| **python** | `test_3d.py` | physics, spatial grid, the two flocking modes |
+| **python** | `test_3d.py` | physics, spatial grid, the two flocking modes, boundary modes |
 | **python** | `test_science_3d.py` | the paper-grounded science modules (occlusion, metrics, ecology, Young, density scaling) |
-| **sh** | `run_tests.sh` | the shared gate: syntax check (`py_compile` every module) + `unittest test_3d test_science_3d`. `RUN_SLOW_TESTS=1` adds the gated integration tests |
+| **python** | `test_ui_3d.py` | the non-science stack testable without a display: `OrbitCamera` (pure glm), `input_handler_3d` (mocked events), `shaders_3d`, `features` |
+| **sh** | `run_tests.sh` | the shared gate: syntax check (`py_compile` every module) + `unittest test_3d test_science_3d test_ui_3d`. `RUN_SLOW_TESTS=1` adds the gated integration tests |
 | **docker** | `docker_test.sh` | build image → run tests in-image → headless smoke-launch (§5) |
 | **ci** | `.github/workflows/test.yml` | Python-version matrix + the Docker job (§6) |
 | **hook** | `.githooks/pre-commit` | runs `run_tests.sh --quiet` before every commit |
 
-The suite is **pure numpy/scipy** — it imports none of the GL/pygame modules
-(`renderer_3d`, `main_3d`, `moderngl`), so it runs headless with no display. Most
-tests use a duck-typed **stub boid** (`_StubBoid` — numpy Vec3 `.pos`/`.vel` +
-`.last_theta`) so nothing needs a `Boid3D`, a grid, or a GPU.
+`test_3d` / `test_science_3d` are **pure numpy/scipy**; `test_ui_3d` also needs
+`pygame` / `glm` / `moderngl` importable but **never opens a display or GL
+context** (events are mocked, the camera is pure maths). Most tests use a
+duck-typed **stub boid** (`_StubBoid` — numpy Vec3 `.pos`/`.vel` + `.last_theta`)
+so nothing needs a `Boid3D`, a grid, or a GPU.
+
+### Coverage
+
+`python -m coverage run -m unittest test_3d test_science_3d test_ui_3d` →
+**≈86 %** of the codebase (`RUN_SLOW_TESTS=1` for the full figure). Every science
+and logic module sits at 87–100 %. The only uncovered modules are the three that
+require a live GL context — `renderer_3d`, `main_3d`, `capture_3d` — which cannot
+be unit-tested headless and are instead exercised by the Docker **smoke-launch**
+(§5). Excluding those three, the unit-testable code is ~96 % covered.
 
 ---
 

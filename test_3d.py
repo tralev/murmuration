@@ -572,5 +572,67 @@ class TestFlockProjection3D(unittest.TestCase):
         self.assertAlmostEqual(np.linalg.norm(s1 - s2), 0.0, places=5)
 
 
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Boundary modes & flock() dispatch                                  ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestBoid3DBoundaryModes(unittest.TestCase):
+    """The non-default boundary branches of Boid3D.update() and the
+    mode dispatch in Boid3D.flock()."""
+
+    def test_margin_mode_nudges_and_clamps(self):
+        """MARGIN_BOUNDARY: a bird past a wall is nudged inward and then
+        hard-clamped into the volume (no toroidal wrap)."""
+        import boid_3d as m
+        old = m.MARGIN_BOUNDARY
+        m.MARGIN_BOUNDARY = True
+        try:
+            b = Boid3D()
+            b.pos = np.array([-30.0, 350.0, 200.0], dtype=np.float32)  # past −x wall
+            b.vel = np.array([-1.0, 0.0, 0.0], dtype=np.float32)       # heading out
+            b.acc = np.zeros(3, dtype=np.float32)
+            b.update()
+            self.assertGreaterEqual(b.pos[0], 0.0)      # clamped back in bounds
+            self.assertLessEqual(b.pos[0], float(WIDTH))
+        finally:
+            m.MARGIN_BOUNDARY = old
+
+    def test_open_boundary_does_not_wrap(self):
+        """OPEN_BOUNDARY: a bird past a wall keeps flying (free flight)."""
+        import boid_3d as m
+        old = m.OPEN_BOUNDARY
+        m.OPEN_BOUNDARY = True
+        try:
+            b = Boid3D()
+            b.pos = np.array([WIDTH + 100.0, 350.0, 200.0], dtype=np.float32)
+            b.vel = np.array([V0, 0.0, 0.0], dtype=np.float32)
+            b.acc = np.zeros(3, dtype=np.float32)
+            b.update()
+            self.assertGreater(b.pos[0], float(WIDTH))  # not wrapped to 0
+        finally:
+            m.OPEN_BOUNDARY = old
+
+    def test_flock_dispatches_to_spatial(self):
+        """config.mode == MODE_SPATIAL routes Boid3D.flock() to the
+        Reynolds mode (exercising the dispatch, not just the raw function)."""
+        b = Boid3D()
+        b.pos = np.array([500.0, 350.0, 200.0], dtype=np.float32)
+        b.vel = np.array([V0, 0.0, 0.0], dtype=np.float32)
+        cfg = _make_config(mode=MODE_SPATIAL)
+        nb = Boid3D()
+        nb.pos = np.array([520.0, 350.0, 200.0], dtype=np.float32)
+        b.flock([b, nb], cfg, MockGrid([b, nb]))       # must not raise
+
+    def test_flock_dispatches_to_projection(self):
+        b = Boid3D()
+        b.pos = np.array([500.0, 350.0, 200.0], dtype=np.float32)
+        b.vel = np.array([V0, 0.0, 0.0], dtype=np.float32)
+        cfg = _make_config(mode=MODE_PROJECTION)
+        nb = Boid3D()
+        nb.pos = np.array([560.0, 350.0, 200.0], dtype=np.float32)
+        b.flock([b, nb], cfg, MockGrid([b, nb]))       # must not raise
+        self.assertIsInstance(b.last_theta, float)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

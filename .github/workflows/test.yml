@@ -1,8 +1,9 @@
 # .github/workflows/test.yml — Continuous Integration
 #
 # Two independent jobs:
-#   • tests  — fast unit tests across Python versions (numpy + scipy only;
-#              the suite is pure math and imports no GL/pygame modules).
+#   • tests  — unit tests across Python versions. Needs the full runtime deps
+#              because test_ui_3d imports pygame/glm/moderngl (though it never
+#              opens a display or GL context — events are mocked).
 #   • docker — build the image and prove it both passes the tests and
 #              launches the 3D simulation headless (Xvfb + Mesa).
 
@@ -32,9 +33,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install test dependencies
-        # The test suite (test_3d, test_science_3d) is pure numpy/scipy —
-        # it imports none of the GL modules (renderer_3d, main_3d, moderngl).
-        run: pip install "numpy>=1.21" "scipy>=1.7"
+        # numpy/scipy for the science tests; pygame/PyGLM/moderngl so the
+        # test_ui_3d module imports (it mocks events — no display/GL context).
+        run: pip install "numpy>=1.21" "scipy>=1.7" "pygame>=2.0,<3.0" "PyGLM>=2.5" "moderngl>=5.6"
 
       - name: Run the Python test gate (run_tests.sh)
         env:

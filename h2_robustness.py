@@ -69,7 +69,9 @@ def knn_laplacian(positions, m):
     n = len(pts)
     if n == 0:
         return np.zeros((0, 0))
-    m = max(1, min(m, n - 1))
+    m = min(m, n - 1)
+    if m < 1:
+        return np.zeros((n, n))            # a lone bird has no neighbours
 
     tree = cKDTree(pts)
     _, idx = tree.query(pts, k=m + 1)      # col 0 is the point itself
