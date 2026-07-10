@@ -419,7 +419,8 @@ Three findings, honest about where the model stands:
 |------|-------|--------|
 | Bird physics — Euler integration, speed band, toroidal wrap / open boundary | §4.6, §4.9 | `boid_3d.py` |
 | Spherical-cap occlusion (+ blind angles, anisotropy), δ̂, Θ | Pearce §1–2, SI §4.7 | `occlusion_3d.py` |
-| Projection / spatial flocking modes | Pearce Eq. 3 | `spatial_3d.py` |
+| 3D spatial hash grid (neighbour lookups) | — | `spatial_grid_3d.py` |
+| Projection (Pearce) & spatial (Reynolds) flocking modes | Pearce Eq. 3 | `flocking_modes_3d.py` |
 | Steric repulsion | Pearce SI §4.7 | `steric_3d.py` |
 | Order param, Θ, Θ′, L, dispersion | Pearce §1.3 | `metrics_3d.py` |
 | Density autocorrelation time τρ | Pearce Fig. 2F | `correlation_time.py` |
@@ -435,7 +436,8 @@ Three findings, honest about where the model stands:
 ## 6. 2D features still to rewrite for 3D
 
 The repository is **3D-only**: all simulation code runs on `boid_3d.Boid3D` /
-`spatial_3d` / numpy Vec3 state. Commit `6b71b15` removed the 2D simulation, and
+`spatial_grid_3d` / `flocking_modes_3d` / numpy Vec3 state. Commit `6b71b15`
+removed the 2D simulation, and
 the 2D-era design/port docs (`ext.md`, `core_modules.md`, `OCTAVE_README.md`,
 `SCILAB_README.md`, `BOUNDARY_MODES.md`, `ARCHITECTURE.md`) have now been removed
 too. This section preserves the still-unported **features and ideas** from them
@@ -676,6 +678,6 @@ gated integration tests in `run_tests.sh` already exercise this programmatically
 
 **Already done:** README Priority 13 (companion `cpuSpatialHash.ts` — a
 string-keyed 3D hash with 27-cell queries) is implemented by
-`spatial_3d.SpatialGrid3D` (tuple keys, 3×3×3 queries); the only companion variant
+`spatial_grid_3d.SpatialGrid3D` (tuple keys, 3×3×3 queries); the only companion variant
 not adopted — *no toroidal wrap + boundary push-back* — is partially provided by
 the `OPEN_BOUNDARY` free-flight flag (§4.9).

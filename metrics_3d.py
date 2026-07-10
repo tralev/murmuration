@@ -65,7 +65,7 @@ def internal_opacity(flock) -> float:
     """Mean internal opacity Θ = ⟨Θ_i⟩ over the flock.
 
     Θ_i is cached on each bird as ``last_theta`` during the projection
-    step (spatial_3d.flock_projection_3d). In SPATIAL mode no projection
+    step (flocking_modes_3d.flock_projection_3d). In SPATIAL mode no projection
     runs, so this reflects the last projection pass (or 0). Pearce's
     marginally-opaque flocks sit near MARGINAL_OPACITY_MEAN.
     """

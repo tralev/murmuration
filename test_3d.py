@@ -25,11 +25,8 @@ from flock_core import (
     MODE_PROJECTION, MODE_SPATIAL,
     VISUAL_RANGE, BOID_SIZE, Config,
 )
-from spatial_3d import (
-    BOUNDARY_MARGIN_Z, MAX_VISIBILITY_RANGE, _CELL_SIZE_3D,
-    SpatialGrid3D, flock_projection_3d, flock_spatial_3d,
-    MARGIN_BOUNDARY, BOUNDARY_MARGIN, BOUNDARY_TURN_FACTOR,
-)
+from spatial_grid_3d import SpatialGrid3D
+from flocking_modes_3d import flock_projection_3d, flock_spatial_3d
 from boid_3d import Boid3D
 
 
@@ -279,7 +276,7 @@ class TestSpatialGrid3D(unittest.TestCase):
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestFlockSpatial3D(unittest.TestCase):
-    """Standalone tests for spatial_3d.flock_spatial_3d()."""
+    """Standalone tests for flocking_modes_3d.flock_spatial_3d()."""
 
     # ── No neighbours ───────────────────────────────────────────────
 
@@ -412,7 +409,7 @@ class TestFlockSpatial3D(unittest.TestCase):
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 class TestFlockProjection3D(unittest.TestCase):
-    """Standalone tests for spatial_3d.flock_projection_3d()."""
+    """Standalone tests for flocking_modes_3d.flock_projection_3d()."""
 
     # ── Edge cases ──────────────────────────────────────────────────
 

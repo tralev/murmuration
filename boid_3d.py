@@ -13,7 +13,7 @@
    position wrap in all 3 dimensions. The OPEN_BOUNDARY flag (§4.9) swaps
    the wrap for free flight so the flock can self-size.
 
- Dependencies:  numpy, flock_core, spatial_3d
+ Dependencies:  numpy, flock_core, flocking_modes_3d
 ──────────────────────────────────────────────────────────────────────
 """
 
@@ -26,11 +26,14 @@ from flock_core import (
     WIDTH, HEIGHT, DEPTH, V0, MAX_FORCE,
     MODE_PROJECTION, MODE_SPATIAL,
 )
-from spatial_3d import BOUNDARY_MARGIN_Z, flock_projection_3d, flock_spatial_3d
+from flocking_modes_3d import flock_projection_3d, flock_spatial_3d
 
 # ── Boundary mode constants (local) ────────────────────────────────
+#  These drive the optional inward "margin" nudge in update() (off by
+#  default — the viewer uses toroidal wrap). Only Boid3D reads them.
 MARGIN_BOUNDARY     = False
-BOUNDARY_MARGIN     = 200
+BOUNDARY_MARGIN     = 200            # x/y margin at which the nudge starts
+BOUNDARY_MARGIN_Z   = 120            # narrower z margin (the volume is shallow)
 BOUNDARY_TURN_FACTOR = 1
 
 # Open (free-flight) boundary: no toroidal wrap and no wall clamp, so the

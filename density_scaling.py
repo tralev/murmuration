@@ -39,7 +39,7 @@
 
  CLI:  ``python density_scaling.py``  (runs the default sweep, prints a table).
 
- Dependencies:  numpy, scipy, boid_3d, spatial_3d, metrics_3d, flock_core
+ Dependencies:  numpy, scipy, boid_3d, spatial_grid_3d, metrics_3d, flock_core
 ──────────────────────────────────────────────────────────────────────
 """
 
@@ -55,7 +55,7 @@ from scipy.spatial import cKDTree
 
 import boid_3d
 from boid_3d import Boid3D
-from spatial_3d import SpatialGrid3D
+from spatial_grid_3d import SpatialGrid3D
 from metrics_3d import external_opacity
 from flock_core import Config, WIDTH, HEIGHT, DEPTH
 

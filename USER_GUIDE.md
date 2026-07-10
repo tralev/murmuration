@@ -252,7 +252,7 @@ varies.
 
 **Tips for large flocks:**
 - Use SPATIAL mode — it scales O(N) vs PROJECTION's O(N × K log K).
-- Reduce `MAX_VISIBILITY_RANGE` in `spatial_3d.py` (default 200) to limit
+- Reduce `MAX_VISIBILITY_RANGE` in `flocking_modes_3d.py` (default 200) to limit
   occlusion candidates.
 - GPU instanced rendering draws all birds in one call; CPU flocking is the
   bottleneck.

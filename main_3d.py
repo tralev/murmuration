@@ -40,7 +40,7 @@ from flock_core import (
 )
 
 from boid_3d import Boid3D
-from spatial_3d import SpatialGrid3D
+from spatial_grid_3d import SpatialGrid3D
 from renderer_3d import Renderer3D
 from input_handler_3d import handle_input
 from metrics_3d import FlockMetrics3D

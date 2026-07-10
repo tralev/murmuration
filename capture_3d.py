@@ -30,7 +30,7 @@ from flock_core import (
     Config,
 )
 from boid_3d import Boid3D
-from spatial_3d import SpatialGrid3D
+from spatial_grid_3d import SpatialGrid3D
 from renderer_3d import Renderer3D
 
 # ── Capture settings ──────────────────────────────────────────────

@@ -132,7 +132,8 @@ into GPU vertex buffers.
 |------|------|
 | `flock_core.py` | Constants (WIDTH×HEIGHT×DEPTH, V0, BOID_SIZE, φ defaults) and the mutable `Config` (auto-computes φn = 1 − φp − φa) |
 | `boid_3d.py` | `Boid3D` — numpy Vec3 physics: `flock()` dispatches by mode, `update()` does Euler integration + speed clamp + toroidal wrap (with an `OPEN_BOUNDARY` free-flight option used by the density-scaling analysis) |
-| `spatial_3d.py` | `SpatialGrid3D` (27-cell hash for O(1) neighbour queries) + the two mode functions `flock_projection_3d` / `flock_spatial_3d` |
+| `spatial_grid_3d.py` | `SpatialGrid3D` — the 27-cell hash for O(1) neighbour queries (just the spatial index; no flocking rules) |
+| `flocking_modes_3d.py` | the two steering rules `M` toggles between: `flock_projection_3d` (Pearce) and `flock_spatial_3d` (Reynolds) |
 | `occlusion_3d.py` | the analytic 3D spherical-cap projection — δ̂, visibility, Θ (see the science table above) |
 | `renderer_3d.py` / `shaders_3d.py` | ModernGL **instanced** rendering — one tetrahedron mesh, one draw call for the whole flock; each bird's velocity → rotation matrix is computed **in the vertex shader**, so the CPU uploads only 6 floats (pos + vel) per bird |
 | `camera_3d.py` | orbit camera (azimuth / elevation / distance) via `glm.lookAt` + `glm.perspective` |

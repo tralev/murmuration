@@ -349,7 +349,7 @@ class TestMarginalOpacity(unittest.TestCase):
     def test_default_flock_reaches_marginal_band(self):
         import random
         from boid_3d import Boid3D
-        from spatial_3d import SpatialGrid3D
+        from spatial_grid_3d import SpatialGrid3D
         from metrics_3d import internal_opacity
         from flock_core import Config, NUM_BOIDS
 

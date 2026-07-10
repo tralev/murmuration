@@ -1,16 +1,27 @@
 """
 ╔══════════════════════════════════════════════════════════════════════╗
-║  3D SPATIAL GRID & FLOCKING MODES                                   ║
+║  3D FLOCKING MODES — how a bird chooses its steering                 ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
- 3D spatial hash grid (27-cell queries) and both flocking mode functions
- for the 3D simulation. PROJECTION mode uses true 3D spherical-cap
- occlusion (occlusion_3d.py) — not an XY-plane approximation.
+ The two interchangeable steering rules the simulation toggles with `M`
+ (Boid3D.flock dispatches to one of them by config.mode):
+
+   MODE 0  PROJECTION — the Pearce et al. (2014) hybrid projection model,
+                        driven by true 3D spherical-cap occlusion
+                        (occlusion_3d.py). This is the paper's model.
+   MODE 1  SPATIAL    — classic topological Reynolds boids (separation /
+                        alignment / cohesion over the σ nearest neighbours).
+                        Not paper-specific; a familiar comparison regime.
+
+ Both take the same signature ``(boid, all_boids, config, grid)`` and
+ accumulate steering onto the bird via ``boid.apply_force`` — they read the
+ flock only through the spatial grid (spatial_grid_3d.py), so this module
+ has no dependency on the grid's internals or on Boid3D (the bird is
+ duck-typed: ``.pos`` / ``.vel`` / ``.apply_force`` / ``.last_theta``).
 
  Source (see sci.md §4.1 for the projection update v = φp·δ̂ + φa·⟨v̂⟩ + φn·η̂,
- §4.6 for the Reynolds-steering/speed-band implementation choices, and §4.7
- for the steric SI refinement). SPATIAL mode is the classic topological
- Reynolds model (not paper-specific), included as a comparison regime.
+ §4.6 for the Reynolds-steering / speed-band implementation choices, and §4.7
+ for the steric SI refinement).
 
  Dependencies:  numpy, occlusion_3d, steric_3d, flock_core
 ──────────────────────────────────────────────────────────────────────
@@ -18,81 +29,33 @@
 
 import math
 import random
-from collections import defaultdict
 
 import numpy as np
 
 from occlusion_3d import spherical_cap_occlusion
 from steric_3d import steric_force
-from flock_core import (
-    WIDTH, HEIGHT, DEPTH, V0, BOID_SIZE, MAX_FORCE,
-    MODE_PROJECTION, MODE_SPATIAL,
-    VISUAL_RANGE, Config,
-)
+from flock_core import V0, MAX_FORCE, VISUAL_RANGE
 
-# ── 3D-specific constants ──────────────────────────────────────────
-BOUNDARY_MARGIN_Z = 120               # Z margin for boundary nudge
-MAX_VISIBILITY_RANGE = 200            # Max distance for projection occlusion (performance)
-_CELL_SIZE_3D = 80                    # 3D grid cell size
-
-# ── Boundary mode constants (local) ────────────────────────────────
-MARGIN_BOUNDARY     = False
-BOUNDARY_MARGIN     = 200
-BOUNDARY_TURN_FACTOR = 1
+# Max distance a bird considers for projection occlusion. The spatial grid
+# limits candidates to this radius, so occlusion stays ~O(K) per bird rather
+# than O(N²); beyond it a neighbour's cap is < 0.5° wide and negligible.
+MAX_VISIBILITY_RANGE = 200
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  3D SPATIAL HASH GRID
-# ══════════════════════════════════════════════════════════════════════
+def _random_unit_vector():
+    """A random direction on the unit sphere (both modes use it for noise).
 
-class SpatialGrid3D:
+    Uses the simulation's seeded ``random`` module so runs stay reproducible.
+    (Sampling φ uniformly in [0, π] is the flock's existing pole-biased noise,
+    kept as-is; it is only a small isotropic perturbation.)
     """
-    3D spatial hash grid for O(1)-per-query neighbour lookups.
-
-    Divides the 3D simulation volume (WIDTH × HEIGHT × DEPTH) into cells
-    of size cell_size. Queries check 3×3×3 = 27 adjacent cells.
-
-    Complexity:
-      rebuild()    → O(N)
-      get_nearby() → O(K)  where K = birds in queried cells
-    """
-    def __init__(self, cell_size=_CELL_SIZE_3D):
-        self.cell_size = cell_size
-        self.cols = max(1, int(math.ceil(WIDTH / cell_size)))
-        self.rows = max(1, int(math.ceil(HEIGHT / cell_size)))
-        self.slices = max(1, int(math.ceil(DEPTH / cell_size)))
-        self.cells = defaultdict(list)
-
-    def rebuild(self, boids):
-        """Repopulate the grid in O(N)."""
-        self.cells.clear()
-        for boid in boids:
-            cx = int(boid.pos[0] // self.cell_size) % self.cols
-            cy = int(boid.pos[1] // self.cell_size) % self.rows
-            cz = int(boid.pos[2] // self.cell_size) % self.slices
-            self.cells[(cx, cy, cz)].append(boid)
-
-    def get_nearby(self, pos, radius):
-        """
-        Return all boids in cells overlapping the AABB of *radius*
-        around *pos*. Checks 3×3×3 = 27 cells.
-        """
-        cx0 = int((pos[0] - radius) // self.cell_size)
-        cx1 = int((pos[0] + radius) // self.cell_size)
-        cy0 = int((pos[1] - radius) // self.cell_size)
-        cy1 = int((pos[1] + radius) // self.cell_size)
-        cz0 = int((pos[2] - radius) // self.cell_size)
-        cz1 = int((pos[2] + radius) // self.cell_size)
-
-        nearby = []
-        for cx in range(cx0, cx1 + 1):
-            wcx = cx % self.cols
-            for cy in range(cy0, cy1 + 1):
-                wcy = cy % self.rows
-                for cz in range(cz0, cz1 + 1):
-                    wcz = cz % self.slices
-                    nearby.extend(self.cells.get((wcx, wcy, wcz), ()))
-        return nearby
+    theta = random.uniform(0, 2 * math.pi)
+    phi = random.uniform(0, math.pi)
+    return np.array([
+        math.cos(theta) * math.sin(phi),
+        math.sin(theta) * math.sin(phi),
+        math.cos(phi),
+    ], dtype=np.float32)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -106,10 +69,6 @@ class SpatialGrid3D:
 #  Θ are computed analytically in occlusion_3d.spherical_cap_occlusion —
 #  no XY-plane projection, and no altitude-cohesion hack (δ̂ is a genuine
 #  3-vector, so cohesion in Z falls out for free).
-#
-#  Performance: candidate set limited by MAX_VISIBILITY_RANGE via the
-#  spatial grid, so occlusion stays roughly O(K) per bird rather than
-#  O(N²) over the whole flock.
 
 
 def flock_projection_3d(boid, all_boids, config, grid):
@@ -152,13 +111,7 @@ def flock_projection_3d(boid, all_boids, config, grid):
     align /= len(nearest)
 
     # ── 4. Noise — a uniform random unit vector on the sphere ───────
-    ntheta = random.uniform(0, 2 * math.pi)
-    nphi = random.uniform(0, math.pi)
-    noise = np.array([
-        math.cos(ntheta) * math.sin(nphi),
-        math.sin(ntheta) * math.sin(nphi),
-        math.cos(nphi),
-    ], dtype=np.float32)
+    noise = _random_unit_vector()
 
     # ── 5. Desired velocity  v = φp·δ̂ + φa·⟨v̂⟩ + φn·η̂  (Pearce Eq. 3)
     #  δ̂ is already a full 3-vector, so it drives cohesion in all axes.
@@ -189,7 +142,7 @@ def flock_projection_3d(boid, all_boids, config, grid):
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  SPATIAL MODE (MODE 1) — 3D Extension
+#  SPATIAL MODE (MODE 1) — topological Reynolds boids in 3D
 # ══════════════════════════════════════════════════════════════════════
 
 def flock_spatial_3d(boid, all_boids, config, grid):
@@ -261,14 +214,8 @@ def flock_spatial_3d(boid, all_boids, config, grid):
         if sep_len > MAX_FORCE:
             separation = (separation / sep_len) * MAX_FORCE
 
-    # Noise (3D)
-    theta = random.uniform(0, 2 * math.pi)
-    phi = random.uniform(0, math.pi)
-    noise = np.array([
-        math.cos(theta) * math.sin(phi),
-        math.sin(theta) * math.sin(phi),
-        math.cos(phi),
-    ], dtype=np.float32) * MAX_FORCE * 0.8
+    # Noise (3D) — scaled down so it only jitters the coordinated motion.
+    noise = _random_unit_vector() * (MAX_FORCE * 0.8)
 
     boid.apply_force(separation * config.phi_p * 2.0)
     boid.apply_force(alignment * config.phi_a * 1.2)

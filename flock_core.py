@@ -4,7 +4,7 @@
 ╚══════════════════════════════════════════════════════════════════════╝
 
  Core data structures and constants shared across 3D modules.
- Imported by boid_3d.py, spatial_3d.py, and main_3d.py.
+ Imported by boid_3d.py, spatial_grid_3d.py, flocking_modes_3d.py, and main_3d.py.
 ──────────────────────────────────────────────────────────────────────
 """
 
