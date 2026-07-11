@@ -27,6 +27,9 @@ ipython>=8.0
 jupyter>=1.0
 nbconvert>=7.0
 
+# Test tooling (the coverage figures quoted in tests.md):
+coverage>=7.0
+
 # Optional (for running Octave/Scilab ports):
 # oct2py     (for .m file execution from Python)
 # scilab2py  (for .sce file execution from Python, may be unmaintained)

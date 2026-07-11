@@ -15,6 +15,7 @@
 """
 
 import math
+import os
 import random
 import unittest
 
@@ -269,6 +270,43 @@ class TestSpatialGrid3D(unittest.TestCase):
         nearby = grid.get_nearby(
             np.array([WIDTH - 10, 350, 200], dtype=np.float32), 50)
         self.assertIn(b, nearby)
+
+    def test_seam_and_drift_guarantees(self):
+        """Pin what the grid wrap does and does not promise (docstring of
+        get_nearby): it is a *drift guard*, not toroidal interaction.
+
+        Guaranteed: a query whose AABB extends past the low wall wraps to
+        the far-side cells (all three axes), and a bird that has drifted
+        beyond the nominal volume is still indexed and findable at its
+        own position.
+
+        NOT guaranteed: a query near the high wall wrapping to the low
+        side — with the default cell size (13·80 = 1040 > WIDTH) the top
+        query index never reaches `cols`, so it never wraps. This is
+        deliberate slack: both flocking modes distance-filter candidates
+        with the plain Euclidean metric, so cross-seam candidates are
+        never interacted with anyway (interactions are not toroidal —
+        only position re-entry is)."""
+        low_edge = [  # (bird just inside the high wall, low-edge query)
+            ((WIDTH - 5, 350, 200), (5, 350, 200)),
+            ((500, HEIGHT - 5, 200), (500, 5, 200)),
+            ((500, 350, DEPTH - 5), (500, 350, 5)),
+        ]
+        for bird_pos, query_pos in low_edge:
+            with self.subTest(bird=bird_pos, query=query_pos):
+                grid = SpatialGrid3D()               # default CELL_SIZE_3D
+                b = MockBoid(*bird_pos)
+                grid.rebuild([b])
+                nearby = grid.get_nearby(
+                    np.array(query_pos, dtype=np.float32), 40)
+                self.assertIn(b, nearby)
+
+        # Drift guard: a bird past the volume is indexed (mod cols) and a
+        # query at its own position finds it.
+        grid = SpatialGrid3D()
+        drifted = MockBoid(WIDTH + 130, HEIGHT + 90, DEPTH + 50)
+        grid.rebuild([drifted])
+        self.assertIn(drifted, grid.get_nearby(drifted.pos, 40))
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
@@ -744,7 +782,7 @@ class TestDiscovery(unittest.TestCase):
     out of unittest discovery; this fails loudly instead. Update the pin
     when tests are deliberately added or removed."""
 
-    EXPECTED = 48
+    EXPECTED = 50
 
     def test_module_test_count(self):
         import test_3d as m
@@ -783,6 +821,46 @@ class TestDeterminism(unittest.TestCase):
         pos2, vel2 = self._run_sim()
         self.assertTrue(np.array_equal(pos1, pos2))
         self.assertTrue(np.array_equal(vel1, vel2))
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Golden-trajectory regression (tests.md §3.2)                       ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+GOLDEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "golden_trajectory_3d.npz")
+
+
+def regenerate_golden():
+    """Re-pin the golden trajectory after a *deliberate* physics change:
+    python3 -c "import test_3d; test_3d.regenerate_golden()"
+    """
+    pos, vel = TestDeterminism._run_sim()
+    np.savez_compressed(GOLDEN_FILE, pos=pos, vel=vel)
+    print(f"regenerated {GOLDEN_FILE}")
+
+
+class TestGoldenTrajectory(unittest.TestCase):
+    """The seeded run must match the committed snapshot. TestDeterminism
+    proves two runs agree *within* one version; this catches an
+    unintended physics change *between* versions — the successor to the
+    2D suite's cross-language golden reference. A failure means the
+    dynamics changed: if that was deliberate, re-pin with
+    regenerate_golden() and say so in the commit message.
+
+    Tolerance is 1e-3 (not bit-exact): libm sin/cos may differ by an ulp
+    across platforms, and the dynamics amplify it. |pos| is O(10²), so
+    this still detects any real modelling change."""
+
+    def test_matches_committed_snapshot(self):
+        self.assertTrue(os.path.exists(GOLDEN_FILE),
+                        "golden_trajectory_3d.npz missing — regenerate "
+                        "with test_3d.regenerate_golden() and commit it")
+        golden = np.load(GOLDEN_FILE)
+        pos, vel = TestDeterminism._run_sim()
+        self.assertEqual(pos.shape, golden["pos"].shape)
+        np.testing.assert_allclose(pos, golden["pos"], rtol=0, atol=1e-3)
+        np.testing.assert_allclose(vel, golden["vel"], rtol=0, atol=1e-3)
 
 
 if __name__ == '__main__':

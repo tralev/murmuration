@@ -16,6 +16,7 @@ Recover any original 2D test with `git show c948b22:<name>.py`.
 | **python** | `test_3d.py` | physics, spatial grid, the two flocking modes, boundary modes |
 | **python** | `test_science_3d.py` | the paper-grounded science modules (occlusion, metrics, ecology, Young, density scaling) |
 | **python** | `test_ui_3d.py` | the non-science stack testable without a display: `OrbitCamera` (pure glm), `input_handler_3d` (mocked events), `shaders_3d`, `features` |
+| **python** | `test_render_3d.py` | `renderer_3d` via a headless ModernGL FBO (one real frame + read-back); self-skips where no GL driver exists |
 | **sh** | `run_tests.sh` | the shared gate: syntax check (`py_compile` every module) + `unittest test_3d test_science_3d test_ui_3d`. `RUN_SLOW_TESTS=1` adds the gated integration tests |
 | **docker** | `docker_test.sh` | build image → run tests in-image → headless smoke-launch (§5) |
 | **ci** | `.github/workflows/test.yml` | Python-version matrix + the Docker job (§6) |
@@ -33,10 +34,10 @@ so nothing needs a `Boid3D`, a grid, or a GPU.
 **≈99 %** of the unit-testable code (`RUN_SLOW_TESTS=1` for the full figure).
 Every science and logic module sits at 99–100 %; the only unhit lines are the
 `density_scaling` `__main__` entry point and one provably unreachable defensive
-clip in `metrics_3d.external_opacity`. The only uncovered modules are the three
-that require a live GL context — `renderer_3d`, `main_3d`, `capture_3d` — which
-cannot be unit-tested headless and are instead exercised by the Docker
-**smoke-launch** (§5).
+clip in `metrics_3d.external_opacity`. `renderer_3d` is additionally smoke-tested
+by `test_render_3d` on machines whose GL driver can create a standalone ModernGL
+context (it skips elsewhere). Only `main_3d` and `capture_3d` remain exercised
+solely by the Docker **smoke-launch** (§5).
 
 ---
 
@@ -186,13 +187,26 @@ identical trajectory (2D had `test_deterministic_given_same_positions`). Adopted
 projection → spatial halfway) and asserts bit-identical positions *and*
 velocities, guarding against hidden global-state leaks.
 
-### 3.3 Feature-flag / import guards  (⬜ to adopt if flags are used)
+Adopted, part two — the **golden reference** itself:
+`test_3d.TestGoldenTrajectory` compares the same seeded run against the
+committed `golden_trajectory_3d.npz` snapshot (atol 1e-3 — libm ulp differences
+across platforms amplify through the dynamics, so bit-exactness is asserted
+only within a version). Determinism catches disagreement *within* a version;
+the golden file catches an unintended physics change *between* versions. After
+a deliberate change, re-pin with
+`python3 -c "import test_3d; test_3d.regenerate_golden()"` and say so in the
+commit message.
+
+### 3.3 Feature-flag / import guards  (resolved — not applicable)
 
 `test_features.py` used **subprocess** to assert import-time behaviour — e.g.
 disabling a model flag means its module is *never imported* (`ENABLE_3D=False`
-raises on GL import), exactly N flags exist, defaults are correct. If `features.py`
-gates the 3D build, port the pattern: spawn a subprocess with a flag set and
-assert the guarded module is absent from `sys.modules`.
+raises on GL import), exactly N flags exist, defaults are correct. Audited
+2026-07: the 3D `features.py` flags (`ENABLE_PROJECTION_MODE` /
+`ENABLE_SPATIAL_MODE`) are **declarative only — no module reads them**, so
+there is no import-time behaviour to guard; `test_ui_3d.TestFeatures` already
+pins their existence and defaults. Adopt the subprocess pattern only if a flag
+ever actually gates an import.
 
 ### 3.4 Slow-test gating  (✅)
 

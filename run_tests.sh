@@ -30,7 +30,9 @@ echo "  ✓ syntax OK"
 # ── 2/2  Unit tests ─────────────────────────────────────────────────
 #  test_3d / test_science_3d are pure numpy/scipy; test_ui_3d also needs
 #  pygame + glm + moderngl importable, but no display or GL context (events
-#  are mocked, the camera is pure maths). None open a window.
-echo "── run_tests 2/2: unit tests (test_3d, test_science_3d, test_ui_3d) ──"
-SDL_VIDEODRIVER=dummy python3 -m unittest test_3d test_science_3d test_ui_3d "$@"
+#  are mocked, the camera is pure maths). test_render_3d renders into an
+#  offscreen ModernGL FBO — still no window — and skips itself cleanly
+#  where no GL driver exists (bare CI runners). None open a window.
+echo "── run_tests 2/2: unit tests (test_3d, test_science_3d, test_ui_3d, test_render_3d) ──"
+SDL_VIDEODRIVER=dummy python3 -m unittest test_3d test_science_3d test_ui_3d test_render_3d "$@"
 echo "  ✓ tests passed"

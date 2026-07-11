@@ -153,6 +153,77 @@ class TestSphericalCapOcclusion(unittest.TestCase):
 # ║  Pearce SI refinements — steric, blind angles, anisotropic bodies     ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
+class TestOcclusionInvariants(unittest.TestCase):
+    """Seeded fuzz: the occlusion's contractual invariants must hold for
+    *any* configuration, not just the hand-picked geometries above —
+    |δ̂| ≤ 1, Θ ∈ [0, 1], visible closest-first and duplicate-free, no
+    visible bird inside the blind cone, anisotropy = 1 ≡ isotropic."""
+
+    @staticmethod
+    def _random_boid(rng, centre=None, spread=150.0):
+        if centre is None:
+            pos = (rng.uniform(0, 1000), rng.uniform(0, 700),
+                   rng.uniform(0, 400))
+        else:
+            pos = tuple(c + rng.uniform(-spread, spread) for c in centre)
+        # Guarantee a well-defined heading (speed ≥ 0.5).
+        theta = rng.uniform(0, 2 * math.pi)
+        z = rng.uniform(-1, 1)
+        r = math.sqrt(1 - z * z)
+        speed = rng.uniform(0.5, 4.0)
+        return _StubBoid(pos, (speed * r * math.cos(theta),
+                               speed * r * math.sin(theta), speed * z))
+
+    def test_invariants_over_random_configs(self):
+        from occlusion_3d import spherical_cap_occlusion
+        rng = random.Random(1234)
+        blind = math.cos(math.radians(30))
+        for trial in range(100):
+            obs = self._random_boid(rng)
+            nbs = [self._random_boid(rng, centre=obs.pos)
+                   for _ in range(rng.randint(0, 25))]
+            if nbs and rng.random() < 0.2:          # occasional degenerate
+                nbs[0].pos = obs.pos.copy()          # coincident neighbour
+            bc = rng.choice([None, blind])
+            aniso = rng.choice([1.0, 2.0])
+            delta, vis, theta = spherical_cap_occlusion(
+                obs, nbs, blind_cos=bc, anisotropy=aniso)
+            msg = f"trial {trial} (blind={bc is not None}, aniso={aniso})"
+
+            self.assertLessEqual(np.linalg.norm(delta), 1.0 + 1e-9, msg)
+            self.assertGreaterEqual(theta, 0.0, msg)
+            self.assertLessEqual(theta, 1.0, msg)
+
+            dists = [d for _, d in vis]
+            self.assertEqual(dists, sorted(dists), msg)     # closest first
+            ids = [id(b) for b, _ in vis]
+            self.assertEqual(len(ids), len(set(ids)), msg)  # no duplicates
+            for b, _ in vis:
+                self.assertIsNot(b, obs, msg)
+
+            if bc is not None:                       # nobody in the cone
+                h = obs.vel / np.linalg.norm(obs.vel)
+                for b, _ in vis:
+                    dvec = b.pos - obs.pos
+                    dhat = dvec / np.linalg.norm(dvec)
+                    self.assertLess(float(dhat @ -h), bc + 1e-9, msg)
+
+    def test_isotropic_anisotropy_matches_default(self):
+        """anisotropy=1.0 must reproduce the default (isotropic) result
+        exactly — same δ̂, visibility, and Θ."""
+        from occlusion_3d import spherical_cap_occlusion
+        rng = random.Random(4321)
+        for trial in range(20):
+            obs = self._random_boid(rng)
+            nbs = [self._random_boid(rng, centre=obs.pos)
+                   for _ in range(rng.randint(1, 15))]
+            d1, v1, t1 = spherical_cap_occlusion(obs, nbs)
+            d2, v2, t2 = spherical_cap_occlusion(obs, nbs, anisotropy=1.0)
+            self.assertTrue(np.allclose(d1, d2), f"trial {trial}")
+            self.assertEqual([id(b) for b, _ in v1], [id(b) for b, _ in v2])
+            self.assertEqual(t1, t2, f"trial {trial}")
+
+
 class TestStericRepulsion(unittest.TestCase):
     def test_pushes_away_from_close_bird(self):
         from steric_3d import steric_force
@@ -962,7 +1033,7 @@ class TestDiscovery(unittest.TestCase):
     out of unittest discovery; this fails loudly instead. Update the pin
     when tests are deliberately added or removed."""
 
-    EXPECTED = 103
+    EXPECTED = 105
 
     def test_module_test_count(self):
         import test_science_3d as m
