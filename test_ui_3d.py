@@ -357,5 +357,22 @@ class TestFeatures(unittest.TestCase):
             self.assertIsInstance(getattr(features, flag), bool)
 
 
+# ══════════════════════════════════════════════════════════════════════
+#  Discovery gate (tests.md §3.1)
+# ══════════════════════════════════════════════════════════════════════
+
+class TestDiscovery(unittest.TestCase):
+    """Pinned test count — a renamed or mis-indented test silently drops
+    out of unittest discovery; this fails loudly instead. Update the pin
+    when tests are deliberately added or removed."""
+
+    EXPECTED = 35
+
+    def test_module_test_count(self):
+        import test_ui_3d as m
+        n = unittest.TestLoader().loadTestsFromModule(m).countTestCases()
+        self.assertEqual(n, self.EXPECTED)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

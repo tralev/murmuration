@@ -735,5 +735,55 @@ class TestBoid3DBoundaryModes(unittest.TestCase):
         self.assertIsInstance(b.last_theta, float)
 
 
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Discovery gate (tests.md §3.1)                                     ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestDiscovery(unittest.TestCase):
+    """Pinned test count — a renamed or mis-indented test silently drops
+    out of unittest discovery; this fails loudly instead. Update the pin
+    when tests are deliberately added or removed."""
+
+    EXPECTED = 48
+
+    def test_module_test_count(self):
+        import test_3d as m
+        n = unittest.TestLoader().loadTestsFromModule(m).countTestCases()
+        self.assertEqual(n, self.EXPECTED)
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Seeded determinism (tests.md §3.2)                                 ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestDeterminism(unittest.TestCase):
+    """Same seeds ⟹ bit-identical trajectories. Guards against hidden
+    global state or unseeded randomness anywhere in the frame loop
+    (the 3D successor to the 2D cross-language golden reference)."""
+
+    @staticmethod
+    def _run_sim(frames=30, n=15):
+        random.seed(77)
+        np.random.seed(77)
+        config = _make_config(phi_p=0.05, phi_a=0.8, mode=MODE_PROJECTION)
+        flock = [Boid3D() for _ in range(n)]
+        grid = SpatialGrid3D()
+        for frame in range(frames):
+            if frame == frames // 2:              # exercise both modes
+                config.mode = MODE_SPATIAL
+            grid.rebuild(flock)
+            for b in flock:
+                b.flock(flock, config, grid)
+            for b in flock:
+                b.update()
+        return np.array([b.pos for b in flock]), np.array([b.vel for b in flock])
+
+    def test_bit_identical_trajectories(self):
+        pos1, vel1 = self._run_sim()
+        pos2, vel2 = self._run_sim()
+        self.assertTrue(np.array_equal(pos1, pos2))
+        self.assertTrue(np.array_equal(vel1, vel2))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

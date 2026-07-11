@@ -66,6 +66,33 @@ class TestSphericalCapOcclusion(unittest.TestCase):
         self.assertEqual(len(vis), 1)
         self.assertGreater(th, 0.0)
 
+    def test_delta_magnitude_encodes_edge_vs_surrounded(self):
+        """|δ̂| is the density-regulation signal (sci.md §4.1): the
+        boundary directions cancel for a fully surrounded bird (|δ̂| → 0)
+        and all resolve one way at the silhouette edge (|δ̂| → 1)."""
+        from occlusion_3d import spherical_cap_occlusion
+        obs = _StubBoid((0, 0, 0), (1, 0, 0))
+
+        # Symmetric octahedral surround — equal caps, directions cancel.
+        surround = [_StubBoid(p, (1, 0, 0)) for p in
+                    [(60, 0, 0), (-60, 0, 0), (0, 60, 0),
+                     (0, -60, 0), (0, 0, 60), (0, 0, -60)]]
+        d_in, vis, _ = spherical_cap_occlusion(obs, surround)
+        self.assertEqual(len(vis), 6)
+        self.assertLess(np.linalg.norm(d_in), 1e-6)
+
+        # Everyone off to one side (an edge bird) → |δ̂| near 1.
+        edge = [_StubBoid((60, dy, dz), (1, 0, 0))
+                for dy in (-20, 0, 20) for dz in (-20, 20)]
+        d_edge, _, _ = spherical_cap_occlusion(obs, edge)
+        self.assertGreater(np.linalg.norm(d_edge), 0.9)
+        self.assertLessEqual(np.linalg.norm(d_edge), 1.0 + 1e-9)
+
+        # A single visible neighbour is the pure edge limit: |δ̂| = 1.
+        d_one, _, _ = spherical_cap_occlusion(
+            obs, [_StubBoid((60, 0, 0), (1, 0, 0))])
+        self.assertAlmostEqual(np.linalg.norm(d_one), 1.0, places=6)
+
     def test_coincident_neighbour_skipped(self):
         """A neighbour at the observer's exact position (d ≈ 0) is skipped
         rather than dividing by zero."""
@@ -924,6 +951,23 @@ class TestScenarioPresets3D(unittest.TestCase):
         from scenario_presets_3d import apply_preset_3d
         from flock_core import Config
         self.assertEqual(apply_preset_3d(Config(), 'z'), "")
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Discovery gate (tests.md §3.1)                                       ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestDiscovery(unittest.TestCase):
+    """Pinned test count — a renamed or mis-indented test silently drops
+    out of unittest discovery; this fails loudly instead. Update the pin
+    when tests are deliberately added or removed."""
+
+    EXPECTED = 103
+
+    def test_module_test_count(self):
+        import test_science_3d as m
+        n = unittest.TestLoader().loadTestsFromModule(m).countTestCases()
+        self.assertEqual(n, self.EXPECTED)
 
 
 if __name__ == "__main__":

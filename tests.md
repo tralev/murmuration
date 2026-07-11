@@ -82,9 +82,10 @@ The 2D angular-interval merge (`test_occlusion.py`: `_normalise_interval`,
   `cosψ = |d̂·ĥ_j|`, `a = b·anisotropy`. *Asserted:* broadside `Θ` > end-on `Θ`;
   `anisotropy = 1` reproduces the isotropic result.
 - **δ̂ magnitude** (the density-regulation signal, sci.md §4.1):
-  `δ̂ = Σ_vis sinα·d̂ / Σ_vis sinα`, `|δ̂| ∈ [0,1]`. ⬜ a direct check that `|δ̂|→0`
-  for a symmetric surround and `→1` at an edge would pin the marginal-opacity
-  mechanism (2D had `test_delta_zero_when_fully_surrounded`).
+  `δ̂ = Σ_vis sinα·d̂ / Σ_vis sinα`, `|δ̂| ∈ [0,1]`. ✅
+  `test_delta_magnitude_encodes_edge_vs_surrounded` pins the marginal-opacity
+  mechanism: |δ̂| < 10⁻⁶ for a symmetric octahedral surround, > 0.9 with all
+  neighbours to one side, and exactly 1 for a single visible neighbour.
 
 ### 2.3 Projection & spatial flocking modes — ✅ `TestFlockProjection3D`, `TestFlockSpatial3D`, `TestSpatialGrid3D`
 
@@ -164,25 +165,26 @@ adding if the 3D handler gains preset save/restore.
 
 Ideas from the 2D/multi-language suite worth adopting in 3D:
 
-### 3.1 Test-count discovery gate  (⬜ to adopt)
+### 3.1 Test-count discovery gate  (✅)
 
 Every 2D module carried a `TestDiscovery` class whose single test asserted the
 module's **exact test count**, and `scripts/check-test-count.sh` / CI stage 2 ran
 them in ~1 ms as a fast gate. It catches *silently dropped* tests (a renamed or
-mis-indented method that `unittest` no longer discovers). 3D equivalent: a tiny
-`test_discovery` asserting `TestLoader().loadTestsFromModule(m).countTestCases()`
-equals a pinned number for `test_3d` and `test_science_3d`.
+mis-indented method that `unittest` no longer discovers). Adopted: each of
+`test_3d` / `test_science_3d` / `test_ui_3d` ends with a `TestDiscovery` class
+asserting `TestLoader().loadTestsFromModule(m).countTestCases()` equals its
+pinned count (update the pin when tests are deliberately added or removed).
 
-### 3.2 Determinism / golden reference  (partly ✅, replaces cross-language parity)
+### 3.2 Determinism / golden reference  (✅, replaces cross-language parity)
 
 The 2D suite proved **Python ≡ Octave ≡ Scilab** produced identical results
 (`test_cross_language.py`, `.m`/`.sce` tests, `validate-all.sh`) — a golden
 reference across languages. The 3D repo is Python-only, so that parity is moot;
 its successor is **seeded determinism**: same `random.seed`/`np.random.seed` ⟹
-identical trajectory (2D had `test_deterministic_given_same_positions`). Several
-3D tests already fix a seed; ⬜ a dedicated determinism test (run N frames twice,
-assert bit-identical positions) would formalise it and guard against hidden
-global-state leaks.
+identical trajectory (2D had `test_deterministic_given_same_positions`). Adopted:
+`test_3d.TestDeterminism` runs 15 birds for 30 frames twice (switching
+projection → spatial halfway) and asserts bit-identical positions *and*
+velocities, guarding against hidden global-state leaks.
 
 ### 3.3 Feature-flag / import guards  (⬜ to adopt if flags are used)
 
