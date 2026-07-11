@@ -403,6 +403,28 @@ class TestFlockSpatial3D(unittest.TestCase):
                 self.assertLessEqual(fl, MAX_FORCE + 0.001,
                     f"Force {i} should be ≤ MAX_FORCE, got {fl:.4f}")
 
+    # ── Pearce SI refinements ───────────────────────────────────────
+
+    def test_refinements_add_steric_force(self):
+        """With refinements on, a neighbour inside the steric radius adds a
+        fifth force (sep/align/coh/noise + steric); off → the usual four."""
+        from flock_core import BOID_SIZE
+        nb_pos = (500 + BOID_SIZE * 2, 350, 200)
+
+        boid = MockBoid(500, 350, 200, V0, 0, 0)
+        nb = MockBoid(*nb_pos, V0, 0, 0)
+        config = Config()                            # refinements on
+        config.mode = MODE_SPATIAL
+        flock_spatial_3d(boid, [boid, nb], config, MockGrid([boid, nb]))
+        self.assertEqual(len(boid._forces), 5)
+        self.assertLess(boid._forces[-1][0], 0.0)    # steric pushes −X
+
+        plain = MockBoid(500, 350, 200, V0, 0, 0)
+        nb2 = MockBoid(*nb_pos, V0, 0, 0)
+        off = _make_config(mode=MODE_SPATIAL)        # refinements off
+        flock_spatial_3d(plain, [plain, nb2], off, MockGrid([plain, nb2]))
+        self.assertEqual(len(plain._forces), 4)
+
 
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  flock_projection_3d                                                ║
@@ -571,6 +593,57 @@ class TestFlockProjection3D(unittest.TestCase):
         # Identical seed + inputs → bitwise-close steering force.
         self.assertAlmostEqual(np.linalg.norm(s1 - s2), 0.0, places=5)
 
+    # ── Degenerate alignment branches ───────────────────────────────
+
+    def test_zero_net_neighbour_velocity_aligns_with_own_heading(self):
+        """Visible neighbours whose velocities cancel (⟨v⟩ ≈ 0) fall back
+        to aligning with the boid's own heading, so the desired velocity
+        equals the current one and the steer is ~zero."""
+        boid = MockBoid(500, 350, 200, V0, 0, 0)
+        n1 = MockBoid(560, 320, 200, 0, 2, 0)       # well-separated caps —
+        n2 = MockBoid(560, 380, 200, 0, -2, 0)      # both visible; ⟨v⟩ = 0
+        config = _make_config(sigma=2, phi_p=0.0, phi_a=1.0)  # φn = 0
+
+        flock_projection_3d(boid, [boid, n1, n2], config,
+                            MockGrid([boid, n1, n2]))
+
+        self.assertEqual(len(boid._forces), 1)
+        self.assertAlmostEqual(np.linalg.norm(boid._forces[0]), 0.0, delta=0.01)
+
+    def test_zero_desired_velocity_falls_back_to_noise(self):
+        """⟨v⟩ ≈ 0, own velocity ≈ 0 and φp = φn = 0 leave a zero desired
+        velocity — the fallback steers by the noise vector instead of
+        dividing by zero."""
+        boid = MockBoid(500, 350, 200, 0, 0, 0)     # stationary observer
+        n1 = MockBoid(560, 320, 200, 0, 2, 0)
+        n2 = MockBoid(560, 380, 200, 0, -2, 0)
+        config = _make_config(sigma=2, phi_p=0.0, phi_a=1.0)
+
+        flock_projection_3d(boid, [boid, n1, n2], config,
+                            MockGrid([boid, n1, n2]))
+
+        self.assertEqual(len(boid._forces), 1)
+        f = boid._forces[0]
+        self.assertTrue(np.all(np.isfinite(f)))
+        self.assertGreater(np.linalg.norm(f), 0.0)  # noise-driven steer
+
+    def test_blind_view_still_applies_steric(self):
+        """With refinements on, a lone neighbour inside the rear blind cone
+        is invisible (no projection force) but its short-range steric
+        repulsion still applies."""
+        from flock_core import BOID_SIZE
+        boid = MockBoid(500, 350, 200, 0, V0, 0)    # heading +Y
+        behind = MockBoid(500, 350 - BOID_SIZE * 2, 200, 0, V0, 0)
+        config = Config()                            # refinements on
+        config.mode = MODE_PROJECTION
+
+        flock_projection_3d(boid, [boid, behind], config,
+                            MockGrid([boid, behind]))
+
+        self.assertEqual(len(boid._forces), 1)
+        self.assertGreater(boid._forces[0][1], 0.0)  # pushed away, +Y
+        self.assertEqual(boid.last_theta, 0.0)       # empty projected view
+
 
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  Boundary modes & flock() dispatch                                  ║
@@ -594,6 +667,34 @@ class TestBoid3DBoundaryModes(unittest.TestCase):
             b.update()
             self.assertGreaterEqual(b.pos[0], 0.0)      # clamped back in bounds
             self.assertLessEqual(b.pos[0], float(WIDTH))
+        finally:
+            m.MARGIN_BOUNDARY = old
+
+    def test_margin_mode_nudges_all_six_walls(self):
+        """MARGIN_BOUNDARY: a bird inside each wall's margin band gets an
+        inward velocity nudge on that axis (all six walls, both signs)."""
+        import boid_3d as m
+        cases = [  # (position inside a margin band, nudged axis, sign)
+            ((50.0, 350.0, 200.0), 0, +1),   # −x wall
+            ((950.0, 350.0, 200.0), 0, -1),  # +x wall
+            ((500.0, 50.0, 200.0), 1, +1),   # −y wall
+            ((500.0, 650.0, 200.0), 1, -1),  # +y wall
+            ((500.0, 350.0, 50.0), 2, +1),   # −z wall
+            ((500.0, 350.0, 350.0), 2, -1),  # +z wall
+        ]
+        old = m.MARGIN_BOUNDARY
+        m.MARGIN_BOUNDARY = True
+        try:
+            for pos, axis, sign in cases:
+                with self.subTest(axis=axis, sign=sign):
+                    b = Boid3D()
+                    b.pos = np.array(pos, dtype=np.float32)
+                    vel = np.zeros(3, dtype=np.float32)
+                    vel[(axis + 1) % 3] = 0.5 * V0     # cruise along another axis
+                    b.vel = vel
+                    b.acc = np.zeros(3, dtype=np.float32)
+                    b.update()
+                    self.assertGreater(sign * b.vel[axis], 0.0)
         finally:
             m.MARGIN_BOUNDARY = old
 

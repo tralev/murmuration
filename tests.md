@@ -30,11 +30,13 @@ so nothing needs a `Boid3D`, a grid, or a GPU.
 ### Coverage
 
 `python -m coverage run -m unittest test_3d test_science_3d test_ui_3d` →
-**≈86 %** of the codebase (`RUN_SLOW_TESTS=1` for the full figure). Every science
-and logic module sits at 87–100 %. The only uncovered modules are the three that
-require a live GL context — `renderer_3d`, `main_3d`, `capture_3d` — which cannot
-be unit-tested headless and are instead exercised by the Docker **smoke-launch**
-(§5). Excluding those three, the unit-testable code is ~96 % covered.
+**≈99 %** of the unit-testable code (`RUN_SLOW_TESTS=1` for the full figure).
+Every science and logic module sits at 99–100 %; the only unhit lines are the
+`density_scaling` `__main__` entry point and one provably unreachable defensive
+clip in `metrics_3d.external_opacity`. The only uncovered modules are the three
+that require a live GL context — `renderer_3d`, `main_3d`, `capture_3d` — which
+cannot be unit-tested headless and are instead exercised by the Docker
+**smoke-launch** (§5).
 
 ---
 
@@ -56,8 +58,9 @@ covers it (✅) or it is an area to add (⬜, mapped from the 2D suite).
   `TestBoid3DUpdate` case for the open branch would complement the analysis-side
   `test_open_boundary_context_restores`).
 - **Margin boundary** (2D `test_boundary.py`): inward nudge within a margin,
-  hard clamp outside. 3D `Boid3D` keeps the code (off by default) — ⬜ add cases
-  if the reflective mode is enabled.
+  hard clamp outside. 3D `Boid3D` keeps the code (off by default) — ✅
+  `test_margin_mode_nudges_all_six_walls` asserts the inward nudge sign at
+  every wall (±x, ±y, ±z), `test_margin_mode_nudges_and_clamps` the clamp.
 
 ### 2.2 Spherical-cap occlusion — ✅ `TestSphericalCapOcclusion`, `…BlindAngles`, `…AnisotropicBodies`
 

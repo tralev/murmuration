@@ -43,11 +43,37 @@ class TestSphericalCapOcclusion(unittest.TestCase):
         self.assertEqual(pts.shape, (200, 3))
         self.assertTrue(np.allclose(np.linalg.norm(pts, axis=1), 1.0))
 
+    def test_fibonacci_sphere_degenerate_n(self):
+        from occlusion_3d import fibonacci_sphere
+        self.assertEqual(fibonacci_sphere(0).shape, (0, 3))
+        one = fibonacci_sphere(1)
+        self.assertEqual(one.shape, (1, 3))
+        self.assertTrue(np.allclose(np.linalg.norm(one[0]), 1.0))
+
     def test_empty_returns_zero(self):
         from occlusion_3d import spherical_cap_occlusion
         d, vis, th = spherical_cap_occlusion(_StubBoid((0, 0, 0), (1, 0, 0)), [])
         self.assertEqual(list(d), [0, 0, 0])
         self.assertEqual(vis, [])
+
+    def test_raw_point_neighbour_default_heading(self):
+        """A neighbour given as a bare (x, y, z) point has no velocity —
+        its heading defaults to +X and it is still projected."""
+        from occlusion_3d import spherical_cap_occlusion
+        obs = _StubBoid((0, 0, 0), (1, 0, 0))
+        d, vis, th = spherical_cap_occlusion(obs, [(60.0, 0.0, 0.0)],
+                                             anisotropy=2.0)
+        self.assertEqual(len(vis), 1)
+        self.assertGreater(th, 0.0)
+
+    def test_coincident_neighbour_skipped(self):
+        """A neighbour at the observer's exact position (d ≈ 0) is skipped
+        rather than dividing by zero."""
+        from occlusion_3d import spherical_cap_occlusion
+        obs = _StubBoid((0, 0, 0), (1, 0, 0))
+        d, vis, th = spherical_cap_occlusion(obs, [_StubBoid((0, 0, 0), (1, 0, 0))])
+        self.assertEqual(vis, [])
+        self.assertEqual(th, 0.0)
         self.assertEqual(th, 0.0)
 
     def test_delta_points_toward_single_neighbour(self):
@@ -121,6 +147,19 @@ class TestStericRepulsion(unittest.TestCase):
         far = np.linalg.norm(steric_force(
             _StubBoid((0, 0, 0), (1, 0, 0)), [_StubBoid((11, 0, 0), (1, 0, 0))]))
         self.assertGreater(near, far)
+
+    def test_self_is_excluded(self):
+        from steric_3d import steric_force
+        b = _StubBoid((0, 0, 0), (1, 0, 0))
+        self.assertTrue(np.allclose(steric_force(b, [b]), 0.0))
+
+    def test_force_clamped_to_max_force(self):
+        from steric_3d import steric_force
+        from flock_core import MAX_FORCE
+        # 1/d² at d = 0.01 is huge — the clamp must cap it at MAX_FORCE.
+        f = steric_force(_StubBoid((0, 0, 0), (1, 0, 0)),
+                         [_StubBoid((0.01, 0, 0), (1, 0, 0))])
+        self.assertAlmostEqual(np.linalg.norm(f), MAX_FORCE, places=6)
 
 
 class TestBlindAngles(unittest.TestCase):
@@ -214,6 +253,14 @@ class TestPredator3D(unittest.TestCase):
         apply_predator([b], pred)
         self.assertTrue(np.linalg.norm(b._acc) > 0.0)
 
+    def test_apply_predator_empty_flock_noop(self):
+        """No birds → no centre of mass; the predator must not move."""
+        from predator_3d import Predator3D, apply_predator
+        pred = Predator3D(pos=(500, 350, 200), vel=(0, 0, 0))
+        before = np.array(pred.pos, dtype=float).copy()
+        apply_predator([], pred)
+        self.assertTrue(np.allclose(pred.pos, before))
+
 
 class TestRoostingDaylight(unittest.TestCase):
     def test_day_length_peaks_at_solstice(self):
@@ -239,6 +286,20 @@ class TestRoostingDaylight(unittest.TestCase):
         self.assertAlmostEqual(np.linalg.norm(day_f), 0.0, places=3)
         self.assertLess(night_f[2], 0.0)            # roost is below → pulled down
         self.assertGreater(np.linalg.norm(night_f), np.linalg.norm(day_f))
+
+    def test_dusk_factor_saturates_far_from_sunset(self):
+        """The logistic ramp clamps to exactly 0/1 far from sunset instead
+        of overflowing exp()."""
+        from ecology import dusk_factor
+        self.assertEqual(dusk_factor(0.0, 15), 0.0)     # deep pre-dawn
+        self.assertEqual(dusk_factor(40.0, 15), 1.0)    # long past sunset
+
+    def test_roost_force_zero_at_roost(self):
+        """A bird already sitting on the roost feels no pull (d ≈ 0 guard)."""
+        from ecology import roost_force
+        roost = (500, 350, 40)
+        f = roost_force(roost, 22.0, roost, 15)         # after sunset
+        self.assertTrue(np.allclose(f, 0.0))
 
     def test_temperature_coldest_in_winter(self):
         from ecology import temperature
@@ -300,12 +361,31 @@ class TestExternalOpacity(unittest.TestCase):
         from metrics_3d import external_opacity
         self.assertEqual(external_opacity([]), 0.0)
 
+    def test_degenerate_span_returns_zero(self):
+        """Coincident zero-size birds project to a zero-area silhouette."""
+        import metrics_3d as mm
+        old = mm.BOID_SIZE
+        mm.BOID_SIZE = 0.0
+        try:
+            flock = [_StubBoid((5, 5, 5), (1, 0, 0)) for _ in range(3)]
+            self.assertEqual(mm.external_opacity(flock), 0.0)
+        finally:
+            mm.BOID_SIZE = old
+
 
 class TestAngularMomentumDispersion(unittest.TestCase):
     def test_straight_stream_low_angular_momentum(self):
         from metrics_3d import angular_momentum
         flock = [_StubBoid((i * 10, 0, 0), (4, 0, 0)) for i in range(30)]
         self.assertLess(angular_momentum(flock), 1e-6)
+
+    def test_empty_flock_zero_metrics(self):
+        """Every raw metric returns 0 for an empty flock."""
+        from metrics_3d import (internal_opacity, angular_momentum,
+                                dispersion)
+        self.assertEqual(internal_opacity([]), 0.0)
+        self.assertEqual(angular_momentum([]), 0.0)
+        self.assertEqual(dispersion([]), 0.0)
 
     def test_dispersion_matches_known_radius(self):
         from metrics_3d import dispersion
@@ -331,6 +411,30 @@ class TestFlockMetrics3D(unittest.TestCase):
         m = FlockMetrics3D()
         m.update([_StubBoid((0, 0, 0), (4, 0, 0))])
         self.assertIn("α=", m.summary())
+
+    def test_update_empty_flock_is_noop(self):
+        from metrics_3d import FlockMetrics3D
+        m = FlockMetrics3D()
+        flock = [_StubBoid((i * 10, 0, 0), (4, 0, 0)) for i in range(10)]
+        m.update(flock)
+        before = (m.order_param, m.internal_opacity, m.external_opacity,
+                  m.angular_momentum, m.dispersion)
+        m.update([])                                # must not decay the EMAs
+        after = (m.order_param, m.internal_opacity, m.external_opacity,
+                 m.angular_momentum, m.dispersion)
+        self.assertEqual(before, after)
+
+    def test_properties_expose_all_five_emas(self):
+        from metrics_3d import FlockMetrics3D
+        m = FlockMetrics3D(smooth=1.0)              # no smoothing lag
+        flock = [_StubBoid((i * 10, 0, 0), (4, 0, 0), last_theta=0.5)
+                 for i in range(10)]
+        m.update(flock)
+        self.assertAlmostEqual(m.order_param, 1.0, places=6)   # aligned
+        self.assertAlmostEqual(m.internal_opacity, 0.5, places=6)
+        self.assertGreaterEqual(m.external_opacity, 0.0)
+        self.assertGreaterEqual(m.angular_momentum, 0.0)
+        self.assertGreater(m.dispersion, 0.0)                  # spread line
 
 
 class TestMarginalOpacity(unittest.TestCase):
@@ -412,6 +516,28 @@ class TestDensityEstimators(unittest.TestCase):
         loose = rng.normal(0, 100, (200, 3))
         tight = rng.normal(0, 30, (200, 3))
         self.assertGreater(number_density(tight), number_density(loose))
+
+    def test_gyration_degenerate_inputs(self):
+        from density_scaling import gyration_radius
+        self.assertEqual(gyration_radius([(1.0, 2.0, 3.0)]), 0.0)  # 1 point
+        self.assertEqual(gyration_radius(np.zeros((0, 3))), 0.0)   # empty
+
+    def test_number_density_degenerate_flock(self):
+        """Coincident birds have Rg = 0 — density is 0, not a division
+        by a zero-volume sphere."""
+        from density_scaling import number_density
+        self.assertEqual(number_density([(5.0, 5.0, 5.0)] * 4), 0.0)
+
+    def test_settle_and_measure_accept_phi_overrides(self):
+        """settle_flock/measure_point with explicit φp/φa overrides (tiny
+        flock and frame counts — this checks plumbing, not physics)."""
+        from density_scaling import settle_flock, measure_point
+        pts = settle_flock(4, phi_p=0.05, phi_a=0.6, frames=2, seed=0)
+        self.assertEqual(pts.shape, (4, 3))
+        rep = measure_point(4, phi_p=0.05, frames=3, seeds=(0,), tail=2)
+        self.assertEqual(rep["n"], 4)
+        for key in ("spacing", "density", "size", "theta_ext"):
+            self.assertTrue(np.isfinite(rep[key]))
 
 
 class TestDensityScaling(unittest.TestCase):
@@ -537,6 +663,29 @@ class TestH2Robustness3D(unittest.TestCase):
         eta = eta_of_m(self._cloud(40, 8), m=6)
         self.assertTrue(eta >= 0.0 or eta == float("inf"))
 
+    def test_accepts_attr_points(self):
+        """Points exposing .x/.y (no .z) coerce with z = 0."""
+        import types as _t
+        from h2_robustness import h2_norm
+        pts = [_t.SimpleNamespace(x=float(i % 3) * 10, y=float(i // 3) * 10)
+               for i in range(9)]
+        self.assertGreaterEqual(h2_norm(pts, 3), 0.0)
+
+    def test_eta_degenerate_m_equals_m0(self):
+        from h2_robustness import eta_of_m
+        pts = self._cloud(20, 11)
+        self.assertEqual(eta_of_m(pts, m=3, m0=3), 0.0)
+
+    def test_eta_connectivity_transitions(self):
+        """Two far-apart triads: small m leaves the graph disconnected
+        (H₂ = ∞). The neighbour that first connects it is worth η = ∞;
+        while both graphs are disconnected η is 0."""
+        from h2_robustness import eta_of_m
+        pts = [(0, 0, 0), (10, 0, 0), (0, 10, 0),
+               (1000, 0, 0), (1010, 0, 0), (1000, 10, 0)]
+        self.assertEqual(eta_of_m(pts, m=5, m0=1), math.inf)  # ∞ → finite
+        self.assertEqual(eta_of_m(pts, m=2, m0=1), 0.0)       # ∞ → ∞
+
 
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  ecology — Goodenough seasonal / critical mass / predator             ║
@@ -575,6 +724,36 @@ class TestEcology(unittest.TestCase):
     def test_predator_deterministic_per_day(self):
         from ecology import predator_present
         self.assertEqual(predator_present(42), predator_present(42))
+
+    def test_predator_drawn_from_rng(self):
+        """With an rng the presence is a draw against PREDATOR_RATE, not the
+        per-day hash."""
+        import types as _t
+        from ecology import predator_present
+        self.assertTrue(predator_present(42, rng=_t.SimpleNamespace(
+            random=lambda: 0.0)))
+        self.assertFalse(predator_present(42, rng=_t.SimpleNamespace(
+            random=lambda: 0.999)))
+
+    def test_flock_size_for_day(self):
+        from ecology import flock_size_for_day, PEAK_DAY
+        self.assertEqual(flock_size_for_day(PEAK_DAY, 500), 500)
+        # Summer trough scales down but never below min_size.
+        self.assertGreaterEqual(flock_size_for_day(PEAK_DAY + 182, 100,
+                                                   min_size=95), 95)
+
+    def test_coherence_midpoint_partial(self):
+        """Inside the ramp [0.4·N_crit, 1.2·N_crit] the smoothstep is
+        strictly between the extremes."""
+        from ecology import coherence_factor, CRITICAL_MASS
+        f = coherence_factor(CRITICAL_MASS)
+        self.assertGreater(f, 0.0)
+        self.assertLess(f, 1.0)
+
+    def test_coherence_degenerate_critical_mass(self):
+        """critical_mass = 0 collapses the ramp — every flock is coherent."""
+        from ecology import coherence_factor
+        self.assertEqual(coherence_factor(10, critical_mass=0), 1.0)
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
@@ -617,6 +796,22 @@ class TestFlockShape3D(unittest.TestCase):
                              _StubBoid((1, 1, 1), (0, 0, 0))])
         self.assertEqual(rep.count, 2)
 
+    def test_repr_readout(self):
+        from flock_shape import analyze_shape
+        rep = analyze_shape([_StubBoid((x, 0.0, 0.0), (0, 0, 0))
+                             for x in range(0, 100, 10)])
+        s = repr(rep)
+        self.assertIn("ShapeReport", s)
+        self.assertIn("aspect=", s)
+
+    def test_accepts_raw_points(self):
+        """Bare (x, y, z) tuples work as well as boids (the _as_xyz
+        fallback)."""
+        from flock_shape import analyze_shape
+        rep = analyze_shape([(0.0, 0.0, 0.0), (10.0, 0.0, 0.0),
+                             (0.0, 10.0, 0.0), (0.0, 0.0, 10.0)])
+        self.assertEqual(rep.count, 4)
+
 
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  correlation_time — Pearce τρ (3D hull volume)                        ║
@@ -657,6 +852,44 @@ class TestCorrelationTime3D(unittest.TestCase):
         t = CorrelationTimeTracker()
         t.sample([_StubBoid((0, 0, 0), (0, 0, 0))])
         self.assertEqual(t.tau, 0.0)
+
+    def test_buffer_is_capped(self):
+        """The density buffer drops its oldest sample past BUFFER_SIZE."""
+        import correlation_time as ct
+        random.seed(6)
+        old = ct.BUFFER_SIZE
+        ct.BUFFER_SIZE = 5
+        try:
+            t = ct.CorrelationTimeTracker()
+            for _ in range(ct.SAMPLE_INTERVAL * 8):     # 8 samples → cap 5
+                flock = [_StubBoid((random.uniform(0, 100),
+                                    random.uniform(0, 100),
+                                    random.uniform(0, 100)), (0, 0, 0))
+                         for _ in range(12)]
+                t.sample(flock)
+            self.assertEqual(t.n_samples, 5)
+        finally:
+            ct.BUFFER_SIZE = old
+
+    def test_constant_density_zero_tau(self):
+        """A perfectly constant density has zero variance — τρ is 0, not
+        a 0/0."""
+        from correlation_time import CorrelationTimeTracker, SAMPLE_INTERVAL
+        cube = [_StubBoid(p, (0, 0, 0)) for p in
+                [(0, 0, 0), (10, 0, 0), (0, 10, 0), (0, 0, 10),
+                 (10, 10, 10), (10, 10, 0), (10, 0, 10), (0, 10, 10)]]
+        t = CorrelationTimeTracker()
+        for _ in range(SAMPLE_INTERVAL * 10):           # 10 identical samples
+            t.sample(cube)
+        self.assertEqual(t.tau, 0.0)
+
+    def test_hull_accepts_raw_points(self):
+        """Bare (x, y, z) tuples work as well as boids (the _as_xyz
+        fallback)."""
+        from correlation_time import convex_hull_volume
+        cube = [(0, 0, 0), (10, 0, 0), (0, 10, 0), (0, 0, 10),
+                (10, 10, 10), (10, 10, 0), (10, 0, 10), (0, 10, 10)]
+        self.assertAlmostEqual(convex_hull_volume(cube), 1000.0, places=3)
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗

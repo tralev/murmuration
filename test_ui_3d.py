@@ -257,6 +257,68 @@ class TestInputHandler3D(unittest.TestCase):
         result, *_ = _run([_key(pygame.K_SPACE)])
         self.assertEqual(len(result), 6)
 
+    def test_ext_none_defaults_to_dict(self):
+        """Calling without an ext dict must not crash the handlers that
+        write into it (predator spawn)."""
+        import pygame
+        from input_handler_3d import handle_input
+        from flock_core import Config
+        from camera_3d import OrbitCamera
+        with mock.patch("pygame.event.get",
+                        return_value=[_key(pygame.K_t)]):
+            result = handle_input(Config(), [], True, False, OrbitCamera(),
+                                  0, 0, False, False, None)
+        self.assertEqual(len(result), 6)
+
+    def test_v_resets_camera_view(self):
+        import pygame
+        from camera_3d import OrbitCamera
+        cam = OrbitCamera()
+        cam.azimuth += 1.0
+        cam.distance += 300.0
+        _run([_key(pygame.K_v)], camera=cam)
+        self.assertAlmostEqual(cam.azimuth, cam._DEFAULT_AZIMUTH, places=6)
+        self.assertAlmostEqual(cam.distance, cam._DEFAULT_DISTANCE, places=6)
+
+    def test_o_toggles_auto_rotate(self):
+        import pygame
+        from camera_3d import OrbitCamera
+        cam = OrbitCamera()
+        _run([_key(pygame.K_o)], camera=cam)
+        self.assertTrue(cam.auto_rotate)
+        _run([_key(pygame.K_o)], camera=cam)
+        self.assertFalse(cam.auto_rotate)
+
+    def test_down_arrow_keeps_weights_feasible(self):
+        """K_DOWN with φp + φa > 1 pulls φa back to the simplex."""
+        import pygame
+        from flock_core import Config
+        cfg = Config()
+        cfg.phi_p, cfg.phi_a = 0.5, 0.9
+        _run([_key(pygame.K_DOWN)], config=cfg)
+        self.assertAlmostEqual(cfg.phi_p, 0.49, places=6)
+        self.assertAlmostEqual(cfg.phi_a, 1.0 - cfg.phi_p, places=6)
+
+    def test_right_arrow_keeps_weights_feasible(self):
+        """K_RIGHT raising φa past the simplex pulls φp back."""
+        import pygame
+        from flock_core import Config
+        cfg = Config()
+        cfg.phi_p, cfg.phi_a = 0.5, 0.95
+        _run([_key(pygame.K_RIGHT)], config=cfg)
+        self.assertAlmostEqual(cfg.phi_a, 0.96, places=6)
+        self.assertAlmostEqual(cfg.phi_p, 1.0 - cfg.phi_a, places=6)
+
+    def test_scroll_down_zooms_out(self):
+        import pygame
+        from camera_3d import OrbitCamera
+        cam = OrbitCamera()
+        d0 = cam.distance
+        scroll_out = types.SimpleNamespace(type=pygame.MOUSEBUTTONDOWN,
+                                           button=5)
+        _run([scroll_out], camera=cam)
+        self.assertGreater(cam.distance, d0)
+
 
 # ══════════════════════════════════════════════════════════════════════
 #  shaders_3d — bird mesh arrays + GLSL source strings
