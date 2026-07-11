@@ -176,6 +176,9 @@ python main_3d.py
 # headless GIF
 pip install Pillow && python capture_3d.py     # → murmuration_3d.gif
 
+# analysis notebook (3D, runs headless — order/opacity, m*, shape, density scaling)
+jupyter notebook notebooks/murmuration.ipynb
+
 # tests (fast; the two ~25s integration tests are gated)
 python -m unittest test_3d test_science_3d
 RUN_SLOW_TESTS=1 python -m unittest test_3d test_science_3d   # include slow

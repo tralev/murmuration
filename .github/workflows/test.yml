@@ -34,12 +34,14 @@ jobs:
 
       - name: Install test dependencies
         # numpy/scipy for the science tests; pygame/PyGLM/moderngl so the
-        # test_ui_3d module imports (it mocks events — no display/GL context).
-        run: pip install "numpy>=1.21" "scipy>=1.7" "pygame>=2.0,<3.0" "PyGLM>=2.5" "moderngl>=5.6"
+        # test_ui_3d module imports (it mocks events — no display/GL context);
+        # coverage for the enforced coverage floor.
+        run: pip install "numpy>=1.21" "scipy>=1.7" "pygame>=2.0,<3.0" "PyGLM>=2.5" "moderngl>=5.6" "coverage>=7.0"
 
       - name: Run the Python test gate (run_tests.sh)
         env:
           RUN_SLOW_TESTS: "1"   # include the ~25s marginal-opacity integration test
+          COVERAGE: "1"         # run under coverage and enforce COVERAGE_MIN (95%)
         run: ./run_tests.sh -v
 
   docker:

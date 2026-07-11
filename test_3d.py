@@ -774,6 +774,51 @@ class TestBoid3DBoundaryModes(unittest.TestCase):
 
 
 # ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Physics invariants (property/fuzz)                                 ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+class TestPhysicsInvariants(unittest.TestCase):
+    """Invariants that must hold for *any* state after update(), fuzzed over
+    random configurations — the speed band and the toroidal position bounds."""
+
+    def test_speed_ceiling_never_exceeds_v0(self):
+        """After update(), no bird is ever faster than V0, whatever force was
+        accumulated."""
+        rng = np.random.default_rng(0)
+        for _ in range(200):
+            b = Boid3D()
+            b.vel = rng.uniform(-2 * V0, 2 * V0, 3).astype(np.float32)
+            b.acc = rng.uniform(-5 * MAX_FORCE, 5 * MAX_FORCE, 3).astype(np.float32)
+            b.update()
+            self.assertLessEqual(float(np.linalg.norm(b.vel)), V0 + 1e-4)
+
+    def test_speed_floor_rescales_a_slow_bird(self):
+        """A slow (but not frozen) bird is boosted back up to the 0.3·V0 floor."""
+        b = Boid3D()
+        b.vel = np.array([0.5, 0.0, 0.0], dtype=np.float32)   # 0.5 < 0.3·V0 = 1.2
+        b.acc = np.zeros(3, dtype=np.float32)
+        b.update()
+        self.assertAlmostEqual(float(np.linalg.norm(b.vel)), 0.3 * V0, places=4)
+
+    def test_toroidal_wrap_keeps_positions_in_bounds(self):
+        """In wrap mode, every in-bounds bird stays within [0, L] on each axis
+        after one step (speed ≤ V0 means it wraps at most once)."""
+        import boid_3d as m
+        self.assertFalse(m.OPEN_BOUNDARY)          # default: toroidal wrap
+        self.assertFalse(m.MARGIN_BOUNDARY)
+        rng = np.random.default_rng(1)
+        L = np.array([WIDTH, HEIGHT, DEPTH], dtype=float)
+        for _ in range(200):
+            b = Boid3D()
+            b.pos = (rng.uniform(0, 1, 3) * L).astype(np.float32)
+            b.vel = rng.uniform(-V0, V0, 3).astype(np.float32)
+            b.acc = rng.uniform(-MAX_FORCE, MAX_FORCE, 3).astype(np.float32)
+            b.update()
+            self.assertTrue(np.all(b.pos >= -1e-4) and np.all(b.pos <= L + 1e-4),
+                            f"out of bounds: {b.pos}")
+
+
+# ╔══════════════════════════════════════════════════════════════════════╗
 # ║  Discovery gate (tests.md §3.1)                                     ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
@@ -782,7 +827,7 @@ class TestDiscovery(unittest.TestCase):
     out of unittest discovery; this fails loudly instead. Update the pin
     when tests are deliberately added or removed."""
 
-    EXPECTED = 50
+    EXPECTED = 53
 
     def test_module_test_count(self):
         import test_3d as m

@@ -16,28 +16,31 @@ Recover any original 2D test with `git show c948b22:<name>.py`.
 | **python** | `test_3d.py` | physics, spatial grid, the two flocking modes, boundary modes |
 | **python** | `test_science_3d.py` | the paper-grounded science modules (occlusion, metrics, ecology, Young, density scaling) |
 | **python** | `test_ui_3d.py` | the non-science stack testable without a display: `OrbitCamera` (pure glm), `input_handler_3d` (mocked events), `shaders_3d`, `features` |
-| **python** | `test_render_3d.py` | `renderer_3d` via a headless ModernGL FBO (one real frame + read-back); self-skips where no GL driver exists |
-| **sh** | `run_tests.sh` | the shared gate: syntax check (`py_compile` every module) + `unittest test_3d test_science_3d test_ui_3d`. `RUN_SLOW_TESTS=1` adds the gated integration tests |
+| **python** | `test_render_3d.py` | `renderer_3d` via a headless ModernGL FBO (one real frame + read-back, instance packing, resize); self-skips where no GL driver exists |
+| **python** | `test_simulation_3d.py` | `simulation_3d.World` — the headless per-frame loop main_3d drives: flock-size edits (+/-/R), the physics/metrics step, predator + roosting hooks |
+| **python** | `test_docs_3d.py` | doc-drift guards: README module names, `sci.md#anchor` links, and the run_tests.sh module list all resolve |
+| **sh** | `run_tests.sh` | the shared gate: syntax check (`py_compile` every module) + `unittest` over the six modules. `RUN_SLOW_TESTS=1` adds the gated integration tests; `COVERAGE=1` runs under coverage and enforces `COVERAGE_MIN` (default 95 %) |
 | **docker** | `docker_test.sh` | build image → run tests in-image → headless smoke-launch (§5) |
-| **ci** | `.github/workflows/test.yml` | Python-version matrix + the Docker job (§6) |
+| **ci** | `.github/workflows/test.yml` | Python-version matrix (RUN_SLOW + COVERAGE on) + the Docker job (§6) |
 | **hook** | `.githooks/pre-commit` | runs `run_tests.sh --quiet` before every commit |
 
-`test_3d` / `test_science_3d` are **pure numpy/scipy**; `test_ui_3d` also needs
-`pygame` / `glm` / `moderngl` importable but **never opens a display or GL
-context** (events are mocked, the camera is pure maths). Most tests use a
-duck-typed **stub boid** (`_StubBoid` — numpy Vec3 `.pos`/`.vel` + `.last_theta`)
-so nothing needs a `Boid3D`, a grid, or a GPU.
+`test_3d` / `test_science_3d` / `test_simulation_3d` / `test_docs_3d` are **pure
+numpy/scipy**; `test_ui_3d` also needs `pygame` / `glm` / `moderngl` importable
+but **never opens a display or GL context** (events are mocked, the camera is
+pure maths). Most tests use a duck-typed **stub boid** (`_StubBoid` — numpy Vec3
+`.pos`/`.vel` + `.last_theta`) so nothing needs a `Boid3D`, a grid, or a GPU.
 
 ### Coverage
 
-`python -m coverage run -m unittest test_3d test_science_3d test_ui_3d` →
-**≈99 %** of the unit-testable code (`RUN_SLOW_TESTS=1` for the full figure).
+`COVERAGE=1 RUN_SLOW_TESTS=1 ./run_tests.sh` → **≈99 %** of the headless-testable
+code, enforced by a `coverage report --fail-under=95` gate (CI sets both flags).
 Every science and logic module sits at 99–100 %; the only unhit lines are the
-`density_scaling` `__main__` entry point and one provably unreachable defensive
-clip in `metrics_3d.external_opacity`. `renderer_3d` is additionally smoke-tested
-by `test_render_3d` on machines whose GL driver can create a standalone ModernGL
-context (it skips elsewhere). Only `main_3d` and `capture_3d` remain exercised
-solely by the Docker **smoke-launch** (§5).
+`density_scaling` `__main__` entry point, one provably unreachable defensive clip
+in `metrics_3d.external_opacity`, and the `World` verbose-print branch. The floor
+**omits** the three GL-context modules (`renderer_3d`, `main_3d`, `capture_3d`),
+because `test_render_3d` self-skips on a bare CI runner with no OpenGL — leaving
+them imported-but-unexecuted; they are exercised by the Docker **smoke-launch**
+(§5) instead (and `renderer_3d` hits 100 % locally where a GL context exists).
 
 ---
 
@@ -171,10 +174,10 @@ Ideas from the 2D/multi-language suite worth adopting in 3D:
 Every 2D module carried a `TestDiscovery` class whose single test asserted the
 module's **exact test count**, and `scripts/check-test-count.sh` / CI stage 2 ran
 them in ~1 ms as a fast gate. It catches *silently dropped* tests (a renamed or
-mis-indented method that `unittest` no longer discovers). Adopted: each of
-`test_3d` / `test_science_3d` / `test_ui_3d` ends with a `TestDiscovery` class
-asserting `TestLoader().loadTestsFromModule(m).countTestCases()` equals its
-pinned count (update the pin when tests are deliberately added or removed).
+mis-indented method that `unittest` no longer discovers). Adopted: each of the
+six test modules ends with a `TestDiscovery` class asserting
+`TestLoader().loadTestsFromModule(m).countTestCases()` equals its pinned count
+(update the pin when tests are deliberately added or removed).
 
 ### 3.2 Determinism / golden reference  (✅, replaces cross-language parity)
 
@@ -220,6 +223,44 @@ them. Keep new ≥1 s tests behind the same flag.
 Tests inject a minimal `_StubBoid(pos, vel, last_theta)` rather than a real
 `Boid3D`, so the science functions are tested in isolation with no grid, no
 physics loop, and no GPU. Keep new science pure and stub-testable.
+
+### 3.6 Property / metamorphic tests  (✅)
+
+Beyond fixed examples, invariants are fuzzed over many random configurations:
+`test_3d.TestPhysicsInvariants` asserts the speed band (`|v| ≤ V0` always; the
+`0.3·V0` floor rescales slow birds) and toroidal position bounds after
+`update()`; `test_science_3d.TestMetricInvariances` asserts the *symmetries* the
+observables claim — the order parameter is invariant under a global rotation of
+all velocities (and = 1 for aligned, ∈ [0, 1] always), dispersion is invariant
+under a global translation; `test_science_3d.TestOcclusionInvariants` fuzzes the
+occlusion contract (|δ̂| ≤ 1, Θ ∈ [0, 1], visible closest-first, blind-cone
+respected, `anisotropy = 1` ≡ isotropic). Metamorphic checks catch
+frame-of-reference and numeric bugs that hand-picked cases miss.
+
+### 3.7 Headless simulation loop  (✅)
+
+The per-frame update logic lives in `simulation_3d.World`, factored out of
+`main_3d`'s render loop so it runs with no window or GL context.
+`test_simulation_3d` drives it directly: flock-size edits (add grows; remove
+never empties the flock and spreads leftover across frames; reset restores
+`NUM_BOIDS` and rebuilds the grid), the physics/metrics step, and the
+behavioural hooks (a predator perturbs the trajectory; roosting advances the
+day-clock and pulls the flock down). `main_3d` is now a thin input+render driver.
+
+### 3.8 Doc-drift guards  (✅)
+
+`test_docs_3d` keeps the code↔doc map honest: every ``module.py`` named in the
+README resolves to a real file, every section-anchor link into `sci.md` (across
+README / sci.md / tests.md) points at a real heading (GitHub's slug algorithm),
+and every module in `run_tests.sh`'s `MODULES` list exists. A rename that breaks
+the map fails the gate instead of rotting silently.
+
+### 3.9 Enforced coverage floor  (✅)
+
+`COVERAGE=1 ./run_tests.sh` runs the suite under `coverage` and fails if the
+headless-testable code drops below `COVERAGE_MIN` (default 95 %). CI sets it
+alongside `RUN_SLOW_TESTS=1`. See the [Coverage](#coverage) note for what the
+floor omits and why.
 
 ---
 

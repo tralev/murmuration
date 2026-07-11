@@ -495,6 +495,51 @@ class TestAngularMomentumDispersion(unittest.TestCase):
         self.assertAlmostEqual(dispersion(flock), 10.0, places=6)
 
 
+class TestMetricInvariances(unittest.TestCase):
+    """Metamorphic properties — the observables must be invariant under the
+    symmetries they claim to respect (rotation of velocities, translation of
+    positions), fuzzed over random flocks."""
+
+    def _rotation(self, rng):
+        # A random rotation matrix via QR of a Gaussian (fix reflection).
+        q, r = np.linalg.qr(rng.normal(size=(3, 3)))
+        return q * np.sign(np.diag(r))
+
+    def test_order_parameter_rotation_invariant(self):
+        from metrics_3d import order_parameter
+        rng = np.random.default_rng(0)
+        for _ in range(30):
+            flock = [_StubBoid(rng.normal(0, 100, 3), rng.normal(0, 4, 3))
+                     for _ in range(40)]
+            a0 = order_parameter(flock)
+            R = self._rotation(rng)
+            for b in flock:
+                b.vel = R @ b.vel
+            self.assertAlmostEqual(order_parameter(flock), a0, places=6)
+
+    def test_order_parameter_unit_for_aligned_and_bounded(self):
+        from metrics_3d import order_parameter
+        aligned = [_StubBoid((i, 0, 0), (3, 1, 2)) for i in range(25)]
+        self.assertAlmostEqual(order_parameter(aligned), 1.0, places=6)
+        rng = np.random.default_rng(1)
+        for _ in range(30):
+            flock = [_StubBoid((0, 0, 0), rng.normal(0, 4, 3)) for _ in range(30)]
+            a = order_parameter(flock)
+            self.assertGreaterEqual(a, 0.0)
+            self.assertLessEqual(a, 1.0 + 1e-9)
+
+    def test_dispersion_translation_invariant(self):
+        from metrics_3d import dispersion
+        rng = np.random.default_rng(2)
+        for _ in range(30):
+            pts = rng.normal(0, 80, (35, 3))
+            flock = [_StubBoid(p, (1, 0, 0)) for p in pts]
+            d0 = dispersion(flock)
+            shift = rng.normal(0, 500, 3)
+            shifted = [_StubBoid(p + shift, (1, 0, 0)) for p in pts]
+            self.assertAlmostEqual(dispersion(shifted), d0, places=4)
+
+
 class TestFlockMetrics3D(unittest.TestCase):
     def test_update_smooths_toward_raw(self):
         from metrics_3d import FlockMetrics3D, order_parameter
@@ -1033,7 +1078,7 @@ class TestDiscovery(unittest.TestCase):
     out of unittest discovery; this fails loudly instead. Update the pin
     when tests are deliberately added or removed."""
 
-    EXPECTED = 105
+    EXPECTED = 108
 
     def test_module_test_count(self):
         import test_science_3d as m

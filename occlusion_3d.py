@@ -64,6 +64,15 @@ import numpy as np
 
 from flock_core import BOID_SIZE
 
+# Bound on how many neighbours enter the O(V²) closest-first visibility test.
+# The occlusion processes candidates nearest-first and a far bird is almost
+# always occluded by nearer ones (contributing nothing to δ̂ or Θ), so keeping
+# only the nearest N is a safe cap that bounds cost for dense flocks. Chosen
+# well above any realistic in-range neighbour count, so ordinary flocks — and
+# the golden-trajectory config — are unaffected; it only clips pathologically
+# dense neighbourhoods. Set to None to disable.
+MAX_OCCLUSION_NEIGHBOURS = 64
+
 
 # ── Geometry helpers (view-sphere sampling, position/heading coercion) ──
 
@@ -178,6 +187,8 @@ def spherical_cap_occlusion(observer, neighbours, blind_cos=None, anisotropy=1.0
     omega = 2.0 * math.pi * (1.0 - cos_a)                   # cap solid angles
 
     order = np.argsort(dists)                                # closest first
+    if MAX_OCCLUSION_NEIGHBOURS is not None and len(order) > MAX_OCCLUSION_NEIGHBOURS:
+        order = order[:MAX_OCCLUSION_NEIGHBOURS]             # bound the O(V²) test
 
     # ── Closest-first visibility: a bird is hidden when its direction
     #    lies inside a nearer *visible* bird's cap. The dot-product test

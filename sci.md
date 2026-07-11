@@ -340,6 +340,28 @@ The position update `p ← p + v` (Eq. 2), the weight constraint (Eq. 4, via
 `Config.phi_n = max(0, 1 − φp − φa)`), and every quantity in §4.1–§4.5 are
 implemented exactly as written.
 
+- **Wrap is toroidal; interaction is *not*.** `Boid3D.update()` re-enters a
+  bird on the opposite wall (per-axis, §4.9), but neighbour finding and the
+  δ̂ / Reynolds geometry use the plain **Euclidean** displacement `p_i − p_j`
+  — there is no minimum-image (nearest-across-the-seam) convention. So a bird
+  at `x ≈ 0` and one at `x ≈ WIDTH` are spatially adjacent on the torus yet do
+  **not** flock with each other. This is a deliberate simplification: the
+  viewer's toroidal wrap only recycles birds that drift off-domain, while the
+  scientifically-load-bearing runs use the open (free-flight) boundary (§4.9)
+  where there is no seam at all, so a wrap-aware interaction metric would add
+  cost and edge cases for no benefit to the modelled regime. `SpatialGrid3D`
+  reflects the same choice: its cell indices wrap (`% cols`) so a query near a
+  wall still returns candidates, but the caller re-filters them by Euclidean
+  distance, so cross-seam candidates are gathered and then discarded.
+  (Pinned by `test_3d.TestSpatialGrid3D.test_seam_and_drift_guarantees`.)
+- **Bounded occlusion neighbourhood.** The closest-first visibility test is
+  `O(V²)` in the number of in-range neighbours `V`. `occlusion_3d.py` caps `V`
+  at `MAX_OCCLUSION_NEIGHBOURS = 64` (nearest-first), which bounds cost for
+  pathologically dense neighbourhoods. A far bird is almost always occluded by
+  nearer ones and contributes nothing to δ̂ or Θ, and the cap sits well above
+  any realistic in-range count, so ordinary flocks — and the golden-trajectory
+  config — are numerically identical with or without it.
+
 ### 4.7 Pearce SI refinements in 3D (`U` key; on by default)
 
 - **Steric repulsion** — a short-range push away from every neighbour inside a
@@ -667,14 +689,16 @@ give the flock motion history; both feed the adaptive-quality tier-1 toggle (§6
 
 ### 7.4 Headless validation & analysis
 
-*(`notebooks/murmuration.ipynb`.)* The notebook ran the sim headless (~600 frames)
-and plotted the **three Pearce predictions** — emergent marginal opacity Θ in the
-0.25–0.6 band, the order parameter α, and the density autocorrelation time τρ. In
-the 3D stack these observables already exist (`metrics_3d`, `correlation_time`,
-`density_scaling`), so a 3D notebook is a thin wrapper: run the update loop
-headless (`SDL_VIDEODRIVER=dummy`), collect `FlockMetrics3D` each frame, and plot
-Θ(t) against the marginal band, α(t), and the fitted density exponent (§4.9). The
-gated integration tests in `run_tests.sh` already exercise this programmatically.
+**Done — `notebooks/murmuration.ipynb`.** A runnable 3D analysis notebook drives
+the science modules headlessly (`%matplotlib inline`, no GPU) and plots four
+things: (1) the order parameter α(t), internal/external opacity Θ/Θ′ and
+dispersion as the flock self-organises — via the new `simulation_3d.World`;
+(2) consensus robustness H₂(m) with the cost-optimal m\* (Young); (3) the
+shape-driven suggested m\* for thin vs round flocks (`flock_shape`); and (4) the
+density-scaling exponent fit (`density_scaling`, §4.9). It is committed with its
+executed outputs so it renders on GitHub, and it re-runs from either the repo
+root or `notebooks/`. The gated integration tests in `run_tests.sh` exercise the
+same modules programmatically.
 
 **Already done:** README Priority 13 (companion `cpuSpatialHash.ts` — a
 string-keyed 3D hash with 27-cell queries) is implemented by

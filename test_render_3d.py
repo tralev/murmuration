@@ -72,6 +72,24 @@ class TestRenderer3DHeadless(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             windowed.capture_frame()
 
+    def test_update_instances_packs_pos_and_vel(self):
+        """update_instances must copy each bird's pos+vel into the six-float
+        instance rows in order."""
+        r = self.renderer
+        flock = [_stub((1, 2, 3), (4, 5, 6)),
+                 _stub((7, 8, 9), (10, 11, 12))]
+        count = r.update_instances(flock)
+        self.assertEqual(count, 2)
+        np.testing.assert_allclose(r.instance_data[0], [1, 2, 3, 4, 5, 6])
+        np.testing.assert_allclose(r.instance_data[1], [7, 8, 9, 10, 11, 12])
+
+    def test_resize_updates_dimensions_and_viewport(self):
+        from renderer_3d import Renderer3D
+        r = Renderer3D(48, 32, headless=True)
+        r.resize(96, 72)
+        self.assertEqual((r.width, r.height), (96, 72))
+        self.assertEqual(tuple(r.ctx.viewport), (0, 0, 96, 72))
+
 
 # ══════════════════════════════════════════════════════════════════════
 #  Discovery gate (tests.md §3.1)
@@ -82,7 +100,7 @@ class TestDiscovery(unittest.TestCase):
     out of unittest discovery; this fails loudly instead. Update the pin
     when tests are deliberately added or removed."""
 
-    EXPECTED = 4
+    EXPECTED = 6
 
     def test_module_test_count(self):
         import test_render_3d as m
