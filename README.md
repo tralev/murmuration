@@ -1,8 +1,16 @@
 # Murmuration — 3D Bird Flock Simulation
 
-A Python simulation of starling murmurations in a full **3D** volume, with
-GPU-accelerated rendering via ModernGL and two runtime-switchable flocking
-models grounded in three founding papers.
+An interactive **scientific simulator of collective animal behaviour** —
+starling murmurations, swarm intelligence, and active-matter flocking — in a
+full **3D** volume. It answers one question from the research literature: *how
+can thousands of birds coordinate without every bird tracking every neighbour?*
+To compare the two leading answers, it lets you switch **at runtime** between a
+proximity-based model and a **vision/occlusion-based** one, both grounded in
+three founding papers, with real-time metrics and GPU-accelerated ModernGL
+rendering.
+
+Keywords: agent-based modelling, collective motion, computational biology,
+projection model, spherical-cap occlusion, order parameter, topological boids.
 
 | Mode | Algorithm | Inspiration |
 |------|-----------|------------|
